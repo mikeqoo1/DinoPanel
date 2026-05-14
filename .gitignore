@@ -141,3 +141,37 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Turborepo
+.turbo
+
+# DinoPanel runtime data
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+runtime/
+
+# Build outputs
+apps/*/dist/
+apps/*/build/
+packages/*/dist/
+release/
+*.tarball
+*.tar.gz
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.recommended.json
+!.vscode/extensions.json
+
+# Claude project metadata
+**/.claude/
+**/.arceus/sessions/
+**/.arceus/
+
+# OS
+.DS_Store
+Thumbs.db

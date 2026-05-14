@@ -1,0 +1,27 @@
+[Unit]
+Description=DinoPanel Linux Management Panel
+Documentation=https://github.com/your-org/dinopanel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/usr/local/dinopanel
+EnvironmentFile=/usr/local/dinopanel/.env
+ExecStart=/usr/bin/env node /usr/local/dinopanel/server/dist/main.js
+Restart=on-failure
+RestartSec=5s
+StandardOutput=append:/var/log/dinopanel/server.log
+StandardError=append:/var/log/dinopanel/server.log
+
+# Security hardening (light — root is needed for panel functionality)
+NoNewPrivileges=false
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=false
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
