@@ -1,4 +1,6 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
+import type { AxiosError } from 'axios';
+import type { ApiErrorResponse } from '@dinopanel/shared';
 
 const TOKEN_STORAGE_KEY = 'dinopanel.tokens';
 
@@ -86,23 +88,80 @@ api.interceptors.response.use(
   },
 );
 
-export interface ApiErrorBody {
-  code?: string;
+/** Type guard: checks if value is the unified ApiErrorResponse from the backend. */
+function isApiErrorResponse(data: unknown): data is ApiErrorResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as Record<string, unknown>)['code'] === 'string' &&
+    typeof (data as Record<string, unknown>)['message'] === 'string'
+  );
+}
+
+/** Zod-style detail item as produced by ZodValidationPipe. */
+interface ZodDetailItem {
+  path?: string | string[];
   message?: string;
-  statusCode?: number;
-  error?: string;
-  details?: unknown;
+}
+
+function formatZodDetails(details: unknown): string | null {
+  if (!Array.isArray(details) || details.length === 0) return null;
+  const items = details as ZodDetailItem[];
+  const lines = items
+    .map((item) => {
+      const path = Array.isArray(item.path)
+        ? item.path.join('.')
+        : typeof item.path === 'string'
+          ? item.path
+          : '';
+      const msg = item.message ?? '';
+      return path ? `field '${path}': ${msg}` : msg;
+    })
+    .filter(Boolean);
+  return lines.length > 0 ? lines.join('; ') : null;
 }
 
 export function extractErrorMessage(err: unknown): string {
+  // 1. AxiosError
   if (axios.isAxiosError(err)) {
-    const data = err.response?.data as ApiErrorBody | undefined;
-    if (data) {
-      if (typeof data.message === 'string') return data.message;
-      if (data.code) return data.code;
+    const axiosErr = err as AxiosError;
+    const data: unknown = axiosErr.response?.data;
+
+    if (data !== undefined && data !== null) {
+      // 1a. New backend format: { code, message, details? }
+      if (isApiErrorResponse(data)) {
+        const zodFormatted = formatZodDetails(data.details);
+        if (zodFormatted) return zodFormatted;
+        return data.message;
+      }
+
+      // 1b. NestJS class-validator: { message: string[] }
+      const dataObj = data as Record<string, unknown>;
+      if (Array.isArray(dataObj['message'])) {
+        const msgs = (dataObj['message'] as unknown[]).filter((m) => typeof m === 'string');
+        if (msgs.length > 0) return (msgs as string[]).join('; ');
+      }
+
+      // 1c. NestJS default: { message: string }
+      if (typeof dataObj['message'] === 'string') return dataObj['message'];
     }
-    return err.message;
+
+    // 1d. No response (network/CORS error)
+    return axiosErr.message || 'Network error';
   }
+
+  // 2. Plain Error
   if (err instanceof Error) return err.message;
-  return 'Unknown error';
+
+  // 3. String
+  if (typeof err === 'string') return err;
+
+  // 4. Unknown — best-effort stringify (treat null/undefined as unknown)
+  if (err === null || err === undefined) return 'Unknown error';
+  try {
+    const s = String(err);
+    return s !== '[object Object]' ? s : 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
 }

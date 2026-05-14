@@ -8,6 +8,84 @@ DinoPanel is a single-binary-style deployment: one Node process serves the API, 
 - Node.js **22.12 LTS or later** (uses `require(esm)` stable feature)
 - Run as root (the panel manages the whole machine: files, services, containers, …)
 
+## 依賴需求（Native Module）
+
+DinoPanel 使用 **node-pty**（C++ native module）提供 Web SSH 終端機功能。
+
+### 標準 tarball（不含 prebuild）
+
+target 機器需要安裝編譯工具鏈，否則 `npm install` 時 node-pty 會無法編譯並中止：
+
+| 發行版 | 安裝指令 |
+|---|---|
+| Ubuntu / Debian | `sudo apt update && sudo apt install -y build-essential python3` |
+| RHEL / Rocky / AlmaLinux | `sudo dnf install -y gcc-c++ make python3` |
+| Arch Linux | `sudo pacman -S --needed base-devel python` |
+
+`install.sh` 在執行 `npm install` **之前**會自動預檢 `python3`、`gcc`、`make` 是否存在，若缺少會印出對應安裝指令並中止，避免在 minimal 系統上安裝到一半失敗。
+
+### Prebuild tarball（免編譯）
+
+若使用含有 `-prebuild-x64` 或 `-prebuild-arm64` 後綴的 tarball，node-pty 的
+precompiled binary 已打包進去。`install.sh` 偵測到 `prebuilds/linux-<arch>/pty.node`
+後會**跳過編譯工具鏈預檢**，target 機器不需要 build-essential / python3。
+
+## Prebuild 使用方式
+
+### 打包含 prebuild 的 tarball
+
+在有 build-essential 的 build 機器上執行：
+
+```sh
+# 打包 linux-x64 prebuild
+bash scripts/build-release.sh --prebuild=x64
+# → release/dinopanel-0.1.0-prebuild-x64.tar.gz
+
+# 打包 linux-arm64 prebuild（須在 arm64 機器執行）
+bash scripts/build-release.sh --prebuild=arm64
+# → release/dinopanel-0.1.0-prebuild-arm64.tar.gz
+
+# 兩個 arch 同時打包（各自在對應機器上執行後手動合併，或透過 CI）
+bash scripts/build-release.sh --prebuild=x64 --prebuild=arm64
+```
+
+> **Cross-arch 說明**：`--prebuild=arm64` 必須在 arm64 機器上執行（或透過 QEMU/docker buildx）。在 x64 機器指定 `--prebuild=arm64` 時，build-release.sh 會印出 warning 並跳過該 arch。
+
+### 安裝端使用 prebuild tarball
+
+```sh
+# 下載含 prebuild 的版本（以 x64 為例）
+curl -fsSL https://your-host/dinopanel-0.1.0-prebuild-x64.tar.gz | tar -xz
+cd dinopanel-0.1.0-prebuild-x64
+
+# 安裝（無需 build-essential）
+sudo bash install.sh
+```
+
+### 未來可加 CI Prebuild
+
+目前 GitHub Actions release workflow 尚未建立。未來可加 build matrix 自動化 prebuild：
+
+```yaml
+# 參考設計（尚未實作）
+jobs:
+  build:
+    strategy:
+      matrix:
+        runner: [ubuntu-22.04, ubuntu-22.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/build-release.sh --prebuild=x64   # x64 runner
+      #      bash scripts/build-release.sh --prebuild=arm64  # arm64 runner
+      - uses: actions/upload-artifact@v4
+        with:
+          path: release/*.tar.gz
+```
+
+搭配 `actions/release-artifacts` 即可在 release 頁面同時提供標準版與 prebuild 版下載。
+
 ## Quick install
 
 ```sh

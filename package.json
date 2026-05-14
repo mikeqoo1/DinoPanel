@@ -16,7 +16,9 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
-    "test": "turbo run test",
+    "test": "vitest run --workspace vitest.workspace.ts",
+    "test:watch": "vitest --workspace vitest.workspace.ts",
+    "test:e2e": "playwright test",
     "clean": "turbo run clean && rm -rf node_modules",
     "demo": "pnpm build && pnpm demo:start",
     "demo:start": "bash scripts/demo.sh start",
@@ -34,6 +36,8 @@
     "prettier-plugin-tailwindcss": "^0.6.9",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.18.2"
+    "typescript-eslint": "^8.18.2",
+    "@playwright/test": "^1.60.0",
+    "vitest": "^2.1.8"
   }
 }

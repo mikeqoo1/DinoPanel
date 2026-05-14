@@ -32,10 +32,91 @@ case "$(uname -s)" in
   Linux) ;;
   *) err "Only Linux is supported" ;;
 esac
-case "$(uname -m)" in
-  x86_64|amd64|aarch64|arm64) ;;
-  *) err "Unsupported architecture: $(uname -m)" ;;
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64)  ARCH_NORM="x64"  ;;
+  aarch64|arm64) ARCH_NORM="arm64" ;;
+  *) err "Unsupported architecture: $ARCH" ;;
 esac
+
+# ── node-pty Native Module Dependency Check ──────────────────────────────────
+# node-pty is a C++ native module. The release tarball may optionally ship
+# precompiled binaries under prebuilds/linux-<arch>/. If prebuilds are present
+# the target machine does NOT need build-essential/python3.
+# If prebuilds are absent, the system must have a build toolchain.
+SRC_EARLY="$(cd "$(dirname "$0")" && pwd)"
+PREBUILD_NODE="${SRC_EARLY}/server/node_modules/node-pty/prebuilds/linux-${ARCH_NORM}/pty.node"
+
+if [ -f "$PREBUILD_NODE" ]; then
+  info "偵測到 node-pty 預編譯二進位（linux-${ARCH_NORM}），跳過編譯工具預檢"
+  # 驗證預編譯二進位可被目前 Node.js 載入
+  if ! node -e "require('node-pty')" 2>/dev/null; then
+    # 預編譯檔存在但無法從全域載入是正常的（node_modules 路徑尚未建立）
+    # 只確認 .node 檔案為有效 ELF/binary
+    if ! file "$PREBUILD_NODE" 2>/dev/null | grep -qiE "(ELF|shared object|dynamic)"; then
+      err "預編譯二進位疑似損毀：$PREBUILD_NODE\n請改用不含 prebuilds 的 tarball，或重新下載。"
+    fi
+    ok "預編譯二進位格式正常（ELF）"
+  else
+    ok "預編譯二進位可載入"
+  fi
+else
+  info "未偵測到 node-pty 預編譯二進位，檢查編譯工具鏈 ..."
+  MISSING_TOOLS=()
+  command -v python3 >/dev/null || MISSING_TOOLS+=("python3")
+  command -v gcc     >/dev/null || MISSING_TOOLS+=("gcc")
+  command -v make    >/dev/null || MISSING_TOOLS+=("make")
+
+  if [ ${#MISSING_TOOLS[@]} -gt 0 ]; then
+    printf "\033[31m[ERROR]\033[0m node-pty 是原生模組，編譯需要：%s\n" "${MISSING_TOOLS[*]}" >&2
+    printf "\033[31m[ERROR]\033[0m 請先安裝後再重新執行：\n" >&2
+
+    # 偵測 OS 類型並給出對應安裝指令
+    if [ -f /etc/os-release ]; then
+      # shellcheck source=/dev/null
+      . /etc/os-release
+      OS_ID="${ID:-unknown}"
+      OS_ID_LIKE="${ID_LIKE:-}"
+    else
+      OS_ID="unknown"
+      OS_ID_LIKE=""
+    fi
+
+    case "$OS_ID" in
+      ubuntu|debian|linuxmint|pop|elementary|kali)
+        printf "\033[33m  sudo apt update && sudo apt install -y build-essential python3\033[0m\n" >&2
+        ;;
+      rhel|centos|rocky|almalinux|fedora|ol)
+        printf "\033[33m  sudo dnf install -y gcc-c++ make python3\033[0m\n" >&2
+        ;;
+      arch|manjaro|endeavouros)
+        printf "\033[33m  sudo pacman -S --needed base-devel python\033[0m\n" >&2
+        ;;
+      *)
+        # 依 ID_LIKE 二次判斷
+        case "$OS_ID_LIKE" in
+          *debian*|*ubuntu*)
+            printf "\033[33m  sudo apt update && sudo apt install -y build-essential python3\033[0m\n" >&2
+            ;;
+          *rhel*|*fedora*)
+            printf "\033[33m  sudo dnf install -y gcc-c++ make python3\033[0m\n" >&2
+            ;;
+          *arch*)
+            printf "\033[33m  sudo pacman -S --needed base-devel python\033[0m\n" >&2
+            ;;
+          *)
+            printf "\033[33m  請依您的 Linux 發行版安裝：build-essential（或等效套件）與 python3\033[0m\n" >&2
+            ;;
+        esac
+        ;;
+    esac
+
+    printf "\n\033[36m[*]\033[0m 小提示：若要使用免編譯的 prebuild tarball，請於發布頁下載含有「-prebuild」字樣的版本。\n" >&2
+    exit 1
+  fi
+  ok "編譯工具鏈完整（python3 / gcc / make）"
+fi
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Node check (need 22.12+)
 command -v node >/dev/null || err "Node.js >= 22.12 is required (try: curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -)"

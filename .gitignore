@@ -172,6 +172,12 @@ release/
 **/.arceus/sessions/
 **/.arceus/
 
+# Testing
+playwright-report/
+test-results/
+coverage/
+e2e/.auth-state.json
+
 # OS
 .DS_Store
 Thumbs.db

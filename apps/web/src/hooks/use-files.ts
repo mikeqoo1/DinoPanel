@@ -83,7 +83,28 @@ export function useFileMutations(currentPath: string, showHidden: boolean) {
     onSuccess: () => invalidate(),
   });
 
-  return { writeFile, mkdir, rename, remove, upload, invalidate };
+  const copyFile = useMutation({
+    mutationFn: async ({ from, to }: { from: string; to: string }) => {
+      await api.post('/files/copy', { from, to });
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const chmod = useMutation({
+    mutationFn: async ({ path, mode }: { path: string; mode: number }) => {
+      await api.post('/files/chmod', { path, mode });
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const chown = useMutation({
+    mutationFn: async ({ path, uid, gid }: { path: string; uid: number; gid: number }) => {
+      await api.post('/files/chown', { path, uid, gid });
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  return { writeFile, mkdir, rename, remove, upload, copyFile, chmod, chown, invalidate };
 }
 
 export function downloadFileUrl(path: string): string {

@@ -13,6 +13,9 @@ import {
   Pencil,
   Loader2,
   Link as LinkIcon,
+  Copy,
+  ShieldCheck,
+  UserCog,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,6 +60,14 @@ export function FilesPage() {
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
+  const [copyTarget, setCopyTarget] = useState<FileEntry | null>(null);
+  const [copyDest, setCopyDest] = useState('');
+  const [chmodTarget, setChmodTarget] = useState<FileEntry | null>(null);
+  const [chmodMode, setChmodMode] = useState('');
+  const [chmodError, setChmodError] = useState('');
+  const [chownTarget, setChownTarget] = useState<FileEntry | null>(null);
+  const [chownUid, setChownUid] = useState('');
+  const [chownGid, setChownGid] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useFileList({ path: currentPath, showHidden });
@@ -108,6 +119,55 @@ export function FilesPage() {
       await muts.remove.mutateAsync(deleteTarget.path);
       setDeleteTarget(null);
       toast.success(t('settings.saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!copyTarget || !copyDest.trim()) return;
+    try {
+      await muts.copyFile.mutateAsync({ from: copyTarget.path, to: copyDest.trim() });
+      setCopyTarget(null);
+      setCopyDest('');
+      toast.success(t('files.copy_success'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const handleChmod = async () => {
+    if (!chmodTarget) return;
+    const modeStr = chmodMode.trim();
+    if (!/^[0-7]{3,4}$/.test(modeStr)) {
+      setChmodError(t('files.chmod_mode_invalid'));
+      return;
+    }
+    setChmodError('');
+    try {
+      await muts.chmod.mutateAsync({ path: chmodTarget.path, mode: parseInt(modeStr, 8) });
+      setChmodTarget(null);
+      setChmodMode('');
+      toast.success(t('files.chmod_success'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const handleChown = async () => {
+    if (!chownTarget) return;
+    const uid = parseInt(chownUid.trim(), 10);
+    const gid = parseInt(chownGid.trim(), 10);
+    if (isNaN(uid) || isNaN(gid)) {
+      toast.error(t('common.error'));
+      return;
+    }
+    try {
+      await muts.chown.mutateAsync({ path: chownTarget.path, uid, gid });
+      setChownTarget(null);
+      setChownUid('');
+      setChownGid('');
+      toast.success(t('files.chown_success'));
     } catch (err) {
       toast.error(extractErrorMessage(err));
     }
@@ -289,6 +349,46 @@ export function FilesPage() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setCopyTarget(entry);
+                            setCopyDest(`${currentPath.replace(/\/$/, '')}/${entry.name}`);
+                          }}
+                          aria-label={t('files.copy')}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChmodTarget(entry);
+                            setChmodMode(
+                              (entry.mode & 0o777).toString(8).padStart(3, '0'),
+                            );
+                            setChmodError('');
+                          }}
+                          aria-label={t('files.chmod')}
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setChownTarget(entry);
+                            setChownUid(String(entry.uid));
+                            setChownGid(String(entry.gid));
+                          }}
+                          aria-label={t('files.chown')}
+                        >
+                          <UserCog className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setDeleteTarget(entry);
                           }}
                           aria-label={t('files.delete')}
@@ -385,6 +485,145 @@ export function FilesPage() {
             <Button variant="destructive" onClick={handleDelete} disabled={muts.remove.isPending}>
               {muts.remove.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('common.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Copy dialog */}
+      <Dialog
+        open={!!copyTarget}
+        onOpenChange={(o) => {
+          if (!o) { setCopyTarget(null); setCopyDest(''); }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('files.copy_dialog_title')}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">{copyTarget?.path}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">{t('files.copy_destination_label')}</label>
+            <Input
+              value={copyDest}
+              onChange={(e) => setCopyDest(e.target.value)}
+              placeholder={t('files.copy_destination_placeholder')}
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleCopy()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCopyTarget(null); setCopyDest(''); }}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleCopy} disabled={!copyDest.trim() || muts.copyFile.isPending}>
+              {muts.copyFile.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Chmod dialog */}
+      <Dialog
+        open={!!chmodTarget}
+        onOpenChange={(o) => {
+          if (!o) { setChmodTarget(null); setChmodMode(''); setChmodError(''); }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('files.chmod_dialog_title')}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">{chmodTarget?.path}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">{t('files.chmod_mode_label')}</label>
+            <Input
+              value={chmodMode}
+              onChange={(e) => { setChmodMode(e.target.value); setChmodError(''); }}
+              placeholder={t('files.chmod_mode_placeholder')}
+              maxLength={4}
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleChmod()}
+            />
+            {chmodError && (
+              <p className="text-xs text-destructive">{chmodError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setChmodTarget(null); setChmodMode(''); setChmodError(''); }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleChmod}
+              disabled={!chmodMode.trim() || muts.chmod.isPending}
+            >
+              {muts.chmod.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Chown dialog */}
+      <Dialog
+        open={!!chownTarget}
+        onOpenChange={(o) => {
+          if (!o) { setChownTarget(null); setChownUid(''); setChownGid(''); }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('files.chown_dialog_title')}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">{chownTarget?.path}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('files.chown_uid_label')}</label>
+              <Input
+                type="number"
+                min={0}
+                value={chownUid}
+                onChange={(e) => setChownUid(e.target.value)}
+                placeholder={t('files.chown_uid_placeholder')}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleChown()}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('files.chown_gid_label')}</label>
+              <Input
+                type="number"
+                min={0}
+                value={chownGid}
+                onChange={(e) => setChownGid(e.target.value)}
+                placeholder={t('files.chown_gid_placeholder')}
+                onKeyDown={(e) => e.key === 'Enter' && handleChown()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setChownTarget(null); setChownUid(''); setChownGid(''); }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handleChown}
+              disabled={
+                chownUid.trim() === '' ||
+                chownGid.trim() === '' ||
+                isNaN(parseInt(chownUid, 10)) ||
+                isNaN(parseInt(chownGid, 10)) ||
+                muts.chown.isPending
+              }
+            >
+              {muts.chown.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
