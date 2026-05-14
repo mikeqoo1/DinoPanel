@@ -1,0 +1,269 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+
+// ---------------------------------------------------------------------------
+// fs mock — hoisted so it's available inside vi.mock factory
+// ---------------------------------------------------------------------------
+
+const fsMock = vi.hoisted(() => ({
+  stat: vi.fn(),
+  open: vi.fn(),
+  readFile: vi.fn(),
+  mkdir: vi.fn(),
+  readdir: vi.fn(),
+  lstat: vi.fn(),
+  access: vi.fn(),
+  rm: vi.fn(),
+  rename: vi.fn(),
+  cp: vi.fn(),
+  chmod: vi.fn(),
+  chown: vi.fn(),
+  readlink: vi.fn(),
+  writeFile: vi.fn(),
+}));
+
+vi.mock('node:fs', () => ({
+  promises: fsMock,
+  constants: { R_OK: 4 },
+  createReadStream: vi.fn(),
+  createWriteStream: vi.fn(),
+}));
+
+vi.mock('archiver', () => ({ default: vi.fn() }));
+
+import { FilesService } from '../files.service';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeService() {
+  return new FilesService();
+}
+
+/** Build a fake file descriptor returned by fs.open() */
+function makeFd(buf: Buffer) {
+  return {
+    read: vi.fn(async (target: Buffer, offset: number, length: number, _pos: number) => {
+      buf.copy(target, offset, 0, length);
+      return { bytesRead: Math.min(length, buf.length) };
+    }),
+    close: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+/** Build a fake stat object for a regular file */
+function makeFileStat(size: number) {
+  return { isFile: () => true, isDirectory: () => false, size, mode: 0o644, mtimeMs: 0, uid: 0, gid: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// resolvePath — path traversal / input validation (cases 1-5)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.resolvePath', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+  });
+
+  // case 1 — pure relative path with leading ".."
+  it('1: rejects pure relative path starting with ..', () => {
+    expect(() => svc.resolvePath('../etc/passwd')).toThrow(BadRequestException);
+  });
+
+  // case 2 — absolute path that contains ".." mid-segment
+  // path.resolve() natively folds ".." segments, so "/home/user/../../etc/passwd"
+  // becomes "/etc/passwd" — a valid canonical absolute path.
+  // resolvePath() returns it without throwing; write operations call assertWritable()
+  // separately to enforce the deny-list on /etc.
+  it('2: absolute path with .. mid-segment resolves to canonical path via resolve()', () => {
+    const result = svc.resolvePath('/home/user/../../etc/passwd');
+    expect(result).toBe('/etc/passwd');
+  });
+
+  // case 3 — null byte embedded in path
+  it('3: rejects path with embedded null byte', () => {
+    expect(() => svc.resolvePath('/tmp/file\0.txt')).toThrow(BadRequestException);
+  });
+
+  // case 4 — URL-encoded traversal sequence; service does NOT URL-decode inputs
+  // "%2e%2e%2fpasswd" is not absolute, so it fails the isAbsolute() guard before
+  // the traversal check is ever reached.
+  it('4: rejects URL-encoded %2e%2e%2f path (not absolute, fails at isAbsolute guard)', () => {
+    expect(() => svc.resolvePath('%2e%2e%2fpasswd')).toThrow(BadRequestException);
+  });
+
+  // case 5 — legitimate absolute path passes and returns canonical path
+  it('5: accepts valid absolute path and returns resolved string', () => {
+    const result = svc.resolvePath('/tmp/foo.txt');
+    expect(result).toBe('/tmp/foo.txt');
+    expect(typeof result).toBe('string');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// readText — binary detection (cases 6-7)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.readText', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // case 6 — valid UTF-8 text file containing emoji
+  it('6: reads UTF-8 text file with emoji successfully', async () => {
+    const content = 'Hello 🦕 world\nline two\n';
+    const buf = Buffer.from(content, 'utf-8');
+    const stat = makeFileStat(buf.length);
+
+    fsMock.stat.mockResolvedValue(stat);
+    fsMock.open.mockResolvedValue(makeFd(buf));
+    fsMock.readFile.mockResolvedValue(content);
+
+    const result = await svc.readText('/tmp/emoji.txt');
+    expect(result.content).toBe(content);
+    expect(result.size).toBe(buf.length);
+  });
+
+  // case 7 — binary file containing null bytes → throws BadRequestException with code FILE_BINARY
+  it('7: rejects binary file containing null bytes', async () => {
+    // Simulate a binary buffer that contains null bytes
+    const buf = Buffer.alloc(512, 0); // all null bytes → definitely binary
+    buf[0] = 0x89; // PNG magic byte
+    buf[1] = 0x50;
+    const stat = makeFileStat(buf.length);
+
+    fsMock.stat.mockResolvedValue(stat);
+    fsMock.open.mockResolvedValue(makeFd(buf));
+
+    await expect(svc.readText('/tmp/image.png')).rejects.toThrow(BadRequestException);
+    await expect(svc.readText('/tmp/image.png')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_BINARY' }),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// remove — dangerous system path protection (cases 8-10)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.remove', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+    fsMock.rm.mockResolvedValue(undefined);
+  });
+
+  // case 8 — attempt to remove filesystem root
+  it('8: refuses to delete /', async () => {
+    await expect(svc.remove('/')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  // case 9 — attempt to remove /etc
+  it('9: refuses to delete /etc', async () => {
+    await expect(svc.remove('/etc')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  // case 10 — attempt to remove /usr (also covers /var and /root via the service blocklist)
+  it('10: refuses to delete /usr', async () => {
+    await expect(svc.remove('/usr')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  it('10b: refuses to delete /var', async () => {
+    await expect(svc.remove('/var')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  it('10c: refuses to delete /root', async () => {
+    await expect(svc.remove('/root')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  // sanity — a normal non-critical path proceeds to fs.rm
+  it('allows removal of a non-critical path', async () => {
+    await svc.remove('/tmp/test-dir');
+    expect(fsMock.rm).toHaveBeenCalledWith('/tmp/test-dir', { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertWritable — deny-list enforcement for write / mutate operations (cases A1-A8)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.assertWritable', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+    fsMock.mkdir.mockResolvedValue(undefined);
+    fsMock.writeFile.mockResolvedValue(undefined);
+    fsMock.rename.mockResolvedValue(undefined);
+    fsMock.cp.mockResolvedValue(undefined);
+    fsMock.chmod.mockResolvedValue(undefined);
+    fsMock.chown.mockResolvedValue(undefined);
+  });
+
+  // case A1 — write to /etc/passwd must be denied
+  it('A1: write() to /etc/passwd throws ForbiddenException', async () => {
+    await expect(svc.write('/etc/passwd', 'root:x:0:0:...')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.writeFile).not.toHaveBeenCalled();
+  });
+
+  // case A2 — write to /var/log/messages must be denied
+  it('A2: write() to /var/log/messages throws ForbiddenException', async () => {
+    await expect(svc.write('/var/log/messages', '')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.writeFile).not.toHaveBeenCalled();
+  });
+
+  // case A3 — remove /boot must be denied
+  it('A3: remove() /boot throws ForbiddenException', async () => {
+    await expect(svc.remove('/boot')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rm).not.toHaveBeenCalled();
+  });
+
+  // case A4 — read (resolvePath only) of /etc/hosts must be allowed
+  // resolvePath has no deny-list; that belongs to assertWritable
+  it('A4: resolvePath() /etc/hosts returns canonical path without throwing', () => {
+    expect(() => svc.resolvePath('/etc/hosts')).not.toThrow();
+    expect(svc.resolvePath('/etc/hosts')).toBe('/etc/hosts');
+  });
+
+  // case A5 — rename where destination triggers assertWritable
+  it('A5: rename() with destination inside /etc throws ForbiddenException', async () => {
+    await expect(svc.rename('/tmp/foo', '/etc/foo')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.rename).not.toHaveBeenCalled();
+  });
+
+  // case A6 — write to a descendant of /usr/bin must be denied
+  it('A6: write() to /usr/bin/malicious throws ForbiddenException', async () => {
+    await expect(svc.write('/usr/bin/malicious', '#!/bin/sh\nrm -rf /')).rejects.toThrow(ForbiddenException);
+    expect(fsMock.writeFile).not.toHaveBeenCalled();
+  });
+
+  // case A7 — chmod on /sys/kernel path must be denied
+  it('A7: chmod() on /sys/kernel/debug throws ForbiddenException', async () => {
+    await expect(svc.chmod('/sys/kernel/debug', 0o777)).rejects.toThrow(ForbiddenException);
+    expect(fsMock.chmod).not.toHaveBeenCalled();
+  });
+
+  // case A8 — write to a safe path (/home/admin/...) must proceed normally
+  it('A8: write() to /home/admin/notes.txt succeeds (not in deny-list)', async () => {
+    await svc.write('/home/admin/notes.txt', 'hello');
+    expect(fsMock.writeFile).toHaveBeenCalledWith('/home/admin/notes.txt', 'hello', 'utf-8');
+  });
+});

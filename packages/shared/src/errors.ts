@@ -29,3 +29,10 @@ export interface ApiError {
   message: string;
   details?: unknown;
 }
+
+/** Uniform HTTP error response body sent by ApiExceptionFilter. */
+export interface ApiErrorResponse {
+  code: string;
+  message: string;
+  details?: unknown;
+}

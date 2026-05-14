@@ -1,5 +1,6 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { WebSocketServer as Wss } from 'ws';
+import type { WebSocket } from 'ws';
 import type { IncomingMessage } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
 import type { Subscription } from 'rxjs';
@@ -19,7 +20,7 @@ interface ClientCtx {
 @Injectable()
 export class MetricsGateway implements OnModuleDestroy {
   private wss: Wss | null = null;
-  private clients = new Map<import('ws').WebSocket, ClientCtx>();
+  private clients = new Map<WebSocket, ClientCtx>();
   private subscription: Subscription | null = null;
 
   constructor(
@@ -70,7 +71,7 @@ export class MetricsGateway implements OnModuleDestroy {
     this.wss?.close();
   }
 
-  private onConnection(ws: import('ws').WebSocket, username: string) {
+  private onConnection(ws: WebSocket, username: string) {
     const ctx: ClientCtx = {
       username,
       lastSeen: Date.now(),

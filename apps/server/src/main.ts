@@ -10,6 +10,7 @@ import { AppModule } from './app.module';
 import type { AppConfig } from './config/configuration';
 import { MetricsGateway } from './modules/system/metrics.gateway';
 import { TerminalGateway } from './modules/terminal/terminal.gateway';
+import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 
 async function bootstrap() {
   const adapter = new FastifyAdapter({
@@ -22,6 +23,9 @@ async function bootstrap() {
   });
 
   app.useLogger(app.get(PinoLogger));
+
+  const pinoLogger = app.get(PinoLogger);
+  app.useGlobalFilters(new ApiExceptionFilter(pinoLogger));
 
   const config = app.get(ConfigService).get<AppConfig>('app', { infer: true });
   if (!config) throw new Error('App config missing');

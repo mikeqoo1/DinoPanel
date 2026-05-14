@@ -1,5 +1,6 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { WebSocketServer as Wss } from 'ws';
+import type { WebSocket } from 'ws';
 import type { Server as HttpServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
@@ -20,7 +21,7 @@ interface Session {
 @Injectable()
 export class TerminalGateway implements OnModuleDestroy {
   private wss: Wss | null = null;
-  private sessions = new Map<import('ws').WebSocket, Session>();
+  private sessions = new Map<WebSocket, Session>();
 
   constructor(
     private readonly auth: AuthService,
@@ -69,7 +70,7 @@ export class TerminalGateway implements OnModuleDestroy {
     this.wss?.close();
   }
 
-  private onConnection(ws: import('ws').WebSocket, username: string, cols: number, rows: number) {
+  private onConnection(ws: WebSocket, username: string, cols: number, rows: number) {
     const pty = ptySpawn(DEFAULT_SHELL, ['-l'], {
       name: 'xterm-256color',
       cols,

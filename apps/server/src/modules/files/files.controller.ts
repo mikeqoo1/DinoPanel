@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -108,10 +109,10 @@ export class FilesController {
     @Headers('x-filename') filename: string | undefined,
   ) {
     if (!targetDir) {
-      return { error: 'path query required' };
+      throw new BadRequestException('path query required');
     }
     if (!filename) {
-      return { error: 'X-Filename header required' };
+      throw new BadRequestException('X-Filename header required');
     }
     const saved = await this.files.saveUpload(targetDir, filename, req.raw);
     return { path: saved };
