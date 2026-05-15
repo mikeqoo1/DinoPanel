@@ -25,7 +25,7 @@ ask()  {
   fi
 }
 
-[ "$(id -u)" -eq 0 ] || err "Must run as root (try: sudo bash $0)"
+[ "$(id -u)" -eq 0 ] || err "此腳本必須以 root 身份執行（請使用：sudo bash $0）"
 
 # Detect platform
 case "$(uname -s)" in

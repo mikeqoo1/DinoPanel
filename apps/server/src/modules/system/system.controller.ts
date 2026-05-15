@@ -10,6 +10,11 @@ export class SystemController {
     return this.system.getInfo();
   }
 
+  @Get('process-info')
+  processInfo() {
+    return this.system.getProcessInfo();
+  }
+
   @Get('metrics')
   metrics() {
     return this.system.getLatest() ?? { error: 'metrics not yet available' };

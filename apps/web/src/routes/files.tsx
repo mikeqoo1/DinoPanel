@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Folder,
@@ -34,6 +34,7 @@ import {
 import { PathBreadcrumb } from '@/components/files/breadcrumb';
 import { FileEditor } from '@/components/files/file-editor';
 import { useFileList, useFileMutations, downloadFileUrl } from '@/hooks/use-files';
+import { useProcessInfo } from '@/hooks/use-process-info';
 import { api, extractErrorMessage } from '@/lib/api';
 import { formatBytes, cn } from '@/lib/utils';
 import type { FileEntry } from '@dinopanel/shared';
@@ -52,8 +53,15 @@ function modeToString(mode: number): string {
 
 export function FilesPage() {
   const { t } = useTranslation();
-  const [currentPath, setCurrentPath] = useState<string>('/root');
+  const [currentPath, setCurrentPath] = useState<string>('');
   const [showHidden, setShowHidden] = useState(false);
+
+  const processInfo = useProcessInfo();
+  useEffect(() => {
+    if (currentPath === '' && processInfo.data) {
+      setCurrentPath(processInfo.data.home || '/');
+    }
+  }, [currentPath, processInfo.data]);
   const [editing, setEditing] = useState<string | null>(null);
   const [newDialog, setNewDialog] = useState<'file' | 'folder' | null>(null);
   const [newName, setNewName] = useState('');
@@ -70,7 +78,8 @@ export function FilesPage() {
   const [chownGid, setChownGid] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const list = useFileList({ path: currentPath, showHidden });
+  const pathReady = currentPath !== '';
+  const list = useFileList({ path: currentPath, showHidden, enabled: pathReady });
   const muts = useFileMutations(currentPath, showHidden);
 
   const sortedEntries = useMemo(() => list.data?.entries ?? [], [list.data]);

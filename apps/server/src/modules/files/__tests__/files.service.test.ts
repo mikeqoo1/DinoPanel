@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 
 // ---------------------------------------------------------------------------
 // fs mock — hoisted so it's available inside vi.mock factory
@@ -265,5 +265,104 @@ describe('FilesService.assertWritable', () => {
   it('A8: write() to /home/admin/notes.txt succeeds (not in deny-list)', async () => {
     await svc.write('/home/admin/notes.txt', 'hello');
     expect(fsMock.writeFile).toHaveBeenCalledWith('/home/admin/notes.txt', 'hello', 'utf-8');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fs errno → HttpException mapping (cases E1-E7)
+// ---------------------------------------------------------------------------
+
+function makeErrno(code: string): NodeJS.ErrnoException {
+  const err = new Error(code) as NodeJS.ErrnoException;
+  err.code = code;
+  return err;
+}
+
+describe('fs errno mapping via mapFsError', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+    // common default mocks — individual cases override as needed
+    fsMock.stat.mockResolvedValue({ isDirectory: () => true, isFile: () => false });
+    fsMock.mkdir.mockResolvedValue(undefined);
+    fsMock.writeFile.mockResolvedValue(undefined);
+    fsMock.rename.mockResolvedValue(undefined);
+    fsMock.chmod.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // E1 — list() fs.readdir EACCES → ForbiddenException(FILE_PERMISSION_DENIED)
+  it('E1: list() readdir EACCES → ForbiddenException FILE_PERMISSION_DENIED', async () => {
+    fsMock.readdir.mockRejectedValue(makeErrno('EACCES'));
+    await expect(svc.list('/tmp/restricted', false)).rejects.toThrow(ForbiddenException);
+    await expect(svc.list('/tmp/restricted', false)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_PERMISSION_DENIED' }),
+    });
+  });
+
+  // E2 — list() fs.readdir EPERM → same ForbiddenException path
+  it('E2: list() readdir EPERM → ForbiddenException FILE_PERMISSION_DENIED', async () => {
+    fsMock.readdir.mockRejectedValue(makeErrno('EPERM'));
+    await expect(svc.list('/tmp/restricted', false)).rejects.toThrow(ForbiddenException);
+    await expect(svc.list('/tmp/restricted', false)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_PERMISSION_DENIED' }),
+    });
+  });
+
+  // E3 — write() fs.writeFile ENOSPC → PayloadTooLargeException(FILE_NO_SPACE)
+  it('E3: write() writeFile ENOSPC → PayloadTooLargeException FILE_NO_SPACE', async () => {
+    fsMock.writeFile.mockRejectedValue(makeErrno('ENOSPC'));
+    await expect(svc.write('/home/user/big.txt', 'data')).rejects.toThrow(PayloadTooLargeException);
+    await expect(svc.write('/home/user/big.txt', 'data')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_NO_SPACE' }),
+    });
+  });
+
+  // E4 — write() fs.writeFile EACCES → ForbiddenException(FILE_PERMISSION_DENIED)
+  it('E4: write() writeFile EACCES → ForbiddenException FILE_PERMISSION_DENIED', async () => {
+    fsMock.writeFile.mockRejectedValue(makeErrno('EACCES'));
+    await expect(svc.write('/home/user/locked.txt', 'data')).rejects.toThrow(ForbiddenException);
+    await expect(svc.write('/home/user/locked.txt', 'data')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_PERMISSION_DENIED' }),
+    });
+  });
+
+  // E5 — mkdir() fs.mkdir EEXIST → ConflictException(FILE_ALREADY_EXISTS)
+  it('E5: mkdir() mkdir EEXIST → ConflictException FILE_ALREADY_EXISTS', async () => {
+    fsMock.mkdir.mockRejectedValue(makeErrno('EEXIST'));
+    await expect(svc.mkdir('/home/user/newdir', false)).rejects.toThrow(ConflictException);
+    await expect(svc.mkdir('/home/user/newdir', false)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_ALREADY_EXISTS' }),
+    });
+  });
+
+  // E6 — rename() fs.rename ENOTDIR → BadRequestException(FILE_NOT_A_DIRECTORY)
+  it('E6: rename() rename ENOTDIR → BadRequestException FILE_NOT_A_DIRECTORY', async () => {
+    fsMock.rename.mockRejectedValue(makeErrno('ENOTDIR'));
+    await expect(svc.rename('/home/user/a.txt', '/home/user/b.txt')).rejects.toThrow(BadRequestException);
+    await expect(svc.rename('/home/user/a.txt', '/home/user/b.txt')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_NOT_A_DIRECTORY' }),
+    });
+  });
+
+  // E7 — chmod() fs.chmod unknown errno EIO → original error rethrown (not an HttpException)
+  it('E7: chmod() chmod EIO (unknown) → original Error rethrown', async () => {
+    const eio = makeErrno('EIO');
+    fsMock.chmod.mockRejectedValue(eio);
+    await expect(svc.chmod('/home/user/file.txt', 0o644)).rejects.toBe(eio);
+  });
+
+  // E8 — list() preserves existing NotFoundException when fs.stat fails (regression guard)
+  it('E8: list() stat failure → NotFoundException FILE_NOT_FOUND (existing behaviour)', async () => {
+    fsMock.stat.mockRejectedValue(makeErrno('ENOENT'));
+    await expect(svc.list('/tmp/missing', false)).rejects.toThrow(NotFoundException);
+    await expect(svc.list('/tmp/missing', false)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_NOT_FOUND' }),
+    });
   });
 });

@@ -79,6 +79,13 @@ async function bootstrap() {
 
   const logger = app.get(PinoLogger);
   logger.log(`DinoPanel server listening on http://${config.env.HOST}:${config.env.PORT}`);
+
+  const uid = process.getuid?.() ?? -1;
+  if (uid !== 0) {
+    logger.warn(
+      `DinoPanel is running as non-root (uid=${uid}). File management, service control, firewall, and container features will be limited or unavailable. For production, run as root via systemd.`,
+    );
+  }
 }
 
 bootstrap().catch((err) => {

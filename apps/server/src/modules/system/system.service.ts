@@ -1,8 +1,11 @@
 import { Injectable, type OnApplicationShutdown, type OnModuleInit } from '@nestjs/common';
+import * as os from 'node:os';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as si from 'systeminformation';
 import { Logger } from 'nestjs-pino';
 import { Subject } from 'rxjs';
-import type { MetricsSnapshot, SystemInfo } from '@dinopanel/shared';
+import type { MetricsSnapshot, ProcessInfo, SystemInfo } from '@dinopanel/shared';
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -32,6 +35,30 @@ export class SystemService implements OnModuleInit, OnApplicationShutdown {
 
   getLatest(): MetricsSnapshot | null {
     return this.lastSnapshot;
+  }
+
+  getProcessInfo(): ProcessInfo {
+    const userInfo = os.userInfo();
+    let version = 'unknown';
+    try {
+      const pkg = JSON.parse(
+        readFileSync(join(__dirname, '../../../package.json'), 'utf-8'),
+      ) as { version?: string };
+      version = pkg.version ?? 'unknown';
+    } catch {
+      // package.json not found or malformed — use unknown
+    }
+    return {
+      hostname: os.hostname(),
+      uid: userInfo.uid,
+      gid: userInfo.gid,
+      username: userInfo.username,
+      home: userInfo.homedir,
+      isRoot: userInfo.uid === 0,
+      dinopanelVersion: process.env['npm_package_version'] ?? version,
+      platform: process.platform,
+      nodeVersion: process.version,
+    };
   }
 
   async getInfo(): Promise<SystemInfo> {

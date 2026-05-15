@@ -8,6 +8,21 @@ DinoPanel is a single-binary-style deployment: one Node process serves the API, 
 - Node.js **22.12 LTS or later** (uses `require(esm)` stable feature)
 - Run as root (the panel manages the whole machine: files, services, containers, …)
 
+## 為何需要 root
+
+DinoPanel 需要以 root 身份執行，原因與其管理的功能直接相關：
+
+| 功能 | 所需權限 |
+|---|---|
+| 檔案管理（全磁碟瀏覽、讀寫任意路徑） | 讀取 root-owned 或 mode 600/700 的檔案 |
+| systemd service 管理（start / stop / enable） | `CAP_SYS_ADMIN` 或 root |
+| 防火牆（iptables / nftables / ufw） | root |
+| 容器（Docker daemon socket `/var/run/docker.sock`） | root 或 docker group（建議 root）|
+
+業界同類方案（1Panel、Cockpit、Webmin）皆以 root 執行。DinoPanel 採相同策略，確保功能完整性與一致性。
+
+**開發環境（非 root）**：以非 root 帳號執行 `pnpm dev` 是允許的。伺服器啟動時會印出 warning，並列出受限功能，但不會崩潰。前端 Files 頁面的預設路徑會自動顯示目前使用者的 home 目錄。
+
 ## 依賴需求（Native Module）
 
 DinoPanel 使用 **node-pty**（C++ native module）提供 Web SSH 終端機功能。

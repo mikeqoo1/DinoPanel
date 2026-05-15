@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -13,6 +14,58 @@ import archiver from 'archiver';
 import type { FileEntry } from '@dinopanel/shared';
 
 const MAX_READ_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Map a Node.js fs errno to an appropriate NestJS HttpException.
+ * Unknown errnos are re-thrown as-is so ApiExceptionFilter catches them as 500.
+ */
+function mapFsError(err: unknown, op: string): never {
+  const e = err as NodeJS.ErrnoException;
+  switch (e?.code) {
+    case 'EACCES':
+    case 'EPERM':
+      throw new ForbiddenException({
+        code: 'FILE_PERMISSION_DENIED',
+        message: `Permission denied: ${op}`,
+      });
+    case 'ENOENT':
+      throw new NotFoundException({
+        code: 'FILE_NOT_FOUND',
+        message: `Not found: ${op}`,
+      });
+    case 'ENOTDIR':
+      throw new BadRequestException({
+        code: 'FILE_NOT_A_DIRECTORY',
+        message: op,
+      });
+    case 'EISDIR':
+      throw new BadRequestException({
+        code: 'FILE_IS_A_DIRECTORY',
+        message: op,
+      });
+    case 'ELOOP':
+      throw new BadRequestException({
+        code: 'FILE_SYMLINK_LOOP',
+        message: op,
+      });
+    case 'ENOSPC':
+      throw new PayloadTooLargeException({
+        code: 'FILE_NO_SPACE',
+        message: 'Disk full',
+      });
+    case 'EEXIST':
+      throw new ConflictException({
+        code: 'FILE_ALREADY_EXISTS',
+        message: op,
+      });
+    case 'EBUSY':
+      throw new ConflictException({
+        code: 'FILE_BUSY',
+        message: op,
+      });
+  }
+  throw err;
+}
 
 /**
  * Paths that must never be written to, deleted, chmod'd, chown'd, or overwritten.
@@ -101,7 +154,7 @@ export class FilesService {
     if (!stat.isDirectory()) {
       throw new BadRequestException({ code: 'FILE_OPERATION_FAILED', message: 'Not a directory' });
     }
-    const dirents = await fs.readdir(path, { withFileTypes: true });
+    const dirents = await fs.readdir(path, { withFileTypes: true }).catch((err) => mapFsError(err, path));
     const entries: FileEntry[] = [];
     for (const d of dirents) {
       if (!showHidden && d.name.startsWith('.')) continue;
@@ -161,10 +214,12 @@ export class FilesService {
     }
 
     // simple binary detection: read first 4KB
-    const fd = await fs.open(path, 'r');
+    const fd = await fs.open(path, 'r').catch((err) => {
+      mapFsError(err, path);
+    });
     try {
       const buf = Buffer.alloc(Math.min(4096, stat.size));
-      await fd.read(buf, 0, buf.length, 0);
+      await fd!.read(buf, 0, buf.length, 0);
       if (buf.includes(0)) {
         throw new BadRequestException({
           code: 'FILE_BINARY',
@@ -172,24 +227,26 @@ export class FilesService {
         });
       }
     } finally {
-      await fd.close();
+      await fd!.close();
     }
 
-    const content = await fs.readFile(path, 'utf-8');
-    return { content, size: stat.size };
+    const content = await fs.readFile(path, 'utf-8').catch((err) => {
+      mapFsError(err, path);
+    });
+    return { content: content!, size: stat.size };
   }
 
   async write(rawPath: string, content: string): Promise<void> {
     const path = this.resolvePath(rawPath);
     this.assertWritable(path);
-    await fs.mkdir(dirname(path), { recursive: true });
-    await fs.writeFile(path, content, 'utf-8');
+    await fs.mkdir(dirname(path), { recursive: true }).catch((err) => mapFsError(err, path));
+    await fs.writeFile(path, content, 'utf-8').catch((err) => mapFsError(err, path));
   }
 
   async mkdir(rawPath: string, recursive: boolean): Promise<void> {
     const path = this.resolvePath(rawPath);
     this.assertWritable(path);
-    await fs.mkdir(path, { recursive });
+    await fs.mkdir(path, { recursive }).catch((err) => mapFsError(err, path));
   }
 
   async rename(from: string, to: string): Promise<void> {
@@ -197,7 +254,7 @@ export class FilesService {
     const toPath = this.resolvePath(to);
     this.assertWritable(fromPath);
     this.assertWritable(toPath);
-    await fs.rename(fromPath, toPath);
+    await fs.rename(fromPath, toPath).catch((err) => mapFsError(err, fromPath));
   }
 
   async copy(from: string, to: string): Promise<void> {
@@ -205,25 +262,25 @@ export class FilesService {
     const toPath = this.resolvePath(to);
     // destination is guarded; source is read-only so no assertWritable needed
     this.assertWritable(toPath);
-    await fs.cp(fromPath, toPath, { recursive: true, errorOnExist: false });
+    await fs.cp(fromPath, toPath, { recursive: true, errorOnExist: false }).catch((err) => mapFsError(err, fromPath));
   }
 
   async remove(rawPath: string): Promise<void> {
     const path = this.resolvePath(rawPath);
     this.assertWritable(path);
-    await fs.rm(path, { recursive: true, force: true });
+    await fs.rm(path, { recursive: true, force: true }).catch((err) => mapFsError(err, path));
   }
 
   async chmod(rawPath: string, mode: number): Promise<void> {
     const path = this.resolvePath(rawPath);
     this.assertWritable(path);
-    await fs.chmod(path, mode);
+    await fs.chmod(path, mode).catch((err) => mapFsError(err, path));
   }
 
   async chown(rawPath: string, uid: number, gid: number): Promise<void> {
     const path = this.resolvePath(rawPath);
     this.assertWritable(path);
-    await fs.chown(path, uid, gid);
+    await fs.chown(path, uid, gid).catch((err) => mapFsError(err, path));
   }
 
   async accessible(rawPath: string): Promise<boolean> {
@@ -241,10 +298,10 @@ export class FilesService {
     if (!safeName || safeName === '.' || safeName === '..') {
       throw new BadRequestException({ code: 'FILE_FORBIDDEN_PATH', message: 'Invalid filename' });
     }
-    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(dir, { recursive: true }).catch((err) => mapFsError(err, dir));
     const fullPath = resolve(dir, safeName);
     const sink = createWriteStream(fullPath);
-    await pipeline(source as Readable, sink);
+    await pipeline(source as Readable, sink).catch((err) => mapFsError(err, fullPath));
     return fullPath;
   }
 
@@ -268,7 +325,7 @@ export class FilesService {
         : archiver('tar', { gzip: true, gzipOptions: { level: 6 } });
 
     for (const path of resolved) {
-      const stat = await fs.stat(path);
+      const stat = await fs.stat(path).catch((err) => mapFsError(err, path));
       const name = basename(path);
       if (stat.isDirectory()) {
         archive.directory(path, name);

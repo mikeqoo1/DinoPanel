@@ -29,6 +29,19 @@ export const systemInfoSchema = z.object({
 });
 export type SystemInfo = z.infer<typeof systemInfoSchema>;
 
+export const processInfoSchema = z.object({
+  hostname: z.string(),
+  uid: z.number().int(),
+  gid: z.number().int(),
+  username: z.string(),
+  home: z.string(),
+  isRoot: z.boolean(),
+  dinopanelVersion: z.string(),
+  platform: z.string(),
+  nodeVersion: z.string(),
+});
+export type ProcessInfo = z.infer<typeof processInfoSchema>;
+
 export const metricsSnapshotSchema = z.object({
   ts: z.number().int(),
   cpu: z.object({

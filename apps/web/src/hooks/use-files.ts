@@ -5,11 +5,13 @@ import { api } from '@/lib/api';
 interface ListParams {
   path: string;
   showHidden: boolean;
+  enabled?: boolean;
 }
 
-export function useFileList({ path, showHidden }: ListParams) {
+export function useFileList({ path, showHidden, enabled = true }: ListParams) {
   return useQuery<ListResponse>({
     queryKey: ['files', 'list', path, showHidden],
+    enabled,
     queryFn: async () => {
       const { data } = await api.get<ListResponse>('/files/list', {
         params: { path, showHidden: showHidden ? 'true' : 'false' },
