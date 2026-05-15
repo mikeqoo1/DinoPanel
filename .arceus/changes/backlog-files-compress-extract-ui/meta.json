@@ -1,0 +1,10 @@
+{
+  "id": "backlog-files-compress-extract-ui",
+  "title": "Files frontend: wire backend compress / extract endpoints to UI",
+  "status": "draft",
+  "createdAt": "2026-05-15",
+  "targetVersion": "any",
+  "estimatedDuration": "0.5d",
+  "blocking": false,
+  "originated": "v0.1.1 tech-debt list (carried over from MVP)"
+}

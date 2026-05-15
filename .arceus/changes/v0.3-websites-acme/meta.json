@@ -1,0 +1,18 @@
+{
+  "id": "v0.3-websites-acme",
+  "title": "Websites + ACME SSL (nginx-only, HTTP-01 + Cloudflare DNS-01)",
+  "status": "draft",
+  "createdAt": "2026-05-15",
+  "targetVersion": "v0.3",
+  "estimatedDuration": "≈4 weeks",
+  "dependsOn": [
+    "v0.2-docker-containers"
+  ],
+  "openQuestions": [
+    "nginx in Docker (reuse v0.2 infra) vs host systemd?",
+    "Config storage: live confs only vs SQLite mirror?",
+    "ACME library: acme-client / certbot / lego?",
+    "Site directory layout convention (/www/sites/<name>/ vs alternative)?",
+    "TLS auto-renewal: ad-hoc scheduler now or wait for v0.5 cron module?"
+  ]
+}

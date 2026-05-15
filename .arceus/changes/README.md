@@ -27,3 +27,12 @@ Status values in `meta.json`:
 | `v0.1.2-production-posture`     | completed   | v0.1.2  | Root posture, system info endpoint, fs errno mapping             |
 | `v0.2-docker-containers`        | completed   | v0.2    | Docker container management (dockerode + Compose, no App Store)  |
 | `v0.2.1-compose-yaml-lint`      | completed   | v0.2.1  | Add `yaml` dep + live JS-side YAML lint in the Compose editor    |
+| `v0.3-websites-acme`            | draft       | v0.3    | Static / reverse proxy / PHP sites + ACME (HTTP-01 + Cloudflare) |
+| `backlog-files-compress-extract-ui` | draft   | any     | Wire existing backend compress / extract to the Files frontend   |
+
+## Backlog notes
+
+- v0.3 has five open questions (see its proposal.md / meta.json). Resolve
+  them per-item in `decisions.md` before flipping status to `active`.
+- The Files compress/extract entry is a backlog draft — small, low
+  urgency, good as a warm-up between bigger versions.
