@@ -7,8 +7,16 @@
     "dashboard": "Dashboard",
     "terminal": "Terminal",
     "files": "Files",
+    "containers": "Containers",
+    "images": "Images",
+    "networks": "Networks",
+    "volumes": "Volumes",
+    "compose": "Compose",
     "settings": "Settings",
     "logout": "Log out"
+  },
+  "containers": {
+    "coming_soon": "Coming in v0.2 — Docker container management is under active development."
   },
   "auth": {
     "login_title": "Sign in to DinoPanel",

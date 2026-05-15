@@ -7,8 +7,16 @@
     "dashboard": "首頁",
     "terminal": "終端機",
     "files": "檔案",
+    "containers": "容器",
+    "images": "映像",
+    "networks": "網路",
+    "volumes": "儲存區",
+    "compose": "Compose",
     "settings": "設定",
     "logout": "登出"
+  },
+  "containers": {
+    "coming_soon": "v0.2 即將推出 — Docker 容器管理功能正在積極開發中。"
   },
   "auth": {
     "login_title": "登入 DinoPanel",

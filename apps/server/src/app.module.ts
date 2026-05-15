@@ -11,6 +11,7 @@ import { UsersModule } from './modules/users/users.module';
 import { SystemModule } from './modules/system/system.module';
 import { TerminalModule } from './modules/terminal/terminal.module';
 import { FilesModule } from './modules/files/files.module';
+import { ContainersModule } from './modules/containers/containers.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { FilesModule } from './modules/files/files.module';
     SystemModule,
     TerminalModule,
     FilesModule,
+    ContainersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

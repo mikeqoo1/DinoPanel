@@ -3,14 +3,22 @@
 Phases match the v0.1.1 working pattern: foundation → parallel feature
 slices → end-to-end → tests in each phase, not bolted on at the end.
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation ✅ (2026-05-15)
 
-- [ ] Add `dockerode` + `@types/dockerode` to `apps/server`
-- [ ] `ContainersModule` skeleton with dockerode provider, env-driven
-  socket path
-- [ ] `mapDockerError(err, op)` helper analogous to `mapFsError`
-- [ ] Shared schemas: Container, Image, Network, Volume, ComposeStack
-- [ ] Route group skeleton + lazy loading in `apps/web/src/App.tsx`
+- [x] Add `dockerode` + `@types/dockerode` to `apps/server`
+  *(dockerode 5.0.0, @types/dockerode 4.0.1)*
+- [x] `ContainersModule` skeleton with dockerode provider, env-driven
+  socket path *(DOCKER token = `Symbol('DOCKER')`,
+  env `DOCKER_SOCKET_PATH` default `/var/run/docker.sock`)*
+- [x] `mapDockerError(err, op)` helper analogous to `mapFsError`
+  *(`apps/server/src/modules/containers/docker-error.ts`,
+  7 statusCode branches + transport-error branch)*
+- [x] Shared schemas: Container, Image, Network, Volume, ComposeStack
+  *(`packages/shared/src/schemas/containers.ts`,
+  re-exported from index)*
+- [x] Route group skeleton + lazy loading in `apps/web/src/App.tsx`
+  *(5 lazy routes + sidebar items + i18n; main bundle +1.2 kB gzip
+  → 100.14 kB total)*
 
 ## Phase 2 — Containers (REST + WS)
 
