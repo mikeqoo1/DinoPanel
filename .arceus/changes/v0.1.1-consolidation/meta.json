@@ -1,0 +1,33 @@
+{
+  "id": "v0.1.1-consolidation",
+  "title": "Pre-v0.2 consolidation: tests, bundle, security, deploy",
+  "status": "completed",
+  "createdAt": "2026-05-14",
+  "completedAt": "2026-05-14",
+  "targetVersion": "v0.1.1",
+  "commits": [
+    "075929b",
+    "30d1018"
+  ],
+  "tasks": {
+    "total": 9,
+    "completed": 9,
+    "unplanned": [
+      "#9 resolvePath traversal fix (discovered during task #7)"
+    ]
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "47/47",
+    "playwright": "5/5",
+    "build": "pass"
+  },
+  "metrics": {
+    "bundleGzipBefore": "400.59 kB",
+    "bundleGzipAfter": "98.45 kB",
+    "unitTestsBefore": 0,
+    "unitTestsAfter": 47,
+    "e2eTestsAfter": 5
+  }
+}

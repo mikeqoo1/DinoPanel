@@ -1,0 +1,35 @@
+{
+  "id": "v0.2-docker-containers",
+  "title": "Docker container management (no App Store)",
+  "status": "draft",
+  "createdAt": "2026-05-15",
+  "targetVersion": "v0.2",
+  "estimatedDuration": "2.5-3 weeks",
+  "dependsOn": [
+    "v0.1.1-consolidation",
+    "v0.1.2-production-posture"
+  ],
+  "scope": {
+    "in": [
+      "Container CRUD + logs + stats + exec",
+      "Image CRUD + pull",
+      "Network CRUD",
+      "Volume CRUD",
+      "Docker Compose detect + edit + up/down"
+    ],
+    "out": [
+      "App Store / templates (removed permanently 2026-05-14)",
+      "Swarm / Kubernetes",
+      "BuildKit / image build UI",
+      "Resource limits editor",
+      "Multi-host federation"
+    ]
+  },
+  "openQuestions": [
+    "dockerode socket: root-only or docker-group?",
+    "Compose file location: in-place vs managed dir?",
+    "docker compose v1 vs v2 handling",
+    "Compose validation: JS-side parse vs docker config",
+    "Image pull progress: raw events vs aggregated %"
+  ]
+}

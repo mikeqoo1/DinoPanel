@@ -1,0 +1,29 @@
+{
+  "id": "v0.1.2-production-posture",
+  "title": "Production root posture, system info endpoint, fs errno mapping",
+  "status": "completed",
+  "createdAt": "2026-05-15",
+  "completedAt": "2026-05-15",
+  "targetVersion": "v0.1.2",
+  "commits": [
+    "016e82d"
+  ],
+  "triggeredBy": "User-reported 500 on Files page when running dev as non-root (uid 1000) trying to readdir /root",
+  "tasks": {
+    "total": 2,
+    "completed": 2,
+    "subtasks": [
+      "10A: root posture + /api/system/process-info + frontend dynamic default",
+      "10B: fs errno → HttpException mapping + tests"
+    ]
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "55/55",
+    "playwright": "5/5",
+    "build": "pass (main 98.94 kB gzip)"
+  },
+  "previousChange": "v0.1.1-consolidation",
+  "nextChange": "v0.2-docker-containers"
+}

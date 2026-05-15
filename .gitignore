@@ -169,8 +169,14 @@ release/
 
 # Claude project metadata
 **/.claude/
-**/.arceus/sessions/
+
+# Arceus — ignore all .arceus trees by default, but track the top-level
+# changes/ directory which records change proposals + decisions.
 **/.arceus/
+!/.arceus/
+/.arceus/*
+!/.arceus/changes/
+!/.arceus/changes/**
 
 # Testing
 playwright-report/
