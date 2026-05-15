@@ -1,14 +1,26 @@
 {
   "id": "v0.2-docker-containers",
   "title": "Docker container management (no App Store)",
-  "status": "active",
+  "status": "completed",
   "createdAt": "2026-05-15",
   "activatedAt": "2026-05-15",
+  "completedAt": "2026-05-15",
   "targetVersion": "v0.2",
   "estimatedDuration": "2.5-3 weeks",
+  "actualDuration": "1 day (under 2026-05-15)",
   "dependsOn": [
     "v0.1.1-consolidation",
     "v0.1.2-production-posture"
+  ],
+  "commits": [
+    "e304714 chore(arceus): activate v0.2-docker-containers",
+    "164f8a1 feat(v0.2/P1): scaffold container management module",
+    "e1bf061 feat(v0.2/P2): containers backend — REST + logs/stats/exec streams",
+    "650e994 feat(v0.2/P2): containers frontend — list + detail with logs/stats/exec",
+    "22add93 feat(v0.2/P3): images / networks / volumes backend — REST + pull WS",
+    "b334468 feat(v0.2/P3): images / networks / volumes frontend",
+    "411e918 feat(v0.2/P4): compose backend — stack discovery, edit, validate, action WS",
+    "bd68e35 feat(v0.2/P4): compose frontend — stack list, Monaco editor, action drawer"
   ],
   "scope": {
     "in": [
@@ -26,6 +38,16 @@
       "Multi-host federation"
     ]
   },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "80/80 across 11 files",
+    "playwright": "5 baseline + 3 docker-gated (10/10 with DINOPANEL_E2E_DOCKER=1)",
+    "build": "pass (main bundle 104.4 kB gzip, +5.95 kB vs v0.1.1)"
+  },
+  "knownFollowups": [
+    "Install yaml package to enable live JS-side YAML lint in Monaco (currently relies on backend Validate button only). Tracked in compose-detail.tsx handleEditorMount TODO. Move to v0.2.1."
+  ],
   "openQuestions": [],
   "decisionsResolved": "See decisions.md section 'Decided 2026-05-15'"
 }

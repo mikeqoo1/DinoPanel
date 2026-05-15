@@ -78,9 +78,17 @@ describe('ContainersService', () => {
     expect(result[0]!.ports[0]).toMatchObject({ privatePort: 80, publicPort: 8080, type: 'tcp' });
   });
 
-  // 2. inspect() happy path
-  it('2 — inspect(id) resolves to full raw data', async () => {
-    const inspectData = { Id: 'abc123', Name: '/my-container', State: { Status: 'running' } };
+  // 2. inspect() happy path — returns normalized Container shape (not raw Docker format)
+  it('2 — inspect(id) resolves to normalized Container shape', async () => {
+    const inspectData = {
+      Id: 'abc123',
+      Name: '/my-container',
+      Created: '2024-01-01T00:00:00Z',
+      Image: 'sha256:aaaa',
+      Config: { Image: 'alpine:latest', Labels: { env: 'test' } },
+      State: { Status: 'running' },
+      NetworkSettings: { Ports: {} },
+    };
     const container = makeDockerContainer({
       inspect: vi.fn().mockResolvedValue(inspectData),
     });
@@ -88,7 +96,11 @@ describe('ContainersService', () => {
 
     const result = await svc.inspect('abc123');
 
-    expect(result).toEqual(inspectData);
+    expect(result.id).toBe('abc123');
+    expect(result.name).toBe('my-container'); // leading slash stripped
+    expect(result.image).toBe('alpine:latest');
+    expect(result.state).toBe('running');
+    expect(result.labels).toEqual({ env: 'test' });
   });
 
   // 3. start on already-running container (304) → resolves without throwing

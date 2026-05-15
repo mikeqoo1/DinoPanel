@@ -13,6 +13,9 @@ const SERVER_ENV = {
   DATA_DIR: './data',
   WEB_DIST: '../../apps/web/dist',
   LOG_LEVEL: 'warn',
+  // Use a longer access token TTL so the token remains valid for the entire e2e suite.
+  // The default 15m is too short when the suite includes Docker-gated tests.
+  JWT_ACCESS_TTL: '2h',
 };
 
 async function waitForServer(url: string, timeoutMs = 30_000): Promise<void> {

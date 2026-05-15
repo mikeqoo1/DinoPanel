@@ -82,13 +82,29 @@ slices → end-to-end → tests in each phase, not bolted on at the end.
   *(list merge/dedup, create happy, name-conflict 409, validate
   exit-0, validate exit-1; suite now 80 tests across 11 files)*
 
-## Phase 5 — E2E + polish
+## Phase 5 — E2E + polish ✅ (2026-05-15)
 
-- [ ] e2e/containers-list.spec.ts
-- [ ] e2e/containers-start-stop.spec.ts
-- [ ] e2e/containers-exec.spec.ts (gated on `DINOPANEL_E2E_DOCKER=1`)
-- [ ] Bundle size check (main + per-route chunks)
-- [ ] Docs: `docs/containers.md` covering the new module
+- [x] e2e/containers-list.spec.ts *(3 tests: list rows render, row →
+  detail navigation, Inspect tab loads Monaco)*
+- [x] e2e/containers-start-stop.spec.ts *(spawns alpine sleep
+  container, exercises stop→exited→start→running, cleans up)*
+- [x] e2e/containers-exec.spec.ts *(spawns alpine, opens exec
+  drawer, types `whoami`, asserts `root` appears, cleans up)*
+- [x] Bundle size check *(main 104.4 kB gzip; +5.95 kB vs v0.1.1
+  baseline; well under the 130 kB Phase-5 budget)*
+- [x] Docs: `docs/containers.md` covering the new module *(REST,
+  WebSocket frame formats, frontend page map, configuration,
+  permissions, troubleshooting, bundle impact)*
+
+## Phase 5 — bonus bug fixes (caught while wiring e2e)
+
+- [x] `ContainersService.inspect()` was returning the raw dockerode
+  PascalCase payload; frontend typed it as the normalised
+  `Container` shape and the detail page crashed dereferencing
+  `name`. Service now normalises before returning, the unit test
+  was updated to match.
+- [x] `global-setup.ts` for Playwright now passes `JWT_ACCESS_TTL=2h`
+  so the long e2e suite doesn't lose its session mid-run.
 
 ## Open questions (resolve before implementation)
 

@@ -35,10 +35,34 @@ export class ContainersService {
     }
   }
 
-  async inspect(id: string): Promise<Record<string, unknown>> {
+  async inspect(id: string): Promise<Container> {
     try {
       const data = await this.docker.getContainer(id).inspect();
-      return data as unknown as Record<string, unknown>;
+      // Map raw Docker inspect (PascalCase) to the shared Container schema.
+      // The list() method maps from listContainers(); inspect() uses inspectContainer()
+      // which has a different shape — we normalize here so the frontend gets a consistent type.
+      return {
+        id: data.Id,
+        name: (data.Name ?? '').replace(/^\//, ''),
+        image: data.Config?.Image ?? data.Image ?? '',
+        imageId: data.Image ?? '',
+        state: (data.State?.Status ?? 'unknown') as Container['state'],
+        status: data.State?.Status ?? '',
+        ports: Object.entries(
+          (data.NetworkSettings?.Ports ?? {}) as Record<string, Array<{ HostIp?: string; HostPort?: string }> | null>,
+        ).flatMap(([portProto, bindings]) => {
+          const [privatePort, type] = portProto.split('/') as [string, string];
+          if (!bindings) return [{ privatePort: parseInt(privatePort, 10), type: (type ?? 'tcp') as 'tcp' | 'udp' | 'sctp' }];
+          return bindings.map((b) => ({
+            ip: b.HostIp,
+            privatePort: parseInt(privatePort, 10),
+            publicPort: b.HostPort ? parseInt(b.HostPort, 10) : undefined,
+            type: (type ?? 'tcp') as 'tcp' | 'udp' | 'sctp',
+          }));
+        }),
+        labels: (data.Config?.Labels ?? {}) as Record<string, string>,
+        createdAt: Math.floor(new Date(data.Created as string).getTime() / 1000),
+      };
     } catch (err) {
       mapDockerError(err, `inspect container ${id}`);
     }
