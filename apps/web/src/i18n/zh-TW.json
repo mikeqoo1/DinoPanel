@@ -281,6 +281,60 @@
       "result_space": "釋放 {{space}}。"
     }
   },
+  "compose": {
+    "title": "Compose Stack",
+    "create": "新建 Stack",
+    "create_success": "Stack「{{name}}」已建立",
+    "save_success": "Compose 檔案已儲存",
+    "unregister_success": "Stack「{{name}}」已取消登記",
+    "empty": "沒有 Stack，新建一個或先執行 `docker compose up` 既有的目錄。",
+    "col_source": "來源",
+    "col_name": "名稱",
+    "col_path": "路徑",
+    "col_services": "服務數",
+    "col_containers": "容器",
+    "col_actions": "操作",
+    "source": {
+      "registered": "已登記",
+      "discovered": "自動發現"
+    },
+    "create_dialog": {
+      "title": "新建 Compose Stack",
+      "desc": "建立一個新的 Compose Stack 及初始 compose.yml。",
+      "name_label": "名稱",
+      "name_hint": "僅限小寫字母、數字、連字號與底線。",
+      "name_required": "名稱為必填",
+      "name_invalid": "名稱須符合 ^[a-z0-9_-]+$",
+      "path_label": "路徑",
+      "content_label": "初始 compose.yml"
+    },
+    "actions": {
+      "edit": "編輯",
+      "up": "Up",
+      "down": "Down",
+      "restart": "Restart",
+      "pull": "Pull",
+      "validate": "驗證",
+      "save": "儲存",
+      "unregister": "取消登記"
+    },
+    "validate_result": {
+      "valid": "驗證通過",
+      "invalid": "驗證失敗，請修正下列錯誤",
+      "resolved_yaml": "查看解析後的 YAML"
+    },
+    "action_drawer": {
+      "title": "{{action}} — {{stackName}}",
+      "exit_success": "執行成功",
+      "exit_failed": "結束碼 {{code}}",
+      "close": "關閉",
+      "rerun": "重新執行"
+    },
+    "editor": {
+      "dirty_warning": "有未儲存的變更",
+      "saving": "儲存中…"
+    }
+  },
   "common": {
     "yes": "確定",
     "no": "取消",

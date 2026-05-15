@@ -281,6 +281,60 @@
       "result_space": "Freed {{space}}."
     }
   },
+  "compose": {
+    "title": "Compose Stacks",
+    "create": "New Stack",
+    "create_success": "Stack \"{{name}}\" created",
+    "save_success": "Compose file saved",
+    "unregister_success": "Stack \"{{name}}\" unregistered",
+    "empty": "No stacks — create one or run `docker compose up` on an existing directory.",
+    "col_source": "Source",
+    "col_name": "Name",
+    "col_path": "Path",
+    "col_services": "Services",
+    "col_containers": "Containers",
+    "col_actions": "Actions",
+    "source": {
+      "registered": "registered",
+      "discovered": "discovered"
+    },
+    "create_dialog": {
+      "title": "New Compose Stack",
+      "desc": "Create a new compose stack and its initial compose.yml.",
+      "name_label": "Name",
+      "name_hint": "Lowercase letters, numbers, hyphens and underscores only.",
+      "name_required": "Name is required",
+      "name_invalid": "Name must match ^[a-z0-9_-]+$",
+      "path_label": "Path",
+      "content_label": "Initial compose.yml"
+    },
+    "actions": {
+      "edit": "Edit",
+      "up": "Up",
+      "down": "Down",
+      "restart": "Restart",
+      "pull": "Pull",
+      "validate": "Validate",
+      "save": "Save",
+      "unregister": "Unregister"
+    },
+    "validate_result": {
+      "valid": "Valid — compose config is OK",
+      "invalid": "Invalid — fix errors below",
+      "resolved_yaml": "View resolved YAML"
+    },
+    "action_drawer": {
+      "title": "{{action}} — {{stackName}}",
+      "exit_success": "Completed successfully",
+      "exit_failed": "Exited with code {{code}}",
+      "close": "Close",
+      "rerun": "Re-run"
+    },
+    "editor": {
+      "dirty_warning": "Unsaved changes",
+      "saving": "Saving…"
+    }
+  },
   "common": {
     "yes": "Yes",
     "no": "Cancel",

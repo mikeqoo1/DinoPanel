@@ -60,15 +60,27 @@ slices → end-to-end → tests in each phase, not bolted on at the end.
 - [x] Unit tests: 4 cases per service *(12 total, all green; suite now
   75 tests across 10 files)*
 
-## Phase 4 — Compose
+## Phase 4 — Compose ✅ (2026-05-15)
 
-- [ ] `ComposeService` detecting stacks via container labels
-  (`com.docker.compose.project`)
-- [ ] CRUD on stack-level compose files (read / write / validate)
-- [ ] `up` / `down` / `restart` / `pull` actions (shelling out to
-  `docker compose`, captured into the same WS framing as logs)
-- [ ] Monaco editor with YAML mode
-- [ ] Unit tests: 5 cases
+- [x] `ComposeService` detecting stacks via container labels
+  (`com.docker.compose.project`) *(merged with manually-registered
+  rows from the new `compose_stacks` SQLite table, drizzle migration
+  `0001_wooden_dragon_man.sql`)*
+- [x] CRUD on stack-level compose files (read / write / validate)
+  *(POST `/:key/validate` spawns `docker compose -f <file> config`
+  and parses stderr for typed error rows)*
+- [x] `up` / `down` / `restart` / `pull` actions
+  *(`/ws/compose/:key/action?type=<a>` spawns the v2 CLI, pipes
+  stdout+stderr as binary frames to xterm, sends
+  `{type:'exit',code}` on completion; client close triggers SIGTERM
+  → SIGKILL after 10 s)*
+- [x] Monaco editor with YAML mode
+  *(YAML syntax highlighting via Monaco built-in. JS-side lint via
+  the `yaml` package was scoped out — not yet installed; TODO marker
+  left in `compose-detail.tsx` `handleEditorMount`. v0.2.1 follow-up.)*
+- [x] Unit tests: 5 cases
+  *(list merge/dedup, create happy, name-conflict 409, validate
+  exit-0, validate exit-1; suite now 80 tests across 11 files)*
 
 ## Phase 5 — E2E + polish
 
