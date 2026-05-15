@@ -25,4 +25,4 @@ Status values in `meta.json`:
 | ------------------------------- | ----------- | ------- | ---------------------------------------------------------------- |
 | `v0.1.1-consolidation`          | completed   | v0.1.1  | Pre-v0.2 hardening: tests, bundle split, security, deploy        |
 | `v0.1.2-production-posture`     | completed   | v0.1.2  | Root posture, system info endpoint, fs errno mapping             |
-| `v0.2-docker-containers`        | draft       | v0.2    | Docker container management (dockerode + Compose, no App Store)  |
+| `v0.2-docker-containers`        | completed   | v0.2    | Docker container management (dockerode + Compose, no App Store)  |
