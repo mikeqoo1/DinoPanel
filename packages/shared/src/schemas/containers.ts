@@ -77,10 +77,28 @@ export type Volume = z.infer<typeof volumeSchema>;
 // ---------------------------------------------------------------------------
 
 export const composeStackSchema = z.object({
+  id: z.number().nullable(),
   name: z.string(),
-  workingDir: z.string(),
-  configFiles: z.array(z.string()),
+  path: z.string(),
+  source: z.enum(['registered', 'discovered']),
   services: z.array(z.string()),
   containerCount: z.number().int().nonnegative(),
+  runningCount: z.number().int().nonnegative(),
 });
 export type ComposeStack = z.infer<typeof composeStackSchema>;
+
+export const composeFileSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  modifiedAt: z.number(),
+});
+export type ComposeFile = z.infer<typeof composeFileSchema>;
+
+export const composeValidationSchema = z.object({
+  valid: z.boolean(),
+  errors: z
+    .array(z.object({ line: z.number().optional(), message: z.string() }))
+    .optional(),
+  resolvedYaml: z.string().optional(),
+});
+export type ComposeValidation = z.infer<typeof composeValidationSchema>;

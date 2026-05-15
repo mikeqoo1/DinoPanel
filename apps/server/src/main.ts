@@ -14,6 +14,7 @@ import { LogsGateway } from './modules/containers/logs.gateway';
 import { StatsGateway } from './modules/containers/stats.gateway';
 import { ExecGateway } from './modules/containers/exec.gateway';
 import { PullGateway } from './modules/containers/pull.gateway';
+import { ComposeActionGateway } from './modules/containers/compose-action.gateway';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 
 async function bootstrap() {
@@ -82,6 +83,7 @@ async function bootstrap() {
   app.get(StatsGateway).attachTo(httpServer);
   app.get(ExecGateway).attachTo(httpServer);
   app.get(PullGateway).attachTo(httpServer);
+  app.get(ComposeActionGateway).attachTo(httpServer);
 
   await app.listen(config.env.PORT, config.env.HOST);
 

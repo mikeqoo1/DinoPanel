@@ -14,6 +14,9 @@ import { NetworksService } from './networks.service';
 import { NetworksController } from './networks.controller';
 import { VolumesService } from './volumes.service';
 import { VolumesController } from './volumes.controller';
+import { ComposeService } from './compose.service';
+import { ComposeController } from './compose.controller';
+import { ComposeActionGateway } from './compose-action.gateway';
 
 export { DOCKER } from './docker.token';
 
@@ -35,8 +38,10 @@ export { DOCKER } from './docker.token';
     PullGateway,
     NetworksService,
     VolumesService,
+    ComposeService,
+    ComposeActionGateway,
   ],
-  controllers: [ContainersController, ImagesController, NetworksController, VolumesController],
-  exports: [DOCKER, ContainersService, LogsGateway, StatsGateway, ExecGateway, ImagesService, PullGateway, NetworksService, VolumesService],
+  controllers: [ContainersController, ImagesController, NetworksController, VolumesController, ComposeController],
+  exports: [DOCKER, ContainersService, LogsGateway, StatsGateway, ExecGateway, ImagesService, PullGateway, NetworksService, VolumesService, ComposeService, ComposeActionGateway],
 })
 export class ContainersModule {}

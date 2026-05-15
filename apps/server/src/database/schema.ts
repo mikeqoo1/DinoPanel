@@ -32,8 +32,19 @@ export const settings = sqliteTable('settings', {
   updatedAt: integer('updated_at').notNull().$defaultFn(() => Date.now()),
 });
 
+export const composeStacks = sqliteTable('compose_stacks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull().unique(),
+  path: text('path').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
+export type ComposeStackRow = typeof composeStacks.$inferSelect;
+export type NewComposeStackRow = typeof composeStacks.$inferInsert;
