@@ -10,6 +10,9 @@ import { AppModule } from './app.module';
 import type { AppConfig } from './config/configuration';
 import { MetricsGateway } from './modules/system/metrics.gateway';
 import { TerminalGateway } from './modules/terminal/terminal.gateway';
+import { LogsGateway } from './modules/containers/logs.gateway';
+import { StatsGateway } from './modules/containers/stats.gateway';
+import { ExecGateway } from './modules/containers/exec.gateway';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 
 async function bootstrap() {
@@ -74,6 +77,9 @@ async function bootstrap() {
   const httpServer = app.getHttpServer();
   app.get(MetricsGateway).attachTo(httpServer);
   app.get(TerminalGateway).attachTo(httpServer);
+  app.get(LogsGateway).attachTo(httpServer);
+  app.get(StatsGateway).attachTo(httpServer);
+  app.get(ExecGateway).attachTo(httpServer);
 
   await app.listen(config.env.PORT, config.env.HOST);
 
