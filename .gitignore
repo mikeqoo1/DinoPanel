@@ -187,3 +187,8 @@ e2e/.auth-state.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Source artwork kept at repo root for re-export; the optimised
+# versions live under apps/web/public/. Originals stay local-only.
+/LOGO1_high_res.png
+/紅連暗影柴-精緻版.png

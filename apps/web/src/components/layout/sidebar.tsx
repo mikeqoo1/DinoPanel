@@ -34,13 +34,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
     >
       <div className="flex h-14 items-center gap-2 px-3">
-        <div className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground font-bold">
-          D
-        </div>
+        <img src="/logo.png" alt="DinoPanel" className="h-8 w-8 rounded-md object-cover" />
         {!collapsed && (
           <div className="flex flex-col leading-tight">
             <span className="font-semibold">DinoPanel</span>
-            <span className="text-[10px] text-muted-foreground">v0.1.0</span>
+            <span className="text-[10px] text-muted-foreground">v0.2.1</span>
           </div>
         )}
       </div>
