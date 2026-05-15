@@ -1,0 +1,36 @@
+{
+  "id": "v0.2.1-compose-yaml-lint",
+  "title": "Compose editor: JS-side YAML lint via the `yaml` package",
+  "status": "completed",
+  "createdAt": "2026-05-15",
+  "activatedAt": "2026-05-15",
+  "completedAt": "2026-05-15",
+  "targetVersion": "v0.2.1",
+  "estimatedDuration": "0.5d",
+  "actualDuration": "~10 min coder",
+  "dependsOn": [
+    "v0.2-docker-containers"
+  ],
+  "scope": {
+    "in": [
+      "Add yaml package as apps/web dep",
+      "Live parse + Monaco markers in compose-detail.tsx"
+    ],
+    "out": [
+      "Compose schema validation",
+      "Auto-fix actions",
+      "JSON-Schema integration"
+    ]
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "80/80",
+    "playwright": "5 baseline pass; 3 docker-gated skip without env flag",
+    "build": "pass (main bundle gzip unchanged at 104.41 kB; yaml goes into the compose-detail lazy chunk)"
+  },
+  "knownFollowups": [
+    "Live manual smoke against an invalid YAML edit was not performed in this iteration (no live UI session). Trivial to verify on next dev session."
+  ],
+  "openQuestions": []
+}

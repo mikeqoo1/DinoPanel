@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import { parseDocument } from 'yaml';
+import type { YAMLError } from 'yaml';
+import Editor, { type OnMount, type Monaco } from '@monaco-editor/react';
 import {
   Play,
   Square,
@@ -59,13 +61,6 @@ const darkTheme = {
   cursor: '#79c0ff',
   selectionBackground: '#3392ff44',
 } as const;
-
-// ---------------------------------------------------------------------------
-// NOTE: YAML live-lint is NOT enabled because the `yaml` package is not
-// installed in this project. Monaco provides built-in YAML syntax highlighting.
-// TODO: install `yaml` package, then implement live lint via
-//   `parseDocument(content)` → `monaco.editor.setModelMarkers(model, 'yaml-lint', markers)`
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // WsStatusDot (same pattern as container-detail)
@@ -487,9 +482,43 @@ export function ComposeDetailPage() {
     }
   }, [drawerAction, searchParams, setSearchParams]);
 
-  const handleEditorMount: OnMount = (_editor, _monaco) => {
-    // NOTE: YAML live-lint skipped — `yaml` package not installed.
-    // TODO: when yaml is available, wire up setModelMarkers here.
+  const handleEditorMount: OnMount = (monacoEditor, monaco) => {
+    const model = monacoEditor.getModel();
+    if (!model) return;
+
+    const toMarker = (
+      diagnostic: YAMLError,
+      severity: Monaco['MarkerSeverity'][keyof Monaco['MarkerSeverity']],
+    ) => ({
+      severity,
+      message: diagnostic.message,
+      startLineNumber: diagnostic.linePos?.[0]?.line ?? 1,
+      startColumn: diagnostic.linePos?.[0]?.col ?? 1,
+      endLineNumber: diagnostic.linePos?.[1]?.line ?? diagnostic.linePos?.[0]?.line ?? 1,
+      endColumn: diagnostic.linePos?.[1]?.col ?? (diagnostic.linePos?.[0]?.col ?? 1) + 1,
+    });
+
+    const runLint = () => {
+      const doc = parseDocument(model.getValue());
+      const markers = [
+        ...doc.errors.map((e) => toMarker(e, monaco.MarkerSeverity.Error)),
+        ...doc.warnings.map((w) => toMarker(w, monaco.MarkerSeverity.Warning)),
+      ];
+      monaco.editor.setModelMarkers(model, 'yaml', markers);
+    };
+
+    runLint();
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const sub = model.onDidChangeContent(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(runLint, 200);
+    });
+
+    monacoEditor.onDidDispose(() => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      sub.dispose();
+    });
   };
 
   const handleContentChange = (value: string | undefined) => {
