@@ -12,6 +12,50 @@
   reuse the terminal module's WS framing (JWT-on-connect, binary
   frames, heartbeat) where possible.
 
+## Decided 2026-05-15 — open questions resolved
+
+The five open questions captured below were resolved in a per-item
+discussion with the user before activation. Summary of the accepted
+answers:
+
+1. **dockerode socket: root-only.** Production runs as root and reads
+   `/var/run/docker.sock` directly. Dev (non-root) is **not blocked** —
+   if the user is in the `docker` group, dockerode connects naturally;
+   no special-case code, no relaxation of the v0.1.2 non-root warning
+   semantics. Rationale: docker-group membership is effectively root
+   (`docker run -v /:/host` gives a chroot), so adding a separate
+   "non-root but container-capable" mode would just be theatre.
+
+2. **Compose file location: in-place.** Existing stacks are discovered
+   via the `com.docker.compose.project` container label. Any directory
+   can be registered as a stack (small SQLite table
+   `compose_stacks(id, path, name, created_at)` for manual registrations).
+   New-stack UI defaults the path to `~/dinopanel-stacks/<name>/` for
+   users without a preference, but the field is editable. No managed
+   directory, no copy-on-import, no parallel concept.
+
+3. **`docker compose` v1 vs v2: v2-only.** v1 (`docker-compose`) reached
+   EOL in June 2023 — no new releases, no security fixes. Detect at
+   startup via `docker compose version`; absence yields a clear error
+   pointing the user at `apt install docker-compose-plugin` or the
+   distro equivalent. Single code path, no dispatch wrapper, no double
+   testing matrix. v1 users are expected to upgrade — the migration is
+   one apt-get away.
+
+4. **Compose validation: two layers.** Live YAML parsing via the `yaml`
+   package gives Monaco its red squiggles for syntax errors; this is
+   instant and non-blocking on save. A separate "Validate" button
+   spawns `docker compose -f <file> config` for deep semantic
+   validation (variable expansion, cross-reference checks). Saves are
+   never blocked beyond YAML-parse-ability so users can persist WIP.
+
+5. **Image pull progress: raw events.** dockerode's JSON progress events
+   are forwarded over the WS untouched. The frontend renders per-layer
+   progress bars in `docker pull`-CLI style, computing per-layer percent
+   from `progressDetail.current / progressDetail.total`. No backend
+   aggregation — server-computed overall percent jumps backwards when
+   cached layers skip events, which looks like a bug to users.
+
 ## To decide before implementation
 
 - **dockerode socket path is root-only by default.** If we want to

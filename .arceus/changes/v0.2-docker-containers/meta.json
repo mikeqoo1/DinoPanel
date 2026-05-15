@@ -1,8 +1,9 @@
 {
   "id": "v0.2-docker-containers",
   "title": "Docker container management (no App Store)",
-  "status": "draft",
+  "status": "active",
   "createdAt": "2026-05-15",
+  "activatedAt": "2026-05-15",
   "targetVersion": "v0.2",
   "estimatedDuration": "2.5-3 weeks",
   "dependsOn": [
@@ -25,11 +26,6 @@
       "Multi-host federation"
     ]
   },
-  "openQuestions": [
-    "dockerode socket: root-only or docker-group?",
-    "Compose file location: in-place vs managed dir?",
-    "docker compose v1 vs v2 handling",
-    "Compose validation: JS-side parse vs docker config",
-    "Image pull progress: raw events vs aggregated %"
-  ]
+  "openQuestions": [],
+  "decisionsResolved": "See decisions.md section 'Decided 2026-05-15'"
 }
