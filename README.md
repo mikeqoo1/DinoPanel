@@ -1,5 +1,7 @@
 # DinoPanel
 
+[繁體中文](./README_zh-TW.md)
+
 > Modern Linux server management panel. Built with TypeScript + React + NestJS.
 
 DinoPanel is a self-hosted control panel for managing a single Linux server:
