@@ -187,6 +187,100 @@
     "node_version": "Node.js version",
     "license": "License"
   },
+  "images": {
+    "title": "Images",
+    "refresh": "Refresh",
+    "pull": "Pull image",
+    "empty": "No images — pull one to get started.",
+    "col_tags": "Tags",
+    "col_size": "Size",
+    "col_created": "Created",
+    "action_tag": "Tag",
+    "action_remove": "Remove",
+    "tag_success": "Image tagged successfully",
+    "remove_success": "Image removed",
+    "remove_in_use": "Image is in use by a container",
+    "remove_force": "Force remove",
+    "remove_confirm_title": "Remove image?",
+    "remove_confirm_desc": "This will permanently remove \"{{image}}\". This cannot be undone.",
+    "pull_dialog": {
+      "title": "Pull image",
+      "desc": "Enter an image reference to pull from the registry.",
+      "ref_label": "Image reference",
+      "start": "Start pull",
+      "pulling": "Pulling…",
+      "retry": "Retry",
+      "connecting": "Connecting to registry…",
+      "success": "Image pulled successfully"
+    },
+    "tag_dialog": {
+      "title": "Tag image",
+      "desc": "Add a new tag to \"{{image}}\".",
+      "repo_label": "Repository",
+      "tag_label": "Tag",
+      "submit": "Apply tag"
+    }
+  },
+  "networks": {
+    "title": "Networks",
+    "refresh": "Refresh",
+    "create": "Create network",
+    "empty": "No networks.",
+    "col_id": "ID",
+    "col_name": "Name",
+    "col_driver": "Driver",
+    "col_scope": "Scope",
+    "action_remove": "Remove",
+    "builtin_tooltip": "Built-in networks cannot be removed",
+    "create_success": "Network \"{{name}}\" created",
+    "remove_success": "Network \"{{name}}\" removed",
+    "remove_confirm_title": "Remove network?",
+    "remove_confirm_desc": "This will permanently remove \"{{name}}\". This cannot be undone.",
+    "create_dialog": {
+      "title": "Create network",
+      "desc": "Create a new Docker network.",
+      "name_label": "Name",
+      "driver_label": "Driver",
+      "internal_label": "Internal (no external access)",
+      "submit": "Create"
+    },
+    "driver": {
+      "bridge": "bridge",
+      "host": "host",
+      "overlay": "overlay",
+      "macvlan": "macvlan"
+    }
+  },
+  "volumes": {
+    "title": "Volumes",
+    "refresh": "Refresh",
+    "create": "Create volume",
+    "prune": "Prune",
+    "empty": "No volumes.",
+    "col_name": "Name",
+    "col_driver": "Driver",
+    "col_mountpoint": "Mountpoint",
+    "action_remove": "Remove",
+    "create_success": "Volume \"{{name}}\" created",
+    "remove_success": "Volume \"{{name}}\" removed",
+    "remove_confirm_title": "Remove volume?",
+    "remove_confirm_desc": "This will permanently remove volume \"{{name}}\" and all its data. This cannot be undone.",
+    "prune_success": "Pruned {{count}} volume(s), freed {{space}}",
+    "create_dialog": {
+      "title": "Create volume",
+      "desc": "Create a new Docker volume.",
+      "name_label": "Name",
+      "driver_label": "Driver",
+      "submit": "Create"
+    },
+    "prune_dialog": {
+      "title": "Prune unused volumes",
+      "desc": "This will remove all volumes not used by at least one container.",
+      "submit": "Prune",
+      "result_count": "Removed {{count}} volume(s).",
+      "result_space": "Freed {{space}}."
+    }
+  },
   "common": {
     "yes": "Yes",
     "no": "Cancel",

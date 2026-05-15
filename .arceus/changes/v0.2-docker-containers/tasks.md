@@ -42,15 +42,23 @@ slices → end-to-end → tests in each phase, not bolted on at the end.
   *(list/inspect happy, start-idempotent-304, start-404, stop-304,
   remove-409, remove-force-ok, transport-ENOENT-503)*
 
-## Phase 3 — Images / Networks / Volumes
+## Phase 3 — Images / Networks / Volumes ✅ (2026-05-15)
 
-- [ ] `ImagesService` + controller: list / pull (progress WS) / remove /
-  tag
-- [ ] `NetworksService` + controller: list / create / remove / connect /
-  disconnect
-- [ ] `VolumesService` + controller: list / create / remove
-- [ ] Frontend pages for each
-- [ ] Unit tests: 4 cases per service
+- [x] `ImagesService` + controller: list / pull (progress WS) / remove /
+  tag *(pull streams dockerode JSON events raw through
+  `pull.gateway.ts` at `/ws/images/pull?ref=<encoded>&token=<jwt>`)*
+- [x] `NetworksService` + controller: list / create / remove / connect /
+  disconnect *(create accepts `{name, driver, internal}`, default
+  driver bridge)*
+- [x] `VolumesService` + controller: list / create / remove
+  *(plus `prune` returning `{volumesDeleted, spaceReclaimed}`; create
+  inspects post-create to populate full Volume shape — dockerode v5's
+  `createVolume()` returns a wrapper, not raw JSON)*
+- [x] Frontend pages for each *(Images: pull dialog with per-layer
+  progress + tag + remove; Networks: create with driver select,
+  built-in network remove disabled; Volumes: create + prune + remove)*
+- [x] Unit tests: 4 cases per service *(12 total, all green; suite now
+  75 tests across 10 files)*
 
 ## Phase 4 — Compose
 

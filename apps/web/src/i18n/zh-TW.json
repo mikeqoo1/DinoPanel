@@ -187,6 +187,100 @@
     "node_version": "Node.js 版本",
     "license": "授權"
   },
+  "images": {
+    "title": "映像",
+    "refresh": "重新整理",
+    "pull": "Pull 新映像",
+    "empty": "沒有映像，Pull 一個吧。",
+    "col_tags": "標籤",
+    "col_size": "大小",
+    "col_created": "建立時間",
+    "action_tag": "標記",
+    "action_remove": "移除",
+    "tag_success": "映像已成功標記",
+    "remove_success": "映像已移除",
+    "remove_in_use": "映像正被容器使用中",
+    "remove_force": "強制移除",
+    "remove_confirm_title": "確定移除映像？",
+    "remove_confirm_desc": "此操作將永久移除「{{image}}」，無法復原。",
+    "pull_dialog": {
+      "title": "Pull 映像",
+      "desc": "輸入映像名稱從 registry 拉取。",
+      "ref_label": "映像名稱",
+      "start": "開始 Pull",
+      "pulling": "Pull 中…",
+      "retry": "重試",
+      "connecting": "連線至 Registry 中…",
+      "success": "映像 Pull 成功"
+    },
+    "tag_dialog": {
+      "title": "標記映像",
+      "desc": "為「{{image}}」新增標籤。",
+      "repo_label": "Repository",
+      "tag_label": "Tag",
+      "submit": "套用標籤"
+    }
+  },
+  "networks": {
+    "title": "網路",
+    "refresh": "重新整理",
+    "create": "建立網路",
+    "empty": "沒有網路。",
+    "col_id": "ID",
+    "col_name": "名稱",
+    "col_driver": "驅動",
+    "col_scope": "範圍",
+    "action_remove": "移除",
+    "builtin_tooltip": "內建網路無法移除",
+    "create_success": "網路「{{name}}」已建立",
+    "remove_success": "網路「{{name}}」已移除",
+    "remove_confirm_title": "確定移除網路？",
+    "remove_confirm_desc": "此操作將永久移除「{{name}}」，無法復原。",
+    "create_dialog": {
+      "title": "建立網路",
+      "desc": "建立一個新的 Docker 網路。",
+      "name_label": "名稱",
+      "driver_label": "驅動",
+      "internal_label": "內部網路（無法對外連線）",
+      "submit": "建立"
+    },
+    "driver": {
+      "bridge": "bridge",
+      "host": "host",
+      "overlay": "overlay",
+      "macvlan": "macvlan"
+    }
+  },
+  "volumes": {
+    "title": "儲存區",
+    "refresh": "重新整理",
+    "create": "建立 Volume",
+    "prune": "清除",
+    "empty": "沒有 Volume。",
+    "col_name": "名稱",
+    "col_driver": "驅動",
+    "col_mountpoint": "掛載點",
+    "action_remove": "移除",
+    "create_success": "Volume「{{name}}」已建立",
+    "remove_success": "Volume「{{name}}」已移除",
+    "remove_confirm_title": "確定移除 Volume？",
+    "remove_confirm_desc": "此操作將永久移除「{{name}}」及其所有資料，無法復原。",
+    "prune_success": "已清除 {{count}} 個 Volume，釋放 {{space}}",
+    "create_dialog": {
+      "title": "建立 Volume",
+      "desc": "建立一個新的 Docker Volume。",
+      "name_label": "名稱",
+      "driver_label": "驅動",
+      "submit": "建立"
+    },
+    "prune_dialog": {
+      "title": "清除未使用的 Volume",
+      "desc": "將移除所有沒有被任何容器使用的 Volume。",
+      "submit": "清除",
+      "result_count": "已移除 {{count}} 個 Volume。",
+      "result_space": "釋放 {{space}}。"
+    }
+  },
   "common": {
     "yes": "確定",
     "no": "取消",
@@ -198,6 +292,7 @@
     "error": "錯誤",
     "retry": "重試",
     "search": "搜尋",
-    "close": "關閉"
+    "close": "關閉",
+    "back": "返回"
   }
 }
