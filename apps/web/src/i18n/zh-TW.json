@@ -16,7 +16,73 @@
     "logout": "登出"
   },
   "containers": {
-    "coming_soon": "v0.2 即將推出 — Docker 容器管理功能正在積極開發中。"
+    "coming_soon": "v0.2 即將推出 — Docker 容器管理功能正在積極開發中。",
+    "title": "容器管理",
+    "refresh": "重新整理",
+    "auto_refresh": "自動重新整理",
+    "empty": "目前沒有容器，先執行 `docker run` 建立一個吧。",
+    "col_state": "狀態",
+    "col_name": "名稱",
+    "col_image": "映像",
+    "col_ports": "連接埠",
+    "col_created": "建立時間",
+    "state": {
+      "created": "已建立",
+      "running": "執行中",
+      "paused": "已暫停",
+      "restarting": "重新啟動中",
+      "removing": "移除中",
+      "exited": "已停止",
+      "dead": "已終止"
+    },
+    "actions": {
+      "start": "啟動",
+      "stop": "停止",
+      "restart": "重新啟動",
+      "pause": "暫停",
+      "unpause": "繼續",
+      "kill": "強制終止",
+      "remove": "移除",
+      "start_success": "容器已啟動",
+      "stop_success": "容器已停止",
+      "restart_success": "容器已重新啟動",
+      "pause_success": "容器已暫停",
+      "unpause_success": "容器已繼續",
+      "kill_success": "容器已強制終止",
+      "remove_success": "容器已移除",
+      "remove_confirm_title": "確定移除容器？",
+      "remove_confirm_desc": "此操作將永久移除「{{name}}」，無法復原。"
+    },
+    "tabs": {
+      "logs": "日誌",
+      "stats": "統計",
+      "inspect": "詳細資訊",
+      "exec": "執行"
+    },
+    "logs": {
+      "streaming": "串流中",
+      "connecting": "連線中…",
+      "disconnected": "已斷線"
+    },
+    "stats": {
+      "live": "即時",
+      "connecting": "連線中…",
+      "disconnected": "已斷線",
+      "cpu": "CPU",
+      "memory": "記憶體",
+      "network": "網路 I/O",
+      "block_io": "磁碟 I/O"
+    },
+    "exec": {
+      "hint": "在容器內開啟互動式 shell。",
+      "cmd_label": "指令",
+      "open": "開啟 shell",
+      "close": "關閉",
+      "shell_title": "互動式 shell",
+      "connected": "已連線",
+      "connecting": "連線中…",
+      "disconnected": "已斷線"
+    }
   },
   "auth": {
     "login_title": "登入 DinoPanel",

@@ -20,14 +20,27 @@ slices → end-to-end → tests in each phase, not bolted on at the end.
   *(5 lazy routes + sidebar items + i18n; main bundle +1.2 kB gzip
   → 100.14 kB total)*
 
-## Phase 2 — Containers (REST + WS)
+## Phase 2 — Containers (REST + WS) ✅ (2026-05-15)
 
-- [ ] `ContainersService` + `ContainersController`: list / inspect /
+- [x] `ContainersService` + `ContainersController`: list / inspect /
   start / stop / restart / pause / unpause / kill / remove
-- [ ] WS gateways: logs stream, stats stream, exec stream
-- [ ] Frontend list page with status badges, ports, image
-- [ ] Frontend detail page with logs tail, stats sparkline, exec drawer
-- [ ] Unit tests: 8 cases covering happy path + 404 / 409
+  *(idempotent 304 handling for start/stop/etc; `mapDockerError` on
+  the failure path; DOCKER token moved to `docker.token.ts` to break
+  a service→module→service circular import)*
+- [x] WS gateways: logs stream, stats stream, exec stream
+  *(`logs.gateway.ts`, `stats.gateway.ts`, `exec.gateway.ts`; JWT via
+  `?token=` query, attached in main.ts via the existing
+  Fastify upgrade hook; binary frames for logs/exec, JSON frames for
+  stats and control messages)*
+- [x] Frontend list page with status badges, ports, image
+  *(shadcn `<Table>`, auto-refresh toggle, per-row action icons
+  start/stop/pause/unpause/restart/remove)*
+- [x] Frontend detail page with logs tail, stats sparkline, exec drawer
+  *(4 tabs — Logs/Stats/Inspect/Exec — using xterm + recharts +
+  Monaco-read-only respectively)*
+- [x] Unit tests: 8 cases covering happy path + 404 / 409
+  *(list/inspect happy, start-idempotent-304, start-404, stop-304,
+  remove-409, remove-force-ok, transport-ENOENT-503)*
 
 ## Phase 3 — Images / Networks / Volumes
 

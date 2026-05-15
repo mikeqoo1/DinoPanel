@@ -16,7 +16,73 @@
     "logout": "Log out"
   },
   "containers": {
-    "coming_soon": "Coming in v0.2 — Docker container management is under active development."
+    "coming_soon": "Coming in v0.2 — Docker container management is under active development.",
+    "title": "Container management",
+    "refresh": "Refresh",
+    "auto_refresh": "Auto-refresh",
+    "empty": "No containers yet — run `docker run` to create one.",
+    "col_state": "State",
+    "col_name": "Name",
+    "col_image": "Image",
+    "col_ports": "Ports",
+    "col_created": "Created",
+    "state": {
+      "created": "created",
+      "running": "running",
+      "paused": "paused",
+      "restarting": "restarting",
+      "removing": "removing",
+      "exited": "exited",
+      "dead": "dead"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "pause": "Pause",
+      "unpause": "Unpause",
+      "kill": "Kill",
+      "remove": "Remove",
+      "start_success": "Container started",
+      "stop_success": "Container stopped",
+      "restart_success": "Container restarted",
+      "pause_success": "Container paused",
+      "unpause_success": "Container unpaused",
+      "kill_success": "Container killed",
+      "remove_success": "Container removed",
+      "remove_confirm_title": "Remove container?",
+      "remove_confirm_desc": "This will permanently remove \"{{name}}\". This cannot be undone."
+    },
+    "tabs": {
+      "logs": "Logs",
+      "stats": "Stats",
+      "inspect": "Inspect",
+      "exec": "Exec"
+    },
+    "logs": {
+      "streaming": "Streaming",
+      "connecting": "Connecting…",
+      "disconnected": "Disconnected"
+    },
+    "stats": {
+      "live": "Live",
+      "connecting": "Connecting…",
+      "disconnected": "Disconnected",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "network": "Network I/O",
+      "block_io": "Block I/O"
+    },
+    "exec": {
+      "hint": "Open an interactive shell inside the container.",
+      "cmd_label": "Command",
+      "open": "Open shell",
+      "close": "Close",
+      "shell_title": "Interactive shell",
+      "connected": "Connected",
+      "connecting": "Connecting…",
+      "disconnected": "Disconnected"
+    }
   },
   "auth": {
     "login_title": "Sign in to DinoPanel",
@@ -132,6 +198,7 @@
     "error": "Error",
     "retry": "Retry",
     "search": "Search",
-    "close": "Close"
+    "close": "Close",
+    "back": "Back"
   }
 }

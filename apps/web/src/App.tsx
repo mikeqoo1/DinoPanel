@@ -13,6 +13,7 @@ const TerminalPage = lazy(() => import('@/routes/terminal').then((m) => ({ defau
 const FilesPage = lazy(() => import('@/routes/files').then((m) => ({ default: m.FilesPage })));
 const SettingsPage = lazy(() => import('@/routes/settings').then((m) => ({ default: m.SettingsPage })));
 const ContainersPage = lazy(() => import('@/routes/containers/containers').then((m) => ({ default: m.ContainersPage })));
+const ContainerDetailPage = lazy(() => import('@/routes/containers/container-detail').then((m) => ({ default: m.ContainerDetailPage })));
 const ImagesPage = lazy(() => import('@/routes/containers/images').then((m) => ({ default: m.ImagesPage })));
 const NetworksPage = lazy(() => import('@/routes/containers/networks').then((m) => ({ default: m.NetworksPage })));
 const VolumesPage = lazy(() => import('@/routes/containers/volumes').then((m) => ({ default: m.VolumesPage })));
@@ -48,6 +49,7 @@ export default function App() {
                   <Route path="/terminal" element={<TerminalPage />} />
                   <Route path="/files" element={<FilesPage />} />
                   <Route path="/containers" element={<ContainersPage />} />
+                  <Route path="/containers/:id" element={<ContainerDetailPage />} />
                   <Route path="/images" element={<ImagesPage />} />
                   <Route path="/networks" element={<NetworksPage />} />
                   <Route path="/volumes" element={<VolumesPage />} />
