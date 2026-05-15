@@ -7,6 +7,13 @@ import { ContainersController } from './containers.controller';
 import { LogsGateway } from './logs.gateway';
 import { StatsGateway } from './stats.gateway';
 import { ExecGateway } from './exec.gateway';
+import { ImagesService } from './images.service';
+import { ImagesController } from './images.controller';
+import { PullGateway } from './pull.gateway';
+import { NetworksService } from './networks.service';
+import { NetworksController } from './networks.controller';
+import { VolumesService } from './volumes.service';
+import { VolumesController } from './volumes.controller';
 
 export { DOCKER } from './docker.token';
 
@@ -24,8 +31,12 @@ export { DOCKER } from './docker.token';
     LogsGateway,
     StatsGateway,
     ExecGateway,
+    ImagesService,
+    PullGateway,
+    NetworksService,
+    VolumesService,
   ],
-  controllers: [ContainersController],
-  exports: [DOCKER, ContainersService, LogsGateway, StatsGateway, ExecGateway],
+  controllers: [ContainersController, ImagesController, NetworksController, VolumesController],
+  exports: [DOCKER, ContainersService, LogsGateway, StatsGateway, ExecGateway, ImagesService, PullGateway, NetworksService, VolumesService],
 })
 export class ContainersModule {}
