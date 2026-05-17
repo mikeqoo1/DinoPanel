@@ -1,0 +1,24 @@
+{
+  "id": "backlog-compose-discovered-stack-readonly",
+  "title": "Compose detail: handle discovered-only stacks (no compose.yml on disk)",
+  "status": "draft",
+  "createdAt": "2026-05-17",
+  "targetVersion": "any",
+  "estimatedDuration": "0.25d",
+  "dependsOn": [],
+  "scope": {
+    "in": [
+      "Frontend: mark Compose detail editor + Save + 驗證 read-only/disabled when stack.source === 'discovered' or stack.path is empty",
+      "Backend: return a clearer 4xx (e.g. CONFLICT / 'no compose file for discovered stack') instead of leaking ENOENT with internal path"
+    ],
+    "out": [
+      "Reconstructing a synthesised compose.yml from docker inspect",
+      "Auto-importing a discovered stack into a managed compose directory",
+      "Compose schema validation"
+    ]
+  },
+  "openQuestions": [
+    "Should Up/Down/Restart/Pull stay enabled for discovered stacks (current behaviour) or be moved into the Containers stack-grouping view instead?"
+  ],
+  "knownFollowups": []
+}

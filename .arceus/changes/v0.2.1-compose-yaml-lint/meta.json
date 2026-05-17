@@ -30,7 +30,7 @@
     "build": "pass (main bundle gzip unchanged at 104.41 kB; yaml goes into the compose-detail lazy chunk)"
   },
   "knownFollowups": [
-    "Live manual smoke against an invalid YAML edit was not performed in this iteration (no live UI session). Trivial to verify on next dev session."
+    "Live manual smoke verified 2026-05-17 (see tasks.md). Side observation: discovered-only stacks (e.g. `plane-app`) have empty `stack.path`, so opening their compose detail page tries to read `compose.yml` from the server cwd and 404s. Tracked separately in backlog-compose-discovered-stack-readonly."
   ],
   "openQuestions": []
 }

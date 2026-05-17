@@ -10,7 +10,6 @@
 - [x] Remove the v0.2 TODO comment for this hook-in
 - [x] Verify: typecheck / lint / test (80/80) / build / playwright
   (5 baseline pass, 3 docker-gated skipped without env flag)
-- [ ] Manual smoke: invalid YAML shows a red squiggle within ~200 ms;
+- [x] Manual smoke: invalid YAML shows a red squiggle within ~200 ms;
   valid YAML clears it
-  *(deferred — needs live UI session; logic verified via parser
-  behaviour + agent's review of the wiring)*
+  *(verified 2026-05-17 on dev server — typed `services:\n  bad: [ un\n  another:\n    image: nginx:` into the `plane-app` compose editor; Monaco marker hover ("View Problem / No quick fixes available") + overview-ruler red indicator both visible, confirming `setModelMarkers` is firing)*
