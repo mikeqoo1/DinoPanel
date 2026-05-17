@@ -17,6 +17,7 @@ import {
   chmodSchema,
   chownSchema,
   compressSchema,
+  extractSchema,
   listQuerySchema,
   mkdirSchema,
   pathOnlySchema,
@@ -25,6 +26,7 @@ import {
   type ChmodInput,
   type ChownInput,
   type CompressInput,
+  type ExtractInput,
   type ListQuery,
   type MkdirInput,
   type PathOnlyInput,
@@ -137,5 +139,19 @@ export class FilesController {
     res.header('Content-Disposition', `attachment; filename="${filename}"`);
     res.header('Content-Type', body.format === 'zip' ? 'application/zip' : 'application/gzip');
     return res.send(stream);
+  }
+
+  @Post('compress')
+  @UsePipes(new ZodValidationPipe(compressSchema))
+  @HttpCode(204)
+  async compress(@Body() body: CompressInput) {
+    await this.files.compressToDisk(body.paths, body.dest, body.format);
+  }
+
+  @Post('extract')
+  @UsePipes(new ZodValidationPipe(extractSchema))
+  @HttpCode(204)
+  async extract(@Body() body: ExtractInput) {
+    await this.files.extract(body.archive, body.dest);
   }
 }

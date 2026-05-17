@@ -16,6 +16,8 @@ import {
   Copy,
   ShieldCheck,
   UserCog,
+  Archive,
+  PackageOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -51,6 +53,19 @@ function modeToString(mode: number): string {
   return out;
 }
 
+function isArchive(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith('.zip') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz') || lower.endsWith('.tar');
+}
+
+function archiveBasename(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.tar.gz')) return name.slice(0, -7);
+  if (lower.endsWith('.tgz')) return name.slice(0, -4);
+  if (lower.endsWith('.zip') || lower.endsWith('.tar')) return name.slice(0, -4);
+  return name;
+}
+
 export function FilesPage() {
   const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState<string>('');
@@ -76,7 +91,20 @@ export function FilesPage() {
   const [chownTarget, setChownTarget] = useState<FileEntry | null>(null);
   const [chownUid, setChownUid] = useState('');
   const [chownGid, setChownGid] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [compressOpen, setCompressOpen] = useState(false);
+  const [compressFormat, setCompressFormat] = useState<'zip' | 'tar.gz'>('zip');
+  const [compressDest, setCompressDest] = useState('');
+  const [compressing, setCompressing] = useState(false);
+  const [extractTarget, setExtractTarget] = useState<FileEntry | null>(null);
+  const [extractDest, setExtractDest] = useState('');
+  const [extracting, setExtracting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Clear selection when the directory changes
+  useEffect(() => {
+    setSelected(new Set());
+  }, [currentPath]);
 
   const pathReady = currentPath !== '';
   const list = useFileList({ path: currentPath, showHidden, enabled: pathReady });
@@ -195,6 +223,77 @@ export function FilesPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const toggleSelected = (path: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const allSelected = useMemo(() => {
+    return sortedEntries.length > 0 && sortedEntries.every((e) => selected.has(e.path));
+  }, [sortedEntries, selected]);
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(sortedEntries.map((e) => e.path)));
+    }
+  };
+
+  const openCompressDialog = () => {
+    const defaultName = `archive.${compressFormat === 'zip' ? 'zip' : 'tar.gz'}`;
+    setCompressDest(`${currentPath.replace(/\/$/, '')}/${defaultName}`);
+    setCompressOpen(true);
+  };
+
+  const handleCompress = async () => {
+    if (selected.size === 0 || !compressDest.trim()) return;
+    setCompressing(true);
+    try {
+      await api.post('/files/compress', {
+        paths: Array.from(selected),
+        dest: compressDest.trim(),
+        format: compressFormat,
+      });
+      toast.success(t('files.compress.success_toast'));
+      setCompressOpen(false);
+      setSelected(new Set());
+      await list.refetch();
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      setCompressing(false);
+    }
+  };
+
+  const openExtractDialog = (entry: FileEntry) => {
+    setExtractTarget(entry);
+    setExtractDest(`${currentPath.replace(/\/$/, '')}/${archiveBasename(entry.name)}`);
+  };
+
+  const handleExtract = async () => {
+    if (!extractTarget || !extractDest.trim()) return;
+    setExtracting(true);
+    try {
+      await api.post('/files/extract', {
+        archive: extractTarget.path,
+        dest: extractDest.trim(),
+      });
+      toast.success(t('files.extract.success_toast'));
+      setExtractTarget(null);
+      setExtractDest('');
+      await list.refetch();
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   const handleDownload = async (entry: FileEntry) => {
     try {
       const res = await api.get(downloadFileUrl(entry.path).replace('/api', ''), {
@@ -240,6 +339,15 @@ export function FilesPage() {
               hidden
               onChange={(e) => handleUpload(e.target.files)}
             />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={openCompressDialog}
+              disabled={selected.size === 0}
+            >
+              <Archive className="h-4 w-4" />
+              {t('files.actions.compress_selected', { count: selected.size })}
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => setShowHidden((v) => !v)}>
               {showHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {t('files.show_hidden')}
@@ -265,6 +373,15 @@ export function FilesPage() {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card text-xs text-muted-foreground">
                 <tr className="border-b">
+                  <th className="w-10 px-3 py-2 text-left font-medium">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 cursor-pointer accent-primary"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="select all"
+                    />
+                  </th>
                   <th className="px-4 py-2 text-left font-medium">{t('files.name')}</th>
                   <th className="px-4 py-2 text-right font-medium">{t('files.size')}</th>
                   <th className="px-4 py-2 text-left font-medium">{t('files.permissions')}</th>
@@ -275,7 +392,7 @@ export function FilesPage() {
               <tbody>
                 {sortedEntries.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                       (empty directory)
                     </td>
                   </tr>
@@ -286,9 +403,19 @@ export function FilesPage() {
                     className={cn(
                       'group cursor-pointer border-b border-transparent transition-colors hover:bg-accent/50',
                       entry.isHidden && 'opacity-60',
+                      selected.has(entry.path) && 'bg-accent/40',
                     )}
                     onDoubleClick={() => handleOpen(entry)}
                   >
+                    <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 cursor-pointer accent-primary"
+                        checked={selected.has(entry.path)}
+                        onChange={() => toggleSelected(entry.path)}
+                        aria-label={`select ${entry.name}`}
+                      />
+                    </td>
                     <td className="px-4 py-1.5">
                       <button
                         className="flex items-center gap-2 text-left"
@@ -339,6 +466,19 @@ export function FilesPage() {
                             >
                               <Download className="h-3.5 w-3.5" />
                             </Button>
+                            {isArchive(entry.name) && (
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openExtractDialog(entry);
+                                }}
+                                aria-label={t('files.actions.extract')}
+                              >
+                                <PackageOpen className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </>
                         )}
                         <Button
@@ -572,6 +712,118 @@ export function FilesPage() {
             >
               {muts.chmod.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Compress dialog */}
+      <Dialog
+        open={compressOpen}
+        onOpenChange={(o) => {
+          if (!o) setCompressOpen(false);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('files.compress.title')}</DialogTitle>
+            <DialogDescription>
+              {t('files.compress.selected_count', { count: selected.size })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('files.compress.format_label')}</label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="compress-format"
+                    value="zip"
+                    checked={compressFormat === 'zip'}
+                    onChange={() => {
+                      setCompressFormat('zip');
+                      setCompressDest((d) => d.replace(/\.(zip|tar\.gz)$/i, '') + '.zip');
+                    }}
+                    className="accent-primary"
+                  />
+                  zip
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="compress-format"
+                    value="tar.gz"
+                    checked={compressFormat === 'tar.gz'}
+                    onChange={() => {
+                      setCompressFormat('tar.gz');
+                      setCompressDest((d) => d.replace(/\.(zip|tar\.gz)$/i, '') + '.tar.gz');
+                    }}
+                    className="accent-primary"
+                  />
+                  tar.gz
+                </label>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">{t('files.compress.dest_label')}</label>
+              <Input
+                value={compressDest}
+                onChange={(e) => setCompressDest(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleCompress()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCompressOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleCompress} disabled={!compressDest.trim() || compressing}>
+              {compressing && <Loader2 className="h-4 w-4 animate-spin" />}
+              {compressing ? t('files.compress.in_progress') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Extract dialog */}
+      <Dialog
+        open={!!extractTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setExtractTarget(null);
+            setExtractDest('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('files.extract.title')}</DialogTitle>
+            <DialogDescription className="font-mono text-xs">{extractTarget?.path}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">{t('files.extract.dest_label')}</label>
+            <Input
+              value={extractDest}
+              onChange={(e) => setExtractDest(e.target.value)}
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleExtract()}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExtractTarget(null);
+                setExtractDest('');
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleExtract} disabled={!extractDest.trim() || extracting}>
+              {extracting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {extracting ? t('files.extract.in_progress') : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

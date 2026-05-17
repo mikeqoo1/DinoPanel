@@ -7,11 +7,21 @@ import {
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { promises as fs, constants as fsConst, createReadStream, createWriteStream } from 'node:fs';
-import { basename, dirname, isAbsolute, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, resolve, sep as pathSep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import archiver from 'archiver';
+import * as tar from 'tar';
+import unzipper from 'unzipper';
 import type { FileEntry } from '@dinopanel/shared';
+
+function classifyArchive(path: string): 'zip' | 'tar.gz' | 'tar' | null {
+  const lower = path.toLowerCase();
+  if (lower.endsWith('.zip')) return 'zip';
+  if (lower.endsWith('.tar.gz') || lower.endsWith('.tgz')) return 'tar.gz';
+  if (lower.endsWith('.tar')) return 'tar';
+  return null;
+}
 
 const MAX_READ_BYTES = 5 * 1024 * 1024;
 
@@ -335,5 +345,126 @@ export class FilesService {
     }
     archive.finalize().catch(() => undefined);
     return { stream: archive, filename: `archive.${format === 'zip' ? 'zip' : 'tar.gz'}` };
+  }
+
+  /**
+   * Build an archive at `dest` from a list of source paths. Files and
+   * directories are added at the top level of the archive keyed by their
+   * basename — same convention as createArchiveStream so the download
+   * and the on-disk archive behave identically.
+   */
+  async compressToDisk(
+    paths: string[],
+    rawDest: string,
+    format: 'zip' | 'tar.gz',
+  ): Promise<void> {
+    if (paths.length === 0) {
+      throw new BadRequestException({
+        code: 'FILE_OPERATION_FAILED',
+        message: 'paths must contain at least one entry',
+      });
+    }
+
+    const resolvedSources = paths.map((p) => this.resolvePath(p));
+    const destPath = this.resolvePath(rawDest);
+    this.assertWritable(destPath);
+
+    await fs.mkdir(dirname(destPath), { recursive: true }).catch((err) => mapFsError(err, destPath));
+
+    const archive =
+      format === 'zip'
+        ? archiver('zip', { zlib: { level: 6 } })
+        : archiver('tar', { gzip: true, gzipOptions: { level: 6 } });
+    const sink = createWriteStream(destPath);
+
+    for (const path of resolvedSources) {
+      const stat = await fs.stat(path).catch((err) => mapFsError(err, path));
+      const name = basename(path);
+      if (stat.isDirectory()) {
+        archive.directory(path, name);
+      } else {
+        archive.file(path, { name });
+      }
+    }
+
+    const pipelinePromise = pipeline(archive as unknown as NodeJS.ReadableStream, sink).catch(
+      (err) => mapFsError(err, destPath),
+    );
+    await archive.finalize();
+    await pipelinePromise;
+  }
+
+  /**
+   * Extract an archive into `dest`. Format is decided by the archive
+   * filename extension. `.zip` is iterated explicitly so we can reject
+   * entries whose resolved destination escapes `dest` (zip-slip);
+   * `.tar` / `.tar.gz` / `.tgz` go through the `tar` package with
+   * `strict: true`, which already rejects suspicious entries.
+   */
+  async extract(rawArchive: string, rawDest: string): Promise<void> {
+    const archivePath = this.resolvePath(rawArchive);
+    const destPath = this.resolvePath(rawDest);
+    this.assertWritable(destPath);
+
+    const archiveStat = await fs.stat(archivePath).catch((err) => mapFsError(err, archivePath));
+    if (!archiveStat.isFile()) {
+      throw new BadRequestException({
+        code: 'FILE_OPERATION_FAILED',
+        message: 'Archive must be a regular file',
+      });
+    }
+
+    const kind = classifyArchive(archivePath);
+    if (kind === null) {
+      throw new BadRequestException({
+        code: 'FILE_UNSUPPORTED_ARCHIVE',
+        message: 'Supported archive extensions: .zip, .tar, .tar.gz, .tgz',
+      });
+    }
+
+    await fs.mkdir(destPath, { recursive: true }).catch((err) => mapFsError(err, destPath));
+
+    if (kind === 'zip') {
+      await this.extractZipWithSlipGuard(archivePath, destPath);
+    } else {
+      // kind === 'tar' or 'tar.gz' — `tar` autodetects gzip when given `.tar.gz`.
+      await tar
+        .x({ file: archivePath, cwd: destPath, strict: true })
+        .catch((err) => mapFsError(err, archivePath));
+    }
+  }
+
+  /**
+   * Stream a zip, validating every entry's resolved path before writing.
+   * Any entry that does not equal `dest` and does not start with
+   * `dest + path.sep` is treated as a zip-slip attempt and aborts the
+   * extraction.
+   */
+  private async extractZipWithSlipGuard(archivePath: string, destPath: string): Promise<void> {
+    const directory = await unzipper.Open.file(archivePath);
+    const destPrefix = destPath.endsWith(pathSep) ? destPath : destPath + pathSep;
+
+    // Pre-validate every entry path before touching the filesystem.
+    for (const entry of directory.files) {
+      const entryDest = resolve(destPath, entry.path);
+      if (entryDest !== destPath && !entryDest.startsWith(destPrefix)) {
+        throw new BadRequestException({
+          code: 'FILE_ARCHIVE_TRAVERSAL',
+          message: `Refusing to extract: entry '${entry.path}' escapes destination`,
+        });
+      }
+    }
+
+    for (const entry of directory.files) {
+      const entryDest = resolve(destPath, entry.path);
+      if (entry.type === 'Directory') {
+        await fs.mkdir(entryDest, { recursive: true }).catch((err) => mapFsError(err, entryDest));
+        continue;
+      }
+      await fs.mkdir(dirname(entryDest), { recursive: true }).catch((err) => mapFsError(err, entryDest));
+      await pipeline(entry.stream(), createWriteStream(entryDest)).catch((err) =>
+        mapFsError(err, entryDest),
+      );
+    }
   }
 }

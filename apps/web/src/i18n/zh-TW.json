@@ -164,7 +164,25 @@
     "chown_gid_label": "GID",
     "chown_gid_placeholder": "0",
     "chown_uid_gid_hint": "留空某欄位時請填入目前值以保持不變",
-    "chmod_mode_invalid": "模式須為 3–4 位八進位數字（如 755、0755）"
+    "chmod_mode_invalid": "模式須為 3–4 位八進位數字（如 755、0755）",
+    "actions": {
+      "compress_selected": "壓縮 ({{count}})",
+      "extract": "解壓縮"
+    },
+    "compress": {
+      "title": "壓縮所選項目",
+      "selected_count": "已選 {{count}} 項",
+      "format_label": "格式",
+      "dest_label": "輸出路徑",
+      "in_progress": "壓縮中…",
+      "success_toast": "壓縮完成"
+    },
+    "extract": {
+      "title": "解壓縮",
+      "dest_label": "目的資料夾",
+      "in_progress": "解壓縮中…",
+      "success_toast": "解壓縮完成"
+    }
   },
   "settings": {
     "title": "設定",

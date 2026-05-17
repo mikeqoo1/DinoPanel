@@ -164,7 +164,25 @@
     "chown_gid_label": "GID",
     "chown_gid_placeholder": "0",
     "chown_uid_gid_hint": "Leave a field unchanged by entering its current value",
-    "chmod_mode_invalid": "Mode must be 3–4 octal digits (e.g. 755, 0755)"
+    "chmod_mode_invalid": "Mode must be 3–4 octal digits (e.g. 755, 0755)",
+    "actions": {
+      "compress_selected": "Compress ({{count}})",
+      "extract": "Extract"
+    },
+    "compress": {
+      "title": "Compress selected",
+      "selected_count": "{{count}} item(s) selected",
+      "format_label": "Format",
+      "dest_label": "Destination path",
+      "in_progress": "Compressing…",
+      "success_toast": "Archive created"
+    },
+    "extract": {
+      "title": "Extract",
+      "dest_label": "Destination directory",
+      "in_progress": "Extracting…",
+      "success_toast": "Extraction complete"
+    }
   },
   "settings": {
     "title": "Settings",

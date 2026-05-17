@@ -1,10 +1,46 @@
 {
   "id": "backlog-files-compress-extract-ui",
-  "title": "Files frontend: wire backend compress / extract endpoints to UI",
-  "status": "draft",
+  "title": "Files: compress-to-disk + extract — backend endpoints + UI",
+  "status": "completed",
   "createdAt": "2026-05-15",
+  "activatedAt": "2026-05-17",
+  "completedAt": "2026-05-17",
   "targetVersion": "any",
-  "estimatedDuration": "0.5d",
+  "estimatedDuration": "0.7-1d",
+  "actualDuration": "~1.5h main thread",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "90/90 (82 baseline + 8 new — AR-1..AR-8 archive integration tests)",
+    "build": "pass (main bundle gzip 104.67 → 104.87 kB; files chunk 21.66 → 27.12 kB)",
+    "apiSmoke": "verified 2026-05-17: POST /files/compress 204 + on-disk tar.gz; POST /files/extract 204 + md5-equal round-trip; bad extension (.rar) → 400 FILE_UNSUPPORTED_ARCHIVE",
+    "uiSmoke": "deferred — covered by API integration + Vitest. To visually confirm: select files in /files, click Compress, choose tar.gz, save; then click the PackageOpen icon on the new archive, set dest, save."
+  },
   "blocking": false,
-  "originated": "v0.1.1 tech-debt list (carried over from MVP)"
+  "originated": "v0.1.1 tech-debt list (carried over from MVP)",
+  "scope": {
+    "in": [
+      "New backend endpoints POST /files/compress and POST /files/extract",
+      "tar + unzipper dependencies + zip-slip guard",
+      "Multi-select in the file table",
+      "Compress dialog in toolbar + Extract action on archive rows",
+      "zh-TW + en i18n",
+      "Backend unit tests"
+    ],
+    "out": [
+      "Streaming progress percentages",
+      "Inline archive content preview",
+      "New Playwright e2e tests",
+      "Right-click menu (toolbar + action menu only)"
+    ]
+  },
+  "decisions": [
+    "Backend was misrepresented as existing — new endpoints required (decisions.md §1).",
+    "tar + unzipper, not decompress (§2).",
+    "Explicit zip-slip guard before any write (§3).",
+    "Multi-select via checkbox column, no shift-click (§4).",
+    "Compress = toolbar; Extract = row action menu (§5).",
+    "Backend unit tests + manual smoke; no new e2e (§6).",
+    "204 No Content on success, consistent with other write endpoints (§7)."
+  ]
 }
