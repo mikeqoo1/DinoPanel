@@ -333,6 +333,10 @@
     "editor": {
       "dirty_warning": "Unsaved changes",
       "saving": "Saving…"
+    },
+    "readonly_banner": {
+      "title": "This stack has no editable compose file",
+      "body": "It was reconstructed from running container labels and has no compose.yml on disk to edit or validate. Up / Down / Restart / Pull still work as usual."
     }
   },
   "common": {

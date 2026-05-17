@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { useTheme } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
-import { extractErrorMessage } from '@/lib/api';
+import { extractErrorMessage, getApiErrorCode } from '@/lib/api';
 import {
   useComposeStack,
   useComposeFile,
@@ -349,12 +349,22 @@ interface ToolbarProps {
   dirty: boolean;
   saving: boolean;
   validating: boolean;
+  readOnly: boolean;
   onAction: (action: ComposeActionType) => void;
   onValidate: () => void;
   onSave: () => void;
 }
 
-function Toolbar({ stack, dirty, saving, validating, onAction, onValidate, onSave }: ToolbarProps) {
+function Toolbar({
+  stack,
+  dirty,
+  saving,
+  validating,
+  readOnly,
+  onAction,
+  onValidate,
+  onSave,
+}: ToolbarProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -399,30 +409,34 @@ function Toolbar({ stack, dirty, saving, validating, onAction, onValidate, onSav
 
         <div className="flex-1" />
 
-        {/* Validate */}
-        <Button size="sm" variant="outline" onClick={onValidate} disabled={validating}>
-          {validating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <ShieldCheck className="h-3.5 w-3.5" />
-          )}
-          {t('compose.actions.validate')}
-        </Button>
+        {!readOnly && (
+          <>
+            {/* Validate */}
+            <Button size="sm" variant="outline" onClick={onValidate} disabled={validating}>
+              {validating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5" />
+              )}
+              {t('compose.actions.validate')}
+            </Button>
 
-        {/* Save */}
-        <Button
-          size="sm"
-          onClick={onSave}
-          disabled={saving || !dirty}
-          className={cn(dirty && 'ring-2 ring-primary/40')}
-        >
-          {saving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="h-3.5 w-3.5" />
-          )}
-          {saving ? t('compose.editor.saving') : t('compose.actions.save')}
-        </Button>
+            {/* Save */}
+            <Button
+              size="sm"
+              onClick={onSave}
+              disabled={saving || !dirty}
+              className={cn(dirty && 'ring-2 ring-primary/40')}
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {saving ? t('compose.editor.saving') : t('compose.actions.save')}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -440,8 +454,12 @@ export function ComposeDetailPage() {
   const { resolvedTheme } = useTheme();
 
   const { data: stack, isPending: stackPending, error: stackError } = useComposeStack(key);
-  const { data: file, isPending: filePending } = useComposeFile(key);
+  const { data: file, isPending: filePending, error: fileError } = useComposeFile(key);
   const { updateFile, validate } = useComposeActions();
+
+  const isFileUnavailable =
+    getApiErrorCode(fileError) === 'COMPOSE_FILE_UNAVAILABLE' ||
+    (stack?.source === 'discovered' && !stack.path);
 
   const [content, setContent] = useState<string>('');
   const [dirty, setDirty] = useState(false);
@@ -592,10 +610,21 @@ export function ComposeDetailPage() {
         dirty={dirty}
         saving={saving}
         validating={validating}
+        readOnly={isFileUnavailable}
         onAction={handleAction}
         onValidate={() => void handleValidate()}
         onSave={() => void handleSave()}
       />
+
+      {/* Read-only banner — shown when the stack has no editable compose file */}
+      {isFileUnavailable && (
+        <div className="border-b bg-muted/40 px-6 py-3">
+          <p className="text-sm font-medium">{t('compose.readonly_banner.title')}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t('compose.readonly_banner.body')}
+          </p>
+        </div>
+      )}
 
       {/* Validate result strip */}
       {validateResult && (
@@ -621,6 +650,7 @@ export function ComposeDetailPage() {
             wordWrap: 'off',
             folding: true,
             tabSize: 2,
+            readOnly: isFileUnavailable,
           }}
         />
       </div>

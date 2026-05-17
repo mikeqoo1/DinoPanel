@@ -121,6 +121,13 @@ function formatZodDetails(details: unknown): string | null {
   return lines.length > 0 ? lines.join('; ') : null;
 }
 
+/** Extract the backend error `code` from an AxiosError, or null if absent. */
+export function getApiErrorCode(err: unknown): string | null {
+  if (!axios.isAxiosError(err)) return null;
+  const data: unknown = (err as AxiosError).response?.data;
+  return isApiErrorResponse(data) ? data.code : null;
+}
+
 export function extractErrorMessage(err: unknown): string {
   // 1. AxiosError
   if (axios.isAxiosError(err)) {

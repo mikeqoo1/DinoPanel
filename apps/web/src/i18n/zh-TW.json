@@ -333,6 +333,10 @@
     "editor": {
       "dirty_warning": "有未儲存的變更",
       "saving": "儲存中…"
+    },
+    "readonly_banner": {
+      "title": "此 Stack 無可編輯的 compose 檔案",
+      "body": "這個 Stack 是從執行中的容器標籤反推出來的，沒有對應的 compose.yml 可編輯或驗證。Up / Down / Restart / Pull 仍可正常使用。"
     }
   },
   "common": {

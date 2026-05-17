@@ -29,7 +29,7 @@ Status values in `meta.json`:
 | `v0.2.1-compose-yaml-lint`      | completed   | v0.2.1  | Add `yaml` dep + live JS-side YAML lint in the Compose editor    |
 | `v0.3-websites-acme`            | draft       | v0.3    | Static / reverse proxy / PHP sites + ACME (HTTP-01 + Cloudflare) |
 | `backlog-files-compress-extract-ui` | draft   | any     | Wire existing backend compress / extract to the Files frontend   |
-| `backlog-compose-discovered-stack-readonly` | draft | any | Compose detail: read-only handling for discovered stacks (no compose.yml on disk) |
+| `backlog-compose-discovered-stack-readonly` | completed | any | Compose detail: read-only handling for discovered stacks (409 COMPOSE_FILE_UNAVAILABLE + banner) |
 
 ## Backlog notes
 
@@ -37,21 +37,17 @@ Status values in `meta.json`:
   them per-item in `decisions.md` before flipping status to `active`.
 - The Files compress/extract entry is a backlog draft — small, low
   urgency, good as a warm-up between bigger versions.
-- The compose-discovered-stack entry surfaced during the 2026-05-17
-  v0.2.1 visual smoke; small (~0.25d), one open question.
 
 ## Next session — pick up here
 
-Last working session ended 2026-05-17 with the v0.2.1 manual smoke
-closed (red squiggle confirmed on the `plane-app` editor) and a new
-discovered-stack backlog draft filed. Clean tree, no in-flight work.
+Last working session ended 2026-05-17 with two patches landed: v0.2.1
+manual smoke closed, and the discovered-stack read-only handling
+implemented (backend 409 + frontend banner, 82/82 tests). Clean tree.
 Two pickup options:
 
-1. **Pick up one of the small backlog drafts** *(~0.25–0.5d each)* —
-   - `backlog-compose-discovered-stack-readonly`: cleaner UX for
-     discovered stacks (frontend read-only + clearer backend 4xx).
-   - `backlog-files-compress-extract-ui`: wire existing backend
-     compress / extract to the Files UI.
+1. **Pick up `backlog-files-compress-extract-ui`** *(~0.5d)* — the
+   remaining small backlog draft. Backend endpoints already exist;
+   React UI never got wired. Good warm-up.
 
 2. **Activate v0.3-websites-acme** *(major)* — see
    `v0.3-websites-acme/`. First action is the per-item discussion
@@ -61,5 +57,5 @@ Two pickup options:
    its `decisions.md`, flip `meta.json.status` to `active` and
    start Phase 1.
 
-If you want a warm-up before v0.3, do one of the backlog drafts
-first; otherwise go straight to (2) and run the five-question round.
+If you want a warm-up before v0.3, do (1); otherwise go straight to
+(2) and run the five-question round.

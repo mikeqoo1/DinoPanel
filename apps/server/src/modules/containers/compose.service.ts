@@ -169,14 +169,8 @@ export class ComposeService implements OnModuleInit {
   async readComposeFile(stackId: number | string): Promise<ComposeFile> {
     this.assertV2();
     const stack = await this.getStack(String(stackId));
-    const filePath = await this.resolveComposeFilePath(stack.path);
-    const st = await stat(filePath).catch(() => null);
-    if (!st) {
-      throw new NotFoundException({
-        code: 'COMPOSE_FILE_NOT_FOUND',
-        message: `No compose file found in ${stack.path}`,
-      });
-    }
+    const filePath = await this.requireComposeFilePath(stack);
+    const st = await stat(filePath);
     const content = await readFile(filePath, 'utf8');
     return { path: filePath, content, modifiedAt: st.mtimeMs };
   }
@@ -188,6 +182,7 @@ export class ComposeService implements OnModuleInit {
   async writeComposeFile(stackId: number | string, content: string): Promise<void> {
     this.assertV2();
     const stack = await this.getStack(String(stackId));
+    this.requireStackPath(stack);
     const filePath = await this.resolveComposeFilePath(stack.path).catch(
       () => join(stack.path, 'compose.yml'),
     );
@@ -267,9 +262,7 @@ export class ComposeService implements OnModuleInit {
   async validate(stackId: number | string): Promise<ComposeValidation> {
     this.assertV2();
     const stack = await this.getStack(String(stackId));
-    const filePath = await this.resolveComposeFilePath(stack.path).catch(
-      () => join(stack.path, 'compose.yml'),
-    );
+    const filePath = await this.requireComposeFilePath(stack);
 
     return new Promise((resolve) => {
       const child = spawn('docker', ['compose', '-f', filePath, 'config'], {
@@ -334,6 +327,38 @@ export class ComposeService implements OnModuleInit {
       code: 'COMPOSE_FILE_NOT_FOUND',
       message: `No compose file found in ${dir}`,
     });
+  }
+
+  /**
+   * Reject with COMPOSE_FILE_UNAVAILABLE (409) when the stack has no
+   * recorded directory on disk — typical for stacks that were only
+   * discovered from running container labels and never registered.
+   */
+  private requireStackPath(stack: ComposeStack): void {
+    if (!stack.path) {
+      throw new ConflictException({
+        code: 'COMPOSE_FILE_UNAVAILABLE',
+        message: `Stack '${stack.name}' has no recorded compose directory — it was discovered from running containers but has no editable file on disk.`,
+      });
+    }
+  }
+
+  /**
+   * Resolve the path to an existing compose file for this stack, or
+   * throw COMPOSE_FILE_UNAVAILABLE (409). Collapses both the
+   * "no directory recorded" and "no file in directory" cases into a
+   * single error consumers can act on uniformly.
+   */
+  private async requireComposeFilePath(stack: ComposeStack): Promise<string> {
+    this.requireStackPath(stack);
+    try {
+      return await this.resolveComposeFilePath(stack.path);
+    } catch {
+      throw new ConflictException({
+        code: 'COMPOSE_FILE_UNAVAILABLE',
+        message: `No compose file found in ${stack.path} for stack '${stack.name}'.`,
+      });
+    }
   }
 
   /** Default stack directory under ~/dinopanel-stacks/<name>/ */

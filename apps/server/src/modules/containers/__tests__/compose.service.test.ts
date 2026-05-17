@@ -271,6 +271,58 @@ describe('ComposeService', () => {
     expect(result.errors).toBeUndefined();
   });
 
+  // CS-6. readComposeFile() on a stack with empty path → 409 COMPOSE_FILE_UNAVAILABLE
+  it('CS-6 — readComposeFile() throws COMPOSE_FILE_UNAVAILABLE for a discovered stack with no path', async () => {
+    // plane-app appears only via discovery; the working_dir label is missing,
+    // so stack.path is "". The service must short-circuit before any fs call.
+    const docker = makeDockerMock([
+      { ...LABEL_CONTAINER_PLANE, Labels: { ...LABEL_CONTAINER_PLANE.Labels, 'com.docker.compose.working_dir': '' } },
+    ]);
+    const db = makeDbMock();
+    db._rows = [];
+    db.from.mockImplementation(function (this: ReturnType<typeof makeDbMock>) {
+      return {
+        ...this,
+        then: (resolve: (v: typeof db._rows) => void) => resolve(db._rows),
+      };
+    });
+
+    const { svc } = makeService(docker, db);
+
+    await expect(svc.readComposeFile('plane-app')).rejects.toThrow(ConflictException);
+    await expect(svc.readComposeFile('plane-app')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'COMPOSE_FILE_UNAVAILABLE' }),
+    });
+
+    // Critical: fs must NOT have been hit — the short-circuit must fire first
+    expect(vi.mocked(fsp.stat)).not.toHaveBeenCalled();
+    expect(vi.mocked(fsp.readFile)).not.toHaveBeenCalled();
+  });
+
+  // CS-7. validate() on a stack with empty path → 409, no docker compose spawn
+  it('CS-7 — validate() throws COMPOSE_FILE_UNAVAILABLE for a discovered stack with no path', async () => {
+    const docker = makeDockerMock([
+      { ...LABEL_CONTAINER_PLANE, Labels: { ...LABEL_CONTAINER_PLANE.Labels, 'com.docker.compose.working_dir': '' } },
+    ]);
+    const db = makeDbMock();
+    db._rows = [];
+    db.from.mockImplementation(function (this: ReturnType<typeof makeDbMock>) {
+      return {
+        ...this,
+        then: (resolve: (v: typeof db._rows) => void) => resolve(db._rows),
+      };
+    });
+
+    const { svc } = makeService(docker, db);
+
+    await expect(svc.validate('plane-app')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'COMPOSE_FILE_UNAVAILABLE' }),
+    });
+
+    // Must not leak through to `docker compose config`
+    expect(vi.mocked(cp.spawn)).not.toHaveBeenCalled();
+  });
+
   // CS-5. validate() with exit code 1 and stderr → { valid: false, errors[] }
   it('CS-5 — validate() when docker compose config exits 1 returns valid:false with parsed errors', async () => {
     const docker = makeDockerMock([]);

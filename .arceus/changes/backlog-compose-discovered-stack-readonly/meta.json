@@ -1,11 +1,21 @@
 {
   "id": "backlog-compose-discovered-stack-readonly",
   "title": "Compose detail: handle discovered-only stacks (no compose.yml on disk)",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-17",
+  "activatedAt": "2026-05-17",
+  "completedAt": "2026-05-17",
   "targetVersion": "any",
   "estimatedDuration": "0.25d",
+  "actualDuration": "~30 min main thread",
   "dependsOn": [],
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "82/82 (80 baseline + 2 new — CS-6 readComposeFile + CS-7 validate)",
+    "build": "pass (main bundle gzip 104.41 → 104.67 kB; compose-detail chunk 34.05 → 34.20 kB)",
+    "liveSmoke": "verified 2026-05-17: 409 COMPOSE_FILE_UNAVAILABLE for /file + /validate on plane-app; UI banner + read-only editor + hidden Save/驗證 + visible Up/Down/Restart/Pull all confirmed"
+  },
   "scope": {
     "in": [
       "Frontend: mark Compose detail editor + Save + 驗證 read-only/disabled when stack.source === 'discovered' or stack.path is empty",
@@ -17,8 +27,11 @@
       "Compose schema validation"
     ]
   },
-  "openQuestions": [
-    "Should Up/Down/Restart/Pull stay enabled for discovered stacks (current behaviour) or be moved into the Containers stack-grouping view instead?"
+  "openQuestions": [],
+  "decisions": [
+    "Action buttons stay enabled (decisions.md §4 — they use the docker engine, no file required).",
+    "Single error code COMPOSE_FILE_UNAVAILABLE (409) for both empty path + missing file (decisions.md §2-3).",
+    "No automated e2e — backend unit tests + manual smoke only (decisions.md §5)."
   ],
   "knownFollowups": []
 }
