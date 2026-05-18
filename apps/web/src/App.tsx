@@ -20,6 +20,7 @@ const VolumesPage = lazy(() => import('@/routes/containers/volumes').then((m) =>
 const ComposePage = lazy(() => import('@/routes/containers/compose').then((m) => ({ default: m.ComposePage })));
 const ComposeDetailPage = lazy(() => import('@/routes/containers/compose-detail').then((m) => ({ default: m.ComposeDetailPage })));
 const MonitoringPage = lazy(() => import('@/routes/monitoring').then((m) => ({ default: m.MonitoringPage })));
+const SystemPage = lazy(() => import('@/routes/system').then((m) => ({ default: m.SystemPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ export default function App() {
                   <Route path="/compose" element={<ComposePage />} />
                   <Route path="/compose/:key" element={<ComposeDetailPage />} />
                   <Route path="/monitoring" element={<MonitoringPage />} />
+                  <Route path="/system/*" element={<SystemPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
