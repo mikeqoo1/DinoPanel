@@ -1,51 +1,220 @@
-import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
+import { eq, sql, and, isNull } from 'drizzle-orm';
+import * as cron from 'node-cron';
+import { CronExpressionParser } from 'cron-parser';
+import type { ScheduledTaskType } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
+import { scheduledTasks, scheduledRuns } from '../../database/schema';
+import { ShellTaskRunner } from './runners/shell.runner';
+import { BackupFilesTaskRunner } from './runners/backup-files.runner';
+import { CleanLogsTaskRunner } from './runners/clean-logs.runner';
+import { RestartServiceTaskRunner } from './runners/restart-service.runner';
+import { HttpRequestTaskRunner } from './runners/http-request.runner';
+import { PurgeTaskRunner } from './runners/purge.runner';
+import type { TaskRunner } from './task-runner';
 
-/**
- * Skeleton for the in-process scheduler. Phase 2 fills in:
- *   - node-cron integration in register/unregister
- *   - 5 TaskRunner implementations
- *   - built-in `purge` runner + bootstrap row
- *   - REST surface
- *
- * For Phase 1 the service exists so other modules (AuthService, future
- * AuditInterceptor.purge, etc.) can inject it and the wiring is real even
- * though run-time scheduling is a no-op.
- */
+type CronHandle = ReturnType<typeof cron.schedule>;
+
+interface RegisteredEntry {
+  handle: CronHandle;
+}
+
+const BUILTIN_PURGE_NAME = 'system.purge_operation_log';
+const BUILTIN_PURGE_CRON = '15 3 * * *';
+
 @Injectable()
-export class SchedulerService implements OnApplicationBootstrap {
+export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy {
+  private readonly runners: Map<ScheduledTaskType, TaskRunner>;
+  private readonly entries = new Map<number, RegisteredEntry>();
+
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     private readonly logger: Logger,
-  ) {}
+    shell: ShellTaskRunner,
+    backup: BackupFilesTaskRunner,
+    cleanLogs: CleanLogsTaskRunner,
+    restart: RestartServiceTaskRunner,
+    http: HttpRequestTaskRunner,
+    purge: PurgeTaskRunner,
+  ) {
+    this.runners = new Map<ScheduledTaskType, TaskRunner>([
+      ['shell', shell],
+      ['backup_files', backup],
+      ['clean_logs', cleanLogs],
+      ['restart_service', restart],
+      ['http_request', http],
+      ['purge', purge],
+    ]);
+  }
 
   async onApplicationBootstrap(): Promise<void> {
-    // Phase 2 will load enabled scheduled_tasks rows and register them with
-    // node-cron here. For now the table is empty on a fresh install.
-    this.logger.debug({}, 'scheduler.bootstrap.skeleton');
+    await this.abortStaleRunningRuns();
+    await this.ensureBuiltins();
     await this.loadFromDb();
   }
 
-  register(taskId: number): void {
-    this.logger.debug({ taskId }, 'scheduler.register.stub');
+  onModuleDestroy(): void {
+    for (const [, entry] of this.entries) entry.handle.stop();
+    this.entries.clear();
+  }
+
+  /**
+   * Validate a cron string. Returns the parsed expression on success;
+   * throws on failure so controllers can map to 400.
+   */
+  validateCron(expr: string): void {
+    try {
+      CronExpressionParser.parse(expr);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Invalid cron expression: ${msg}`);
+    }
+  }
+
+  nextRunAt(expr: string): number | null {
+    try {
+      const it = CronExpressionParser.parse(expr);
+      return it.next().getTime();
+    } catch {
+      return null;
+    }
+  }
+
+  async register(taskId: number): Promise<void> {
+    const existing = this.entries.get(taskId);
+    if (existing) {
+      existing.handle.stop();
+      this.entries.delete(taskId);
+    }
+    const row = await this.db
+      .select()
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.id, taskId))
+      .limit(1);
+    const task = row[0];
+    if (!task || !task.enabled) return;
+    if (!cron.validate(task.cron)) {
+      this.logger.warn({ taskId, cron: task.cron }, 'scheduler.invalid_cron_skipped');
+      return;
+    }
+    const handle = cron.schedule(task.cron, () => {
+      void this.executeTask(taskId);
+    });
+    this.entries.set(taskId, { handle });
   }
 
   unregister(taskId: number): void {
-    this.logger.debug({ taskId }, 'scheduler.unregister.stub');
+    const entry = this.entries.get(taskId);
+    if (!entry) return;
+    entry.handle.stop();
+    this.entries.delete(taskId);
   }
 
-  async runNow(taskId: number): Promise<void> {
-    this.logger.debug({ taskId }, 'scheduler.runNow.stub');
+  async runNow(taskId: number): Promise<number> {
+    const row = await this.db
+      .select()
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.id, taskId))
+      .limit(1);
+    if (!row[0]) throw new NotFoundException({ code: 'TASK_NOT_FOUND' });
+    return this.executeTask(taskId);
   }
 
   async loadFromDb(): Promise<void> {
-    // Phase 2: SELECT enabled tasks, register each.
-    // Phase 2: mark scheduled_runs WHERE status='running' as aborted.
+    const rows = await this.db
+      .select({ id: scheduledTasks.id })
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.enabled, true));
+    for (const row of rows) {
+      await this.register(row.id);
+    }
+    this.logger.debug({ count: rows.length }, 'scheduler.loaded');
   }
 
-  // Silence "unused private member" in the skeleton phase.
-  protected dbRef(): Db {
-    return this.db;
+  private async executeTask(taskId: number): Promise<number> {
+    const row = await this.db
+      .select()
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.id, taskId))
+      .limit(1);
+    const task = row[0];
+    if (!task) {
+      this.logger.warn({ taskId }, 'scheduler.execute.task_missing');
+      throw new NotFoundException({ code: 'TASK_NOT_FOUND' });
+    }
+    const runner = this.runners.get(task.type);
+    if (!runner) {
+      this.logger.error({ taskId, type: task.type }, 'scheduler.execute.no_runner');
+      throw new Error(`No runner registered for type ${task.type}`);
+    }
+
+    const startedAt = Date.now();
+    const inserted = await this.db
+      .insert(scheduledRuns)
+      .values({
+        taskId,
+        startedAt,
+        status: 'running',
+      })
+      .returning({ id: scheduledRuns.id });
+    const runId = inserted[0]?.id;
+    if (runId === undefined) {
+      throw new Error('Failed to insert scheduled_runs row');
+    }
+
+    let result;
+    try {
+      result = await runner.run(task.payload);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result = { status: 'failed' as const, exitCode: null, output: `Uncaught: ${msg}` };
+    }
+    await this.db
+      .update(scheduledRuns)
+      .set({
+        finishedAt: Date.now(),
+        status: result.status,
+        exitCode: result.exitCode,
+        output: result.output,
+      })
+      .where(eq(scheduledRuns.id, runId));
+    return runId;
+  }
+
+  private async abortStaleRunningRuns(): Promise<void> {
+    await this.db
+      .update(scheduledRuns)
+      .set({
+        status: 'aborted',
+        finishedAt: Date.now(),
+        output: sql`coalesce(${scheduledRuns.output}, '') || '\n[aborted: server_restart]'`,
+      })
+      .where(
+        and(eq(scheduledRuns.status, 'running'), isNull(scheduledRuns.finishedAt)),
+      );
+  }
+
+  private async ensureBuiltins(): Promise<void> {
+    const existing = await this.db
+      .select({ id: scheduledTasks.id })
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.name, BUILTIN_PURGE_NAME))
+      .limit(1);
+    if (existing[0]) return;
+    await this.db.insert(scheduledTasks).values({
+      name: BUILTIN_PURGE_NAME,
+      type: 'purge',
+      cron: BUILTIN_PURGE_CRON,
+      payload: { table: 'operation_log' },
+      enabled: true,
+      builtin: true,
+    });
   }
 }

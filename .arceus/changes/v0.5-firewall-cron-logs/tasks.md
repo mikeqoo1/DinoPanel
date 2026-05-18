@@ -45,46 +45,61 @@ this lands.
 ✅ · build ✅ (main bundle gzip 106.36 kB, within 140 kB budget;
 +1.5 kB vs pre-Phase-1 baseline from new module imports)
 
-## Phase 2 — Scheduler (REST + UI + dogfood)
+## Phase 2 — Scheduler (REST + dogfood) ✅ (2026-05-18)
 
 Lands before firewall so the audit-log purge dogfood is alive when
-phase 3 starts hammering `operation_log`.
+phase 3 starts hammering `operation_log`. **Frontend deferred to
+Phase 4** (decided 2026-05-18) — `/system` route is new
+construction per the post-review B2 finding, and building the
+Tabs container + scheduler/firewall/logs subroutes in one pass is
+cleaner than refactoring a standalone `/scheduler` page later.
 
-- [ ] `SchedulerModule` declares `imports: [FilesModule]` so
+- [x] `SchedulerModule` declares `imports: [FilesModule]` so
   `BackupFilesTaskRunner` can inject `FilesService`
-- [ ] 5 user-facing `TaskRunner` implementations:
+- [x] 5 user-facing `TaskRunner` implementations:
   - `ShellTaskRunner` — `child_process.spawn`, 5 min timeout
-  - `BackupFilesTaskRunner` — uses `FilesService.compressToDisk()`;
-    paths subject to existing `assertWritable`
-  - `CleanLogsTaskRunner` — path **MUST** be prefixed by one of
-    `/var/log/`, `/tmp/`, `app.env.DATA_DIR`, or `~/dinopanel/logs/`;
-    reject at config time with `CLEAN_LOGS_PATH_NOT_ALLOWED`
-  - `RestartServiceTaskRunner` — unit name regex
-    `^[A-Za-z0-9_@-][A-Za-z0-9_@.-]*$` (blocks `.`, `..`)
-  - `HttpRequestTaskRunner` — `fetch()`, 30 s timeout
-- [ ] Document timezone behavior: cron fires in server local time;
-  UI shows resolved server offset next to each cron string. Add
-  to `docs/scheduler.md` (Phase 5).
-- [ ] Built-in `purge` runner: DELETE `operation_log` rows older
-  than `settings['audit.retentionDays']` (default 30)
-- [ ] Bootstrap hook ensures the built-in `system.purge_operation_log`
-  task exists (cron `15 3 * * *`), `builtin: true` so the UI hides
-  it from the CRUD list
-- [ ] REST: `GET/POST/PATCH/DELETE /api/scheduler/tasks`,
+  - `BackupFilesTaskRunner` — delegates to
+    `FilesService.compressToDisk()` (paths inherit
+    `assertWritable`); archive name `backup-<iso>.tar.gz`
+  - `CleanLogsTaskRunner` — `assertPathAllowed()` enforces the
+    `/var/log`, `/tmp`, `app.env.DATA_DIR`, `~/dinopanel/logs`
+    prefix list; rejects at create time with
+    `CLEAN_LOGS_PATH_NOT_ALLOWED`
+  - `RestartServiceTaskRunner` — unit name regex enforced by Zod
+    on `restartServicePayloadSchema`
+  - `HttpRequestTaskRunner` — `fetch()` + `AbortController` 30 s
+    timeout, JSON content-type auto-set when body present
+- [x] `PurgeTaskRunner` — DELETE `operation_log` rows older than
+  `settings['audit.retentionDays']` (default 30); reports
+  before/after counts in the run output
+- [x] Bootstrap (`ensureBuiltins`): on first boot, INSERT
+  `system.purge_operation_log` (cron `15 3 * * *`,
+  `builtin: true`) — idempotent via SELECT-then-INSERT
+- [x] REST `SchedulerController`:
+  `GET/POST/PATCH/DELETE /api/scheduler/tasks`,
   `POST /api/scheduler/tasks/:id/run`,
-  `GET /api/scheduler/tasks/:id/runs` (cursor pagination)
-- [ ] Cron validation via `cron-parser` at the controller boundary
-  → 400 `BAD_REQUEST` on parse failure
-- [ ] Restart recovery: on boot, mark `scheduled_runs` rows with
-  status `running` as `aborted` with output appended
-  `[aborted: server_restart]`
-- [ ] Frontend `routes/system/scheduler.tsx` (lazy chunk)
-  - task list table
-  - Add Task `<Dialog>` with type select, type-specific payload
-    form, cron builder (5 modes) + Advanced freeform toggle
-  - Run-now button + expandable row showing last 5 runs
-- [ ] i18n keys (zh-TW + en) for scheduler copy
-- [ ] Unit tests: 10 cases per spec.md §"Tests"
+  `GET /api/scheduler/tasks/:id/runs` (cursor on `started_at`).
+  Built-in tasks hidden by default (override:
+  `?includeBuiltin=true`); built-ins are immutable
+  (`TASK_BUILTIN_IMMUTABLE`)
+- [x] Cron validation via `cron-parser@5` (`CronExpressionParser.parse`)
+  at controller boundary → 400 `BAD_REQUEST` on failure
+- [x] Server-restart recovery (`abortStaleRunningRuns`): on boot,
+  UPDATE `scheduled_runs` SET status='aborted',
+  finished_at=now(), output||='[aborted: server_restart]'
+  WHERE status='running' AND finished_at IS NULL
+- [x] Timezone: documented in `task-runner.ts` comments — cron
+  fires in server local time, no per-task override. Full doc
+  copy lands in `docs/scheduler.md` (Phase 5)
+- [x] Unit tests: **15 cases pass** (planned 11+; expanded with
+  HTTP 4xx/5xx case, allowlist accept case, etc.)
+
+**Frontend deferred to Phase 4** (scheduler.tsx page, cron builder,
+Add Task dialog, Run-now expandable rows, i18n) — bundled with
+the `/system` Tabs scaffolding work.
+
+**Verification gates passed**: typecheck ✅ · lint ✅ · test 121/121
+✅ · build ✅
 
 ## Phase 3 — Firewall (driver + 30 s rollback + UI)
 
