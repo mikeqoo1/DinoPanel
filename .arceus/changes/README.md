@@ -30,7 +30,8 @@ Status values in `meta.json`:
 | `v0.3-websites-acme`            | draft (paused) | v0.3 | Static / reverse proxy / PHP sites + ACME — 5-question discussion paused mid-stream 2026-05-18; claude's leans recorded in `discussion-state.md`, **none confirmed** |
 | `backlog-files-compress-extract-ui` | completed | any | Files: new compress-to-disk + extract endpoints + multi-select UI (zip-slip guarded) |
 | `backlog-compose-discovered-stack-readonly` | completed | any | Compose detail: read-only handling for discovered stacks (409 COMPOSE_FILE_UNAVAILABLE + banner) |
-| `backlog-pmm-integration`       | draft       | any → v0.4 | Integrate with user's existing PMM (Percona Monitoring) instance. Three options A/B/C; claude recommends A (link card) now, upgrade to C alongside v0.4 databases |
+| `backlog-pmm-integration`       | completed (A) | any → v0.4 | Option A shipped 2026-05-18: link card + 30s health-ping. Option C (API summary cards) deferred to v0.4 |
+| `v0.5-firewall-cron-logs`       | draft       | v0.5    | Firewall + Scheduled tasks + Log Center bundle (~3.5w). Key decision: firewall MUST implement 60s apply-with-rollback safeguard |
 
 ## Backlog notes
 
@@ -53,26 +54,29 @@ Status values in `meta.json`:
 
 ## Next session — pick up here
 
-Last working session ended 2026-05-18 with the v0.3 discussion
-paused after Q1–Q4 were drafted but never answered, and a new PMM
-integration backlog opened as the detour reason. Clean tree.
+Last working session ended 2026-05-18 with PMM A shipped (link
+card + 30s health ping, live-smoked against the user's real PMM
+instance) and `v0.5-firewall-cron-logs/` drafted with proposal +
+meta (3.5w bundle, firewall 60s-rollback safeguard called out as
+non-negotiable). v0.3-websites-acme still paused mid-discussion.
 
-Three live options, easiest first:
+Recommended path going forward (user agreed 2026-05-18):
+`PMM A done` → **v0.5** → v0.4 + PMM C → v0.3 → ~~multi-node~~.
 
-1. **Ship `backlog-pmm-integration` option A** *(~0.25d)* — link
-   card + health ping. Get the sidebar entry on the menu, give the
-   user a one-click into PMM. Zero new failure modes.
+Two live pickup options:
 
-2. **Resume v0.3 discussion** — re-ask Q1 alone (nginx in Docker
-   vs host systemd) with claude's lean framed as a recommendation
-   the user can accept or reject. Write the answer to a new
-   `decisions.md` immediately. Iterate per-question. After all
-   five are confirmed, flip status to `active`.
+1. **Activate v0.5-firewall-cron-logs** *(major, ~3.5w)* — see
+   `v0.5-firewall-cron-logs/`. Four open questions (audit log
+   retention, cron UX, log menu placement, firewall rule
+   storage). Resolve per-item into `decisions.md`, then write
+   `spec.md` and `tasks.md`, then start Phase 1 (firewall with
+   60s rollback first — the safety story has to land before the
+   feature is useful).
 
-3. **Skip ahead** to v0.4 databases planning if the user decides
-   they want monitoring + DB management as one combined slice
-   rather than v0.3 sites first. Would require a new
-   `v0.4-databases` draft folder and a fresh question round.
+2. **Resume v0.3 discussion** — only if priorities shift back to
+   websites before v0.5. Re-ask Q1 alone, per-question, write
+   `decisions.md` incrementally.
 
-If the user has not signalled, default to (1) — it's the smallest
-visible win and keeps options (2) and (3) open.
+Multi-node management was discussed and explicitly **rejected** as
+v0.x scope on 2026-05-18 (~8w+ work, security blast radius too
+big, premature for current install base). Revisit post-v1.0 only.

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, Sun, Moon, Monitor } from 'lucide-react';
+import { Loader2, Lock, Sun, Moon, Monitor, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { changePasswordSchema, type ChangePasswordInput } from '@dinopanel/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { useTheme } from '@/components/theme-provider';
 import { useAuthStore } from '@/stores/auth';
 import { useSystemInfo } from '@/hooks/use-system';
 import { api, extractErrorMessage } from '@/lib/api';
+import { usePmmConfig, useSetPmmConfig } from '@/hooks/use-monitoring';
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -29,6 +30,22 @@ export function SettingsPage() {
     reset,
     formState: { errors },
   } = useForm<ChangePasswordInput>({ resolver: zodResolver(changePasswordSchema) });
+
+  const pmmConfig = usePmmConfig();
+  const setPmm = useSetPmmConfig();
+  const [pmmUrlInput, setPmmUrlInput] = useState<string | null>(null);
+  const effectivePmmUrl = pmmUrlInput ?? pmmConfig.data?.url ?? '';
+
+  const onSavePmm = async () => {
+    const trimmed = effectivePmmUrl.trim();
+    try {
+      await setPmm.mutateAsync(trimmed === '' ? null : trimmed);
+      setPmmUrlInput(null);
+      toast.success(t('settings.external_monitoring.saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
 
   const onChangePassword = async (data: ChangePasswordInput) => {
     setPwSubmitting(true);
@@ -143,6 +160,35 @@ export function SettingsPage() {
               {t('settings.save_changes')}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            {t('settings.external_monitoring.section_title')}
+          </CardTitle>
+          <CardDescription>{t('settings.external_monitoring.section_desc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex max-w-md flex-col gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="pmm-url">{t('settings.external_monitoring.url_label')}</Label>
+              <Input
+                id="pmm-url"
+                type="url"
+                placeholder={t('settings.external_monitoring.url_placeholder')}
+                value={effectivePmmUrl}
+                onChange={(e) => setPmmUrlInput(e.target.value)}
+                disabled={pmmConfig.isPending}
+              />
+            </div>
+            <Button onClick={onSavePmm} disabled={setPmm.isPending} className="w-fit">
+              {setPmm.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('settings.save_changes')}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Terminal, FolderOpen, Settings, ChevronLeft, Container, Layers, Network, HardDrive, Workflow } from 'lucide-react';
+import { LayoutDashboard, Terminal, FolderOpen, Settings, ChevronLeft, Container, Layers, Network, HardDrive, Workflow, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +23,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { to: '/networks', icon: Network, label: t('nav.networks') },
     { to: '/volumes', icon: HardDrive, label: t('nav.volumes') },
     { to: '/compose', icon: Workflow, label: t('nav.compose') },
+    { to: '/monitoring', icon: Activity, label: t('nav.monitoring') },
     { to: '/settings', icon: Settings, label: t('nav.settings') },
   ];
 

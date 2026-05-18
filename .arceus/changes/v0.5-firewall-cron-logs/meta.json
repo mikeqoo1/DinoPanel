@@ -1,0 +1,29 @@
+{
+  "id": "v0.5-firewall-cron-logs",
+  "title": "Firewall + Scheduled Tasks + Log Center",
+  "status": "draft",
+  "createdAt": "2026-05-18",
+  "targetVersion": "v0.5",
+  "estimatedDuration": "≈3.5 weeks",
+  "dependsOn": [],
+  "softDeps": [
+    "v0.3-websites-acme (only for the website-log subview, which is deferred out of v0.5 scope)",
+    "v0.2-docker-containers (some cron task types — optional)"
+  ],
+  "scope": {
+    "firewall": "ufw / firewall-cmd abstraction; rule CRUD; 60s apply-with-rollback safeguard; self-protect for panel + SSH ports; optional fail2ban integration",
+    "scheduledTasks": "in-process scheduler; 5 task types (shell, backup files, clean logs, restart service, http request); cron expression with builder UI; run-log per task",
+    "logCenter": "5 sources (system, ssh, operation/audit, login, task); NOT website logs (deferred until v0.3)"
+  },
+  "criticalDecisions": [
+    "Firewall MUST implement 60s confirm-or-rollback safeguard — without it the module is a net liability",
+    "Cron trimmed from 1Panel's 12 task types to 5; rest can be expressed via shell command",
+    "Operation/audit log table populated by every mutating REST endpoint — also serves as a security forensics tool"
+  ],
+  "openQuestions": [
+    "Audit log retention policy (default proposal: 30 days, daily partitions)",
+    "Cron UX: freeform + builder, or builder-only?",
+    "Logs menu placement: top-level 日誌 vs nested under 系統?",
+    "Firewall rule storage: SQLite mirror with metadata, or kernel-view-only?"
+  ]
+}

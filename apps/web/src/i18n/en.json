@@ -12,8 +12,28 @@
     "networks": "Networks",
     "volumes": "Volumes",
     "compose": "Compose",
+    "monitoring": "DB Monitoring",
     "settings": "Settings",
     "logout": "Log out"
+  },
+  "monitoring": {
+    "title": "Database Monitoring",
+    "empty": {
+      "title": "PMM not configured",
+      "body": "DinoPanel can act as a launch point for your existing PMM (Percona Monitoring) instance. Set the PMM URL in Settings to enable this page.",
+      "cta": "Go to Settings"
+    },
+    "status": {
+      "up": "PMM reachable",
+      "down": "PMM unreachable",
+      "checking": "Checking…",
+      "latency_ms": "Latency",
+      "last_checked": "Last checked"
+    },
+    "actions": {
+      "open_pmm": "Open in PMM",
+      "configure": "Configure"
+    }
   },
   "containers": {
     "coming_soon": "Coming in v0.2 — Docker container management is under active development.",
@@ -203,7 +223,14 @@
     "saved": "Saved",
     "version": "Version",
     "node_version": "Node.js version",
-    "license": "License"
+    "license": "License",
+    "external_monitoring": {
+      "section_title": "External monitoring",
+      "section_desc": "Integrate an existing PMM instance as the entry point for database monitoring. Leave empty to clear.",
+      "url_label": "PMM URL",
+      "url_placeholder": "https://pmm.example.tld",
+      "saved": "PMM settings saved"
+    }
   },
   "images": {
     "title": "Images",

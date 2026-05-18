@@ -12,8 +12,28 @@
     "networks": "網路",
     "volumes": "儲存區",
     "compose": "Compose",
+    "monitoring": "資料庫監控",
     "settings": "設定",
     "logout": "登出"
+  },
+  "monitoring": {
+    "title": "資料庫監控",
+    "empty": {
+      "title": "尚未設定 PMM",
+      "body": "DinoPanel 可以連到你現有的 PMM（Percona Monitoring）服務，做為資料庫監控的入口。請先到設定頁填入 PMM URL。",
+      "cta": "前往設定"
+    },
+    "status": {
+      "up": "PMM 連線正常",
+      "down": "PMM 無法連線",
+      "checking": "檢查中…",
+      "latency_ms": "延遲",
+      "last_checked": "上次檢查"
+    },
+    "actions": {
+      "open_pmm": "在 PMM 中查看",
+      "configure": "設定"
+    }
   },
   "containers": {
     "coming_soon": "v0.2 即將推出 — Docker 容器管理功能正在積極開發中。",
@@ -203,7 +223,14 @@
     "saved": "已儲存",
     "version": "版本",
     "node_version": "Node.js 版本",
-    "license": "授權"
+    "license": "授權",
+    "external_monitoring": {
+      "section_title": "外部監控",
+      "section_desc": "整合已存在的 PMM 服務作為資料庫監控入口。留空可清除設定。",
+      "url_label": "PMM URL",
+      "url_placeholder": "https://pmm.example.tld",
+      "saved": "PMM 設定已儲存"
+    }
   },
   "images": {
     "title": "映像",

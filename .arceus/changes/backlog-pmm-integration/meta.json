@@ -1,9 +1,20 @@
 {
   "id": "backlog-pmm-integration",
   "title": "Integrate with an existing PMM (Percona Monitoring) instance",
-  "status": "draft",
+  "status": "completed",
+  "scopeForThisChange": "Option A only (link card + health ping). Option C deferred to v0.4 alongside the database module.",
   "createdAt": "2026-05-18",
+  "activatedAt": "2026-05-18",
+  "completedAt": "2026-05-18",
+  "actualDuration": "~1h main thread",
   "targetVersion": "any (recommend A in v0.x, upgrade to C alongside v0.4 databases)",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "98/98 (90 baseline + 8 new — MON-1..MON-8 monitoring service tests)",
+    "build": "pass (main bundle gzip 104.87 → 105.60 kB +0.73)",
+    "liveSmoke": "verified 2026-05-18 against user's PMM at 192.168.199.234:18443 — GET /config null→200, PUT /config 200 + trailing-slash trim, GET /status ok:true latencyMs:57 (self-signed cert trusted), PUT bad URL → 400 MONITORING_INVALID_URL"
+  },
   "blocking": false,
   "originated": "User detoured from v0.3 discussion 2026-05-18 — has PMM running on internal network on a custom HTTPS port",
   "options": {
