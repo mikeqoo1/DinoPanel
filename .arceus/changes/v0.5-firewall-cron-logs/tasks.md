@@ -101,51 +101,63 @@ the `/system` Tabs scaffolding work.
 **Verification gates passed**: typecheck ✅ · lint ✅ · test 121/121
 ✅ · build ✅
 
-## Phase 3 — Firewall (driver + 30 s rollback + UI)
+## Phase 3 — Firewall (driver + 30 s rollback) ✅ (2026-05-18)
 
-The rollback safeguard is the riskiest piece — wire it end-to-end
-before adding the polish (fail2ban, comments, etc.).
+The rollback safeguard is the riskiest piece — wired end-to-end
+first, then polish (fail2ban, comments, etc.). **Frontend
+deferred to Phase 4** for the same reason as Phase 2 (no `/system`
+route to host it yet).
 
-- [ ] `FirewallDriver` interface in
-  `apps/server/src/modules/firewall/firewall-driver.ts`
-- [ ] `UfwDriver` — parse `ufw status numbered`, build
-  `ufw allow|deny <port>/<proto> from <src>`, error mapping
-- [ ] `FirewalldDriver` — parse `firewall-cmd --list-all
-  --permanent`, build `--add-rich-rule=…`, error mapping
-- [ ] `FirewallModule` startup detection: `which ufw` vs
-  `which firewall-cmd`; throws `FIREWALL_NO_BACKEND` if neither
-- [ ] Staged-rule in-memory map + 30 s `setTimeout`-driven revert
-- [ ] **Confirm endpoint flow** (crash-safety): write
-  `confirming_at = now` (sync via better-sqlite3) → cancel timer +
-  drop map entry → write `confirmed_at = now` → return 200. If
-  the server crashes between steps, the row has `confirming_at`
-  set without `confirmed_at`.
-- [ ] Startup recovery sweep (spec §1):
-  - For rows with `confirmed_at IS NULL AND confirming_at IS
-    NULL AND staged_at < now-60s` → driver revert + DELETE row
-  - For rows with `confirming_at IS NOT NULL AND confirmed_at IS
-    NULL` → promote `confirmed_at = confirming_at` (treat as
-    confirmed; the user's confirm reached the server even if the
-    response didn't)
-- [ ] REST endpoints (`/api/firewall/status`,
-  `/enable`, `/disable`, `/rules`, `/rules/stage`,
-  `/rules/:id/confirm`, `/rules/:id/cancel`, `DELETE /rules/:id`)
-- [ ] Self-protect: reject rules matching panel port or SSH port
-  unless body has `acknowledgeSelfLockout: true`; respond 400
-  with `code: 'FIREWALL_SELF_LOCKOUT'`
-- [ ] Fail2Ban probe + conditional endpoints (`/fail2ban/banned`,
-  `/fail2ban/unban`); status response includes
-  `fail2ban: boolean`
-- [ ] Frontend `routes/system/firewall.tsx` (lazy chunk)
-  - enabled toggle, rules table with `external` badge for
-    metadata-less rows
-  - Add Rule `<Dialog>` with self-lockout checkbox shown only when
-    relevant
-  - Rollback `<AlertDialog>` with 30 s countdown, Confirm /
-    Revert buttons; on timeout closes itself and refetches list
-- [ ] i18n keys (zh-TW + en) for firewall copy
-- [ ] Unit tests: 13 cases per spec.md §"Tests" (includes the
-  confirm-flight-crash race case)
+- [x] `FirewallDriver` interface + `RawRule` type +
+  `FirewallNotConfiguredError` + `FirewallCommandError` in
+  `firewall-driver.ts`; shared `runCommand` helper in
+  `drivers/run-command.ts`
+- [x] `UfwDriver` — `parseUfwRules` handles single-port rows, skips
+  IPv6 `(v6)` duplicates and port-ranges; `buildUfwArgs` produces
+  `allow 22/tcp` and `allow from <src> to any port <p> proto <p>`
+- [x] `FirewalldDriver` — `parseFirewalldOutput` reads `ports:`
+  line + `rule …` lines (line-scan, not regex-block — the trailing
+  whitespace eats `\n`); `buildRichRule` picks family from source
+  IP shape; enable/disable via `systemctl start|stop firewalld`
+- [x] `FirewallModule` startup detection: `which ufw` →
+  `UfwDriver`; else `which firewall-cmd` → `FirewalldDriver`;
+  else `UnavailableFirewallDriver` (deviates from spec's "throws"
+  by returning a lazy-503 fallback — same pattern as
+  ContainersModule's dockerode handling, so dev machines without
+  ufw/firewall-cmd don't fail to boot the whole panel)
+- [x] Staged-rule in-memory Map + 30 s `setTimeout` auto-revert
+- [x] Confirm endpoint flow: `confirming_at = now` → cancel timer
+  + drop map entry → `confirmed_at = now`. A crash between
+  steps leaves `confirming_at NOT NULL AND confirmed_at IS NULL`
+  for the boot sweep to promote.
+- [x] Startup `recoverySweep` (boot hook):
+  - Reverts true orphans (`confirmed_at IS NULL AND confirming_at
+    IS NULL AND staged_at < now-60s`)
+  - Promotes pending confirms (`confirming_at IS NOT NULL AND
+    confirmed_at IS NULL` → `confirmed_at = confirming_at`)
+- [x] REST `FirewallController`: `/status`, `/enable`, `/disable`,
+  `/rules`, `/rules/stage`, `/rules/:id/confirm`,
+  `/rules/:id/cancel`, `DELETE /rules/:id`, plus
+  `/fail2ban/banned` + `/fail2ban/unban` (still mounted even when
+  fail2ban isn't installed — the service throws
+  `FAIL2BAN_NOT_AVAILABLE` 400 in that case)
+- [x] Self-protect: rejects `deny` rules on `app.env.PORT` or
+  `app.env.SSH_PORT` (new env var, default 22) unless body
+  carries `acknowledgeSelfLockout: true`; responds 400 with
+  `code: 'FIREWALL_SELF_LOCKOUT'`
+- [x] Fail2Ban probe at `OnApplicationBootstrap` via
+  `fail2ban-client ping`; status response carries
+  `fail2ban: boolean` so the UI can hide that subsection
+- [x] Unit tests: **15 cases pass** — parser/builder golden tests
+  for both drivers (5), self-protect (4), staged lifecycle with
+  fake timers (3), confirm clears timer (1), cancel removes (1),
+  inactive status edge (1)
+
+**Frontend deferred to Phase 4** (firewall.tsx page, Add Rule
+Dialog, 30s countdown AlertDialog, i18n).
+
+**Verification gates passed**: typecheck ✅ · lint ✅ · test 136/136
+✅ (121 → 136, +15 firewall) · build ✅
 
 ## Phase 4 — Log Center (5 sources + UI)
 

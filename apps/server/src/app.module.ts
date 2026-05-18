@@ -15,6 +15,7 @@ import { FilesModule } from './modules/files/files.module';
 import { ContainersModule } from './modules/containers/containers.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { FirewallModule } from './modules/firewall/firewall.module';
 import { AuditModule } from './common/audit/audit.module';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
 
@@ -63,6 +64,7 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
     ContainersModule,
     MonitoringModule,
     SchedulerModule,
+    FirewallModule,
     AuditModule,
   ],
   providers: [
