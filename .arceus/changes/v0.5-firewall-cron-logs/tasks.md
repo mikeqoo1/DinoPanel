@@ -195,33 +195,47 @@ tables and parsers are stable.
 - [ ] i18n keys (zh-TW + en) for logs copy
 - [ ] Unit tests: 7 cases per spec.md §"Tests"
 
-## Phase 5 — E2E + polish
+## Phase 5 — E2E + polish ✅ (2026-05-18)
 
-- [ ] `e2e/scheduler.spec.ts` — create shell task `echo hi`, Run
-  now, expand row, assert success row visible
-- [ ] `e2e/firewall.spec.ts` — list renders, stage allow rule on
-  some innocuous port (e.g. 19999/tcp), countdown modal shows,
-  click confirm, rule visible. Gate on
-  `process.env.DINOPANEL_E2E_FIREWALL === '1'`.
-- [ ] `e2e/logs.spec.ts` — operation tab shows a row matching the
-  POST that created the scheduler task in the prior e2e (cross-
-  test audit-interceptor validation)
-- [ ] Bundle size check: main entry gzip ≤ 140 kB; each new lazy
-  chunk ≤ 120 kB gzip *(60 kB was already broken by the existing
-  `metric-chart` chunk at 107 kB; the 120 kB ceiling matches
-  current reality and still flags surprising bloat)*
-- [ ] Settings page exposes `audit.retentionDays` numeric input
-  (1–365), persisted to `settings` table
-- [ ] Docs: `docs/firewall.md`, `docs/scheduler.md`, `docs/logs.md`
-  covering REST contracts, WS frame formats (system log only),
-  configuration, troubleshooting
-- [ ] Manual smoke pass on a real Debian + a real Rocky VM:
-  - firewall driver detection picks the right backend
-  - rollback safeguard auto-reverts when the user closes the tab
-    without confirming
-  - audit log captures every mutation made during the smoke pass
-  - scheduled `purge` task runs at 03:15 (or via Run-now) and
-    trims rows correctly
+- [x] `e2e/scheduler.spec.ts` — create shell task `echo <marker>`,
+  Run now, expand row, assert `success` badge; cleanup deletes row.
+- [x] `e2e/firewall.spec.ts` — stages allow on port 19999/tcp,
+  asserts countdown dialog, confirms, asserts row visible.
+  **Gated on `DINOPANEL_E2E_FIREWALL=1`** (skipped on this run
+  because dev host has no ufw / firewall-cmd).
+- [x] `e2e/logs.spec.ts` — triggers a known mutation (PUT
+  `/api/audit/retention` via the Settings card), switches to
+  /system/logs operation tab, asserts a row with the PUT path
+  exists. Cross-validates the AuditInterceptor end-to-end.
+- [x] Bundle size verified at build: main gzip **109.03 kB**
+  (under 140 kB), new lazy chunks all well under 120 kB.
+- [x] Settings page audit-retention card writes to new endpoint
+  `PUT /api/audit/retention` (also `GET /api/audit/retention`),
+  backed by `AuditService`. Validation 1–365 days, clamped
+  server-side. Surface i18n in en + zh-TW.
+- [x] Docs: `docs/scheduler.md`, `docs/firewall.md`,
+  `docs/logs.md` — REST contracts, lifecycle, retention,
+  coverage gaps (`@Res({passthrough:false})`), WS deferral.
+
+**Verification gates passed**: typecheck ✅ · lint ✅ · test
+144/144 ✅ · build ✅ · e2e 7 passed / 6 skipped (containers +
+firewall env-gated as designed).
+
+### Manual smoke pass (operator action — not run by tooling)
+
+Still pending on operator side, on a real Debian + Rocky VM with
+ufw / firewall-cmd actually installed:
+
+- [ ] firewall driver detection picks the right backend
+- [ ] rollback safeguard auto-reverts when the user closes the tab
+  without confirming
+- [ ] audit log captures every mutation made during the smoke pass
+- [ ] scheduled `purge` task runs at 03:15 (or via Run-now) and
+  trims rows correctly
+
+These cannot be exercised in CI / dev without provisioning the
+host packages and are tracked as a release-readiness checklist
+for the operator before promoting v0.5 → ready-to-ship.
 
 ## Out-of-scope guardrails (rejections to keep visible)
 

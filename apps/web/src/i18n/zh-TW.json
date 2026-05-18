@@ -376,6 +376,12 @@
     "version": "版本",
     "node_version": "Node.js 版本",
     "license": "授權",
+    "audit": {
+      "section_title": "操作日誌保留",
+      "section_desc": "超過此天數的 operation_log 列每晚 03:15 由內建 purge 任務刪除。",
+      "days_label": "保留天數（1–365）",
+      "saved": "已更新保留天數"
+    },
     "external_monitoring": {
       "section_title": "外部監控",
       "section_desc": "整合已存在的 PMM 服務作為資料庫監控入口。留空可清除設定。",

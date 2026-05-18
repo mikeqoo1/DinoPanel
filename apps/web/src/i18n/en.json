@@ -382,6 +382,12 @@
       "url_label": "PMM URL",
       "url_placeholder": "https://pmm.example.tld",
       "saved": "PMM settings saved"
+    },
+    "audit": {
+      "section_title": "Operation log retention",
+      "section_desc": "Operation log rows older than this many days are deleted nightly at 03:15 by the built-in purge task.",
+      "days_label": "Retention (days, 1–365)",
+      "saved": "Retention updated"
     }
   },
   "images": {

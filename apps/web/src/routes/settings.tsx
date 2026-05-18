@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, Sun, Moon, Monitor, Activity } from 'lucide-react';
+import { Loader2, Lock, Sun, Moon, Monitor, Activity, FileClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { changePasswordSchema, type ChangePasswordInput } from '@dinopanel/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useSystemInfo } from '@/hooks/use-system';
 import { api, extractErrorMessage } from '@/lib/api';
 import { usePmmConfig, useSetPmmConfig } from '@/hooks/use-monitoring';
+import { useAuditRetention, useSetAuditRetention } from '@/hooks/use-audit';
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -35,6 +36,21 @@ export function SettingsPage() {
   const setPmm = useSetPmmConfig();
   const [pmmUrlInput, setPmmUrlInput] = useState<string | null>(null);
   const effectivePmmUrl = pmmUrlInput ?? pmmConfig.data?.url ?? '';
+
+  const retention = useAuditRetention();
+  const setRetention = useSetAuditRetention();
+  const [retentionInput, setRetentionInput] = useState<number | null>(null);
+  const effectiveRetention = retentionInput ?? retention.data?.days ?? 30;
+
+  const onSaveRetention = async () => {
+    try {
+      await setRetention.mutateAsync(effectiveRetention);
+      setRetentionInput(null);
+      toast.success(t('settings.audit.saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
 
   const onSavePmm = async () => {
     const trimmed = effectivePmmUrl.trim();
@@ -186,6 +202,36 @@ export function SettingsPage() {
             </div>
             <Button onClick={onSavePmm} disabled={setPmm.isPending} className="w-fit">
               {setPmm.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t('settings.save_changes')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileClock className="h-4 w-4" />
+            {t('settings.audit.section_title')}
+          </CardTitle>
+          <CardDescription>{t('settings.audit.section_desc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex max-w-md flex-col gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="audit-retention">{t('settings.audit.days_label')}</Label>
+              <Input
+                id="audit-retention"
+                type="number"
+                min={1}
+                max={365}
+                value={effectiveRetention}
+                onChange={(e) => setRetentionInput(Number(e.target.value))}
+                disabled={retention.isPending}
+              />
+            </div>
+            <Button onClick={onSaveRetention} disabled={setRetention.isPending} className="w-fit">
+              {setRetention.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('settings.save_changes')}
             </Button>
           </div>
