@@ -63,6 +63,13 @@ cp -r apps/server/drizzle             "$STAGE/server/drizzle"
 cp    apps/server/package.json        "$STAGE/server/"
 cp    apps/server/drizzle.config.ts   "$STAGE/server/"
 
+# Rewrite pnpm workspace protocol → file: protocol so npm install works
+# on the target machine (where there's no pnpm-workspace.yaml).
+# `shared` is staged as a sibling of `server` below, so file:../shared
+# resolves to STAGE/shared at install time.
+sed -i 's|"@dinopanel/shared": "workspace:\*"|"@dinopanel/shared": "file:../shared"|' \
+  "$STAGE/server/package.json"
+
 echo "==> Staging web build output"
 mkdir -p "$STAGE/web"
 cp -r apps/web/dist/*                 "$STAGE/web/"

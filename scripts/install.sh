@@ -175,6 +175,12 @@ CORS_ORIGINS=
 EOF
 chmod 600 "$INSTALL_DIR/.env"
 
+info "Installing shared package runtime dependencies"
+# shared/dist/*.js imports `zod` directly; Node's ESM resolver walks
+# upward from shared/, not into ../server/node_modules. Without
+# shared/node_modules/zod the server crash-loops at boot.
+( cd "$INSTALL_DIR/shared" && npm install --omit=dev --no-package-lock --silent ) || err "shared npm install failed"
+
 info "Installing server runtime dependencies"
 ( cd "$INSTALL_DIR/server" && npm install --omit=dev --no-package-lock --silent ) || err "npm install failed"
 
