@@ -5,9 +5,11 @@ import { JwtService } from '@nestjs/jwt';
 import { eq, lt } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
-import { sessions, type User } from '../../database/schema';
+import { sessions, loginAttempts, type User } from '../../database/schema';
 import { UsersService } from '../users/users.service';
 import type { AppConfig } from '../../config/configuration';
+
+type LoginFailReason = 'unknown_user' | 'bad_password';
 
 export interface TokenPair {
   accessToken: string;
@@ -46,13 +48,39 @@ export class AuthService {
     meta: { userAgent?: string; ip?: string } = {},
   ): Promise<{ tokens: TokenPair; user: User }> {
     const user = await this.users.findByUsername(username);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      await this.recordAttempt(username, 'fail', 'unknown_user', meta);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const ok = await this.users.verifyPassword(user, password);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) {
+      await this.recordAttempt(username, 'fail', 'bad_password', meta);
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const tokens = await this.issueTokens(user, meta);
+    await this.recordAttempt(username, 'success', null, meta);
     return { tokens, user };
+  }
+
+  private async recordAttempt(
+    username: string,
+    result: 'success' | 'fail',
+    reason: LoginFailReason | null,
+    meta: { userAgent?: string; ip?: string },
+  ): Promise<void> {
+    try {
+      await this.db.insert(loginAttempts).values({
+        username,
+        result,
+        reason,
+        ip: meta.ip ?? null,
+        userAgent: meta.userAgent ?? null,
+      });
+    } catch (err) {
+      this.logger.warn({ err, username }, 'auth.login_attempt_write_failed');
+    }
   }
 
   async refresh(

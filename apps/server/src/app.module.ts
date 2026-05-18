@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { loadConfig } from './config/configuration';
+import { pinoRedactPaths, REDACTION_PLACEHOLDER } from './common/audit/sensitive-fields';
 import { DatabaseModule } from './database/db.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -13,6 +14,9 @@ import { TerminalModule } from './modules/terminal/terminal.module';
 import { FilesModule } from './modules/files/files.module';
 import { ContainersModule } from './modules/containers/containers.module';
 import { MonitoringModule } from './modules/monitoring/monitoring.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
+import { AuditModule } from './common/audit/audit.module';
+import { AuditInterceptor } from './common/audit/audit.interceptor';
 
 @Module({
   imports: [
@@ -39,12 +43,9 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
                 'req.headers.authorization',
                 'req.headers.cookie',
                 'res.headers["set-cookie"]',
-                'req.body.password',
-                'req.body.oldPassword',
-                'req.body.newPassword',
-                'req.body.refreshToken',
+                ...pinoRedactPaths,
               ],
-              censor: '[redacted]',
+              censor: REDACTION_PLACEHOLDER,
             },
             autoLogging: { ignore: (req) => req.url === '/api/health' },
           },
@@ -61,7 +62,12 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
     FilesModule,
     ContainersModule,
     MonitoringModule,
+    SchedulerModule,
+    AuditModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

@@ -1,7 +1,7 @@
 {
   "id": "v0.5-firewall-cron-logs",
   "title": "Firewall + Scheduled Tasks + Log Center",
-  "status": "draft",
+  "status": "ready",
   "createdAt": "2026-05-18",
   "targetVersion": "v0.5",
   "estimatedDuration": "≈3.5 weeks",
@@ -20,10 +20,40 @@
     "Cron trimmed from 1Panel's 12 task types to 5; rest can be expressed via shell command",
     "Operation/audit log table populated by every mutating REST endpoint — also serves as a security forensics tool"
   ],
-  "openQuestions": [
-    "Audit log retention policy (default proposal: 30 days, daily partitions)",
-    "Cron UX: freeform + builder, or builder-only?",
-    "Logs menu placement: top-level 日誌 vs nested under 系統?",
-    "Firewall rule storage: SQLite mirror with metadata, or kernel-view-only?"
+  "openQuestions": [],
+  "resolvedDecisions": {
+    "auditLogRetention": "30 days, single operation_log table + scheduler-driven daily DELETE (2026-05-18)",
+    "cronUx": "Builder default + Advanced freeform toggle (2026-05-18)",
+    "logsMenuPlacement": "Nested under 系統; scheduled tasks also under 系統 for symmetry (2026-05-18)",
+    "firewallStorage": "Metadata-only SQLite mirror; kernel is source of truth (2026-05-18)"
+  },
+  "artifacts": {
+    "proposal": "proposal.md",
+    "spec": "spec.md (drafted 2026-05-18, revised 2026-05-18 post-review)",
+    "tasks": "tasks.md (drafted 2026-05-18, revised 2026-05-18 post-review)"
+  },
+  "reviewHistory": [
+    {
+      "date": "2026-05-18",
+      "verdict": "REQUEST_CHANGES → resolved same day",
+      "blocks": [
+        "B1: Fastify v5 has no req.routerPath — use req.routeOptions.url",
+        "B2: routes/system.tsx does not exist — /system is new construction, not refactor",
+        "B3: 30s rollback race during confirm-flight crash — added confirming_at transient column + revised boot scan"
+      ],
+      "warnings": [
+        "W1 SENSITIVE_BODY_FIELDS shared constant",
+        "W2 per-chunk budget raised 60→120 kB (metric-chart already 107)",
+        "W3 logs viewer is virtualized div, NOT xterm reuse",
+        "W4 clean_logs path prefix allowlist hard-coded in spec",
+        "W5 SchedulerModule imports FilesModule explicit",
+        "W6 @Res({passthrough:false}) endpoints are documented coverage gap"
+      ],
+      "suggestions": [
+        "S1 systemd unit regex tightened",
+        "S2 scheduler timezone defined (server local)",
+        "S3 node-cron locked in, hand-rolled alternative dropped"
+      ]
+    }
   ]
 }

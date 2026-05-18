@@ -100,18 +100,36 @@ infrastructure across all three.
 - Multi-host firewall sync (Pro tier in 1Panel; we don't do
   multi-node).
 
-## Open questions to resolve before activation
+## Resolved decisions (2026-05-18)
 
-1. **Audit log retention** — keep N days? N rows? Cap by total
-   bytes? Default proposal: 30 days, rotated by daily partition.
-2. **Cron expression UX** — full freeform input vs builder UI vs
-   both? 1Panel does both with the builder generating cron strings.
-3. **Where do "user-facing" logs live in the menu** — under a new
-   "日誌 / Logs" top-level entry, or nested under "系統 / System"?
-4. **Firewall rule storage** — keep our own SQLite mirror of the
-   rules we created (with comments / who-added-it metadata) on top
-   of ufw/firewalld being the source of truth, or rely purely on
-   the kernel's view?
+1. **Audit log retention** — 30 days, **single `operation_log`
+   table** with index on `created_at`, pruned by a daily DELETE job
+   scheduled in v0.5's own scheduler (dogfood). Daily-partition
+   variant rejected: table swapping plus UNION-ALL reads add
+   complexity SQLite doesn't reward. Retention day count is
+   exposed in settings.
+2. **Cron expression UX** — **builder by default, freeform behind
+   an "Advanced" toggle**. Builder covers the common cases (every N
+   min/hour/day, daily HH:MM, weekly, monthly day-of-month) and
+   emits the cron string live; toggling Advanced reveals the raw
+   string for editing. Builder-only and freeform-only options
+   rejected — first caps expressiveness, second raises the learning
+   curve.
+3. **Logs menu placement** — **nested under "系統 / System"** as
+   subtabs, not a new top-level entry. By symmetry, **scheduled
+   tasks also go under "系統"**, so the System area becomes the
+   panel's operational-posture container (overview / firewall /
+   scheduled tasks / logs). The internal structure of that
+   container (tab strip vs. sub-sidebar) is a spec-phase decision.
+4. **Firewall rule storage** — **metadata-only SQLite mirror**.
+   `firewall_rule_meta { id, port, proto, source, comment,
+   created_by, created_at }`. The list view reads ufw/firewalld
+   output and LEFT JOINs metadata on `(port, proto, source)`; rules
+   added outside DinoPanel render with NULL metadata and an
+   "external" badge. Kernel remains source of truth — no
+   reapply-on-boot, no drift risk. Full-mirror variant rejected
+   because sysadmins editing ufw directly would silently lose
+   their changes.
 
 ## Rough sizing
 

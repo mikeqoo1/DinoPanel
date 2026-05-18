@@ -15,6 +15,13 @@
       "when": 1778817231332,
       "tag": "0001_wooden_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779071065175,
+      "tag": "0002_even_sue_storm",
+      "breakpoints": true
     }
   ]
 }
