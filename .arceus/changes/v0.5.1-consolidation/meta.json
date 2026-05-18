@@ -1,0 +1,20 @@
+{
+  "id": "v0.5.1-consolidation",
+  "title": "v0.5.1 consolidation — manual smoke pass on Rocky + dogfood validation",
+  "status": "draft",
+  "createdAt": "2026-05-18",
+  "targetVersion": "v0.5.1",
+  "estimatedDuration": "~1 week (mostly testing + small fixes)",
+  "dependsOn": ["v0.5-firewall-cron-logs"],
+  "scope": {
+    "smokePass": "Execute the four manual smoke pass items left over from v0.5 phase 5 on a real Rocky 9.4 host (192.168.199.234)",
+    "dogfood": "Run the audit-log purge task end-to-end (Run-now + retention adjustment), watch the firewall 30s rollback live, verify operation_log captures every mutation made through the UI",
+    "fixes": "Address any bugs surfaced during smoke pass — release-pipeline bugs already fixed in cdb182b"
+  },
+  "manualChecklist": [
+    "firewall driver detection picks the right backend",
+    "rollback safeguard auto-reverts when user closes tab without confirming",
+    "audit log captures every mutation made during smoke pass",
+    "scheduled purge task runs via Run-now and trims rows correctly"
+  ]
+}
