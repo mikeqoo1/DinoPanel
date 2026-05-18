@@ -1,0 +1,24 @@
+{
+  "id": "backlog-pmm-integration",
+  "title": "Integrate with an existing PMM (Percona Monitoring) instance",
+  "status": "draft",
+  "createdAt": "2026-05-18",
+  "targetVersion": "any (recommend A in v0.x, upgrade to C alongside v0.4 databases)",
+  "blocking": false,
+  "originated": "User detoured from v0.3 discussion 2026-05-18 — has PMM running on internal network on a custom HTTPS port",
+  "options": {
+    "A": { "label": "External link card + health ping", "estimate": "~0.25d", "recommendedFirst": true },
+    "B": { "label": "iframe embed with shared/SSO auth", "estimate": "~1d", "recommendedFirst": false },
+    "C": { "label": "API summary cards + deep links", "estimate": "~2-3d", "recommendedFirst": false, "naturalHomeIn": "v0.4 databases" }
+  },
+  "openQuestions": [
+    "Sidebar entry placement: top-level vs nested under a future 監控 section?",
+    "Self-signed cert handling: skip verify for admin-configured PMM URL, or require fingerprint?",
+    "If we later upgrade A → C, do we keep A as a configure sub-page or rip-and-replace?"
+  ],
+  "security": "PMM admin password was shared in chat — NOT stored in repo or memory. Any future implementation must use a PMM API token / service account, not the admin password.",
+  "relatedChanges": [
+    "v0.3-websites-acme (paused — this backlog is the detour that paused it)",
+    "v0.4 databases (future — natural home for option C)"
+  ]
+}
