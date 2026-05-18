@@ -1,8 +1,9 @@
 {
   "id": "v0.5.1-consolidation",
   "title": "v0.5.1 consolidation — manual smoke pass on Rocky + dogfood validation",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-18",
+  "completedAt": "2026-05-18",
   "targetVersion": "v0.5.1",
   "estimatedDuration": "~1 week (mostly testing + small fixes)",
   "dependsOn": ["v0.5-firewall-cron-logs"],

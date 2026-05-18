@@ -221,21 +221,26 @@ tables and parsers are stable.
 144/144 ✅ · build ✅ · e2e 7 passed / 6 skipped (containers +
 firewall env-gated as designed).
 
-### Manual smoke pass (operator action — not run by tooling)
+### Manual smoke pass ✅ (Rocky 9.4 @ 192.168.199.234, 2026-05-18)
 
-Still pending on operator side, on a real Debian + Rocky VM with
-ufw / firewall-cmd actually installed:
+Validated on the production Rocky host as part of the v0.5.1
+consolidation pass — see `.arceus/changes/v0.5.1-consolidation/`
+for the full evidence trail.
 
-- [ ] firewall driver detection picks the right backend
-- [ ] rollback safeguard auto-reverts when the user closes the tab
-  without confirming
-- [ ] audit log captures every mutation made during the smoke pass
-- [ ] scheduled `purge` task runs at 03:15 (or via Run-now) and
-  trims rows correctly
+- [x] firewall driver detection picks the right backend
+  (`firewalld` selected; 9+ existing rules parsed cleanly)
+- [x] rollback safeguard works in all three paths: Confirm
+  (S1), Revert (S2), close-tab auto-revert (S3) — DB +
+  kernel state both clean in every case
+- [x] audit log captures every mutation made during the smoke
+  pass — path templates correct (`:id` not raw URLs),
+  confirms the Fastify v5 `routeOptions.url` fix
+- [x] scheduled `purge` task trims rows correctly when run
+  via `/api/scheduler/tasks/1/run` (Run-now path)
 
-These cannot be exercised in CI / dev without provisioning the
-host packages and are tracked as a release-readiness checklist
-for the operator before promoting v0.5 → ready-to-ship.
+ufw smoke pass deferred — requires Debian/Ubuntu VM not
+currently provisioned. Drivers parser unit tests cover the
+shape; ufw-on-host is a future-iteration concern.
 
 ## Out-of-scope guardrails (rejections to keep visible)
 
