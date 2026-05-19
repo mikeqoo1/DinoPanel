@@ -17,6 +17,8 @@ import { MonitoringModule } from './modules/monitoring/monitoring.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { FirewallModule } from './modules/firewall/firewall.module';
 import { LogsModule } from './modules/logs/logs.module';
+import { WebsitesModule } from './modules/websites/websites.module';
+import { AcmeModule } from './modules/acme/acme.module';
 import { AuditModule } from './common/audit/audit.module';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
 
@@ -67,6 +69,8 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
     SchedulerModule,
     FirewallModule,
     LogsModule,
+    WebsitesModule,
+    AcmeModule,
     AuditModule,
   ],
   providers: [

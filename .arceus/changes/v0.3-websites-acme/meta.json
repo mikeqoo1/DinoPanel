@@ -1,21 +1,24 @@
 {
   "id": "v0.3-websites-acme",
   "title": "Websites + ACME SSL (nginx-only, HTTP-01 + Cloudflare DNS-01)",
-  "status": "draft",
-  "discussion": "paused 2026-05-18 — see discussion-state.md; user detoured to backlog-pmm-integration",
+  "status": "active",
   "createdAt": "2026-05-15",
   "discussionPausedAt": "2026-05-18",
+  "discussionResumedAt": "2026-05-18",
+  "activatedAt": "2026-05-18",
   "targetVersion": "v0.3",
   "estimatedDuration": "≈4 weeks",
   "dependsOn": [
-    "v0.2-docker-containers"
+    "v0.2-docker-containers",
+    "v0.5-firewall-cron-logs"
   ],
-  "openQuestions": [
-    "Q1 — nginx in Docker (reuse v0.2 infra) vs host systemd? (claude lean: host systemd)",
-    "Q2 — Config storage: live confs only vs SQLite mirror? (claude lean: live conf + metadata DB)",
-    "Q3 — ACME library: acme-client / certbot / lego? (claude lean: acme-client Node)",
-    "Q4 — Site directory layout (/www/sites/<name>/ vs /opt/dinopanel/sites/<name>/ vs /var/www/<name>/)? (claude lean: /opt/dinopanel/sites/<name>/)",
-    "Q5 — TLS auto-renewal: ad-hoc scheduler now or wait for v0.5 cron module? (claude lean: in-process setInterval, fold into v0.5)"
-  ],
-  "leansRecordedIn": "discussion-state.md (none confirmed yet)"
+  "openQuestions": [],
+  "decisionsRecordedIn": "decisions.md",
+  "decisionsSummary": [
+    "Q1 → host systemd nginx",
+    "Q2 → live nginx conf files + thin SQLite metadata",
+    "Q3 → acme-client (Node) library",
+    "Q4 → /opt/dinopanel/sites/<name>/ namespace",
+    "Q5 → v0.5 scheduler ('acme-renew' job, 12h cadence, renew at ≤30d)"
+  ]
 }

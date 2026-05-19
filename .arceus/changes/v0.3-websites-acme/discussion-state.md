@@ -1,4 +1,11 @@
-# v0.3 — Discussion State (paused 2026-05-18)
+# v0.3 — Discussion State (resolved 2026-05-18 — historical record)
+
+> **Status:** all five questions resolved 2026-05-18. See
+> `decisions.md` for the confirmed answers and rationale. The
+> recommendations table below is preserved as historical context;
+> two recommendations changed during the resume — Q5's stop-gap
+> was superseded by the v0.5 scheduler that shipped between pause
+> and resume.
 
 The five-question round was started but paused mid-stream when the
 user asked to detour into PMM integration (see

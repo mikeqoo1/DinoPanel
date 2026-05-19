@@ -1,8 +1,8 @@
 # v0.3 — Websites + ACME SSL
 
-**Status:** draft
+**Status:** active (activated 2026-05-18, all 5 open questions confirmed — see `decisions.md`)
 **Target:** v0.3 (≈ 4 weeks)
-**Depends on:** v0.2-docker-containers (completed)
+**Depends on:** v0.2-docker-containers (completed), v0.5-firewall-cron-logs (completed — TLS renewal uses v0.5 scheduler)
 
 ## Context
 
@@ -27,8 +27,14 @@ matters" posture that produced v0.2 without an App Store.
 3. **SSL via ACME** (Let's Encrypt + optional ZeroSSL): HTTP-01
    challenge first, DNS-01 for selected DNS providers (Cloudflare
    most likely, others to follow).
-4. **Backend nginx**: run nginx as a Docker container managed by
-   DinoPanel itself (reuse v0.2 container management).
+4. **Backend nginx**: nginx runs on the host under systemd, **not**
+   in a Docker container. DinoPanel writes confs to
+   `/opt/dinopanel/nginx/conf.d/*.conf` (included from
+   `/etc/nginx/nginx.conf`) and triggers `nginx -t` +
+   `systemctl reload nginx` via sudoers. (Q1 decision — see
+   `decisions.md`. Original Docker-container plan reverted because
+   port 80 binding races would block ACME HTTP-01, which is the
+   exact reason 1Panel itself switched back to host nginx.)
 
 ## Non-goals (deferred or rejected)
 
@@ -40,25 +46,16 @@ matters" posture that produced v0.2 without an App Store.
 - Wildcard SSL via every DNS provider 1Panel supports (50+); v0.3
   ships Cloudflare DNS-01 and HTTP-01 only.
 
-## Open questions to resolve before activation
+## Open questions
 
-1. **nginx where?** Docker container managed by DinoPanel (reuse v0.2
-   infra), or host nginx via systemd? Docker is cleaner; host is
-   what 1Panel actually does because Docker's port 80 binding conflicts
-   easily.
-2. **Config storage**: live nginx confs vs DinoPanel SQLite mirror?
-   1Panel writes files + DB. Pro vs con.
-3. **ACME library**: `acme-client` (Node), shelling out to certbot,
-   or `lego` binary (Go)? Each has trade-offs around DNS provider
-   coverage and dep weight.
-4. **Site directory layout**: where do user files live? `/www/sites/<name>/`
-   mirrors 1Panel but might collide with existing servers.
-5. **TLS auto-renewal cadence**: cron? systemd timer? in-process
-   scheduler? (v0.5 will add a cron module anyway — wait or build a
-   stop-gap?)
+All five resolved 2026-05-18 — see `decisions.md` for full rationale.
+Short form:
 
-Activate this change only after the five questions are answered the
-same way v0.2's five were — per-item, written into `decisions.md`.
+1. **nginx where?** → host systemd
+2. **Config storage** → live conf files + thin SQLite metadata (files win on conflict)
+3. **ACME library** → `acme-client` (Node)
+4. **Site directory layout** → `/opt/dinopanel/sites/<name>/`
+5. **TLS auto-renewal** → v0.5 scheduler job `acme-renew`, 12h cadence, renew at ≤30d (context shift: v0.5 scheduler shipped between pause and resume, so the original in-process stop-gap is no longer needed)
 
 ## Rough sizing
 

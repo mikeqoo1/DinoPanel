@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -146,6 +146,75 @@ export const loginAttempts = sqliteTable(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// v0.3 — websites + ACME SSL
+// ---------------------------------------------------------------------------
+
+export const sites = sqliteTable(
+  'sites',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull().unique(),
+    primaryDomain: text('primary_domain').notNull(),
+    type: text('type', {
+      enum: ['static', 'reverse_proxy', 'php'],
+    }).notNull(),
+    payload: text('payload', { mode: 'json' }).notNull(),
+    managedByDinopanel: integer('managed_by_dinopanel', { mode: 'boolean' })
+      .notNull()
+      .default(true),
+    orphaned: integer('orphaned', { mode: 'boolean' }).notNull().default(false),
+    certPaths: text('cert_paths', { mode: 'json' }),
+    certExpiresAt: integer('cert_expires_at'),
+    createdAt: integer('created_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    updatedAt: integer('updated_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => ({
+    domainIdx: index('idx_sites_primary_domain').on(t.primaryDomain),
+  }),
+);
+
+export const acmeAccounts = sqliteTable(
+  'acme_accounts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    directoryUrl: text('directory_url').notNull(),
+    email: text('email').notNull(),
+    keyPem: text('key_pem').notNull(),
+    createdAt: integer('created_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex('uniq_acme_accounts_pair').on(t.directoryUrl, t.email),
+  }),
+);
+
+export const acmeOrders = sqliteTable(
+  'acme_orders',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    siteId: integer('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    challenge: text('challenge', { enum: ['http-01', 'dns-01'] }).notNull(),
+    status: text('status', {
+      enum: ['pending', 'success', 'failed'],
+    }).notNull(),
+    errorMessage: text('error_message'),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => ({
+    siteIdx: index('idx_acme_orders_site').on(t.siteId),
+    startedIdx: index('idx_acme_orders_started').on(t.startedAt),
+  }),
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
@@ -163,3 +232,9 @@ export type OperationLogRow = typeof operationLog.$inferSelect;
 export type NewOperationLogRow = typeof operationLog.$inferInsert;
 export type LoginAttempt = typeof loginAttempts.$inferSelect;
 export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
+export type Site = typeof sites.$inferSelect;
+export type NewSite = typeof sites.$inferInsert;
+export type AcmeAccount = typeof acmeAccounts.$inferSelect;
+export type NewAcmeAccount = typeof acmeAccounts.$inferInsert;
+export type AcmeOrder = typeof acmeOrders.$inferSelect;
+export type NewAcmeOrder = typeof acmeOrders.$inferInsert;
