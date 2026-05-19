@@ -1,0 +1,25 @@
+{
+  "id": "v0.4-databases",
+  "title": "Databases module (MySQL/MariaDB/PostgreSQL/Redis/MongoDB) + v0.3 carry-over",
+  "status": "draft",
+  "createdAt": "2026-05-19",
+  "targetVersion": "v0.4",
+  "estimatedDuration": "~3 weeks",
+  "dependsOn": ["v0.3-websites-acme", "v0.3.1-smoke-pass"],
+  "openQuestions": [
+    "Q1 — Native vs container as default per engine?",
+    "Q2 — Where do DB data dirs live? /opt/dinopanel/databases/<engine>/<instance>/ + bind-mount vs named volume?",
+    "Q3 — Credential surfacing: generate on install / always plaintext / SecretsService?",
+    "Q4 — SecretsService design: per-secret AES-GCM with master key in DATA_DIR/.secret-key, or derive from JWT_SECRET?",
+    "Q5 — PMM integration depth: stay on link-card (option A), or push to API summary cards (option C)?"
+  ],
+  "carryOverFromV03": [
+    "SecretsService (encrypts acme_accounts.key_pem + acme.cloudflare.api_token)",
+    "Drawer / Sheet primitive (replaces v0.3 inline detail panel on /websites)",
+    "Auto-provisioned PHP-FPM container (Phase 3 deferral)",
+    "UI for ACME_EMAIL (env-only → settings with env fallback)",
+    "External-conf import in reconcile (managed | external discriminator)"
+  ],
+  "engines": ["mysql", "mariadb", "postgresql", "redis", "mongodb"],
+  "leansRecordedIn": null
+}

@@ -1,0 +1,26 @@
+{
+  "id": "v0.3.1-smoke-pass",
+  "title": "v0.3.1 smoke pass — static-site happy path on Rocky 9.4 + release pipeline fix",
+  "status": "completed",
+  "createdAt": "2026-05-19",
+  "completedAt": "2026-05-19",
+  "targetVersion": "v0.3.1",
+  "dependsOn": ["v0.3-websites-acme"],
+  "host": "192.168.199.234 — Rocky Linux 9.4, Intel Xeon Gold 5218 (64c), kernel 5.14",
+  "scope": {
+    "deploy": "First v0.3 deploy onto the Rocky box (uptime 600d). Surfaced two install.sh bugs that are now fixed in 70a8d48.",
+    "smokePass": "Static site happy path (S1) validated end-to-end. Reverse proxy / reconcile / PHP / SSL deferred to a follow-up smoke when the box has a real public domain.",
+    "fixes": "install.sh upgrade-safe (clobber-free cp + preserve .env)"
+  },
+  "validatedChecklist": [
+    "S1 static site create — UI → conf write → nginx -t → reload → curl Host: header returns served file"
+  ],
+  "deferredChecklist": [
+    "S2 reverse proxy with real upstream",
+    "S3 reconcile orphan detection",
+    "S4 ACME HTTP-01 against LE staging (needs public domain)",
+    "S5 ACME DNS-01 against Cloudflare (needs real domain + CF token)",
+    "S6 PHP-FPM site (needs operator-provisioned FPM container)",
+    "S7 delete + reload round-trip"
+  ]
+}
