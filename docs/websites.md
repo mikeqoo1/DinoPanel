@@ -129,6 +129,77 @@ list; `GET /api/websites/status` returns the degraded flag.
 ACME endpoints (`/api/websites/:id/ssl/*`) are stubbed identically
 and land in Phase 4.
 
+## PHP-FPM setup (one-time operator step)
+
+PHP sites use a shared FPM socket. v0.3 does **not** auto-provision
+the FPM container — the operator runs it once and DinoPanel just
+generates an nginx conf that points `fastcgi_pass` at the socket.
+Auto-provisioning may land in a future release; the rationale for
+deferring it is in `.arceus/changes/v0.3-websites-acme/tasks.md`
+(Phase 3 deviation log).
+
+The expected socket path is `PHP_FPM_SOCKET_PATH`
+(default `/run/php-fpm/dinopanel-php-8.3.sock`). Override the env
+var if you place the socket elsewhere.
+
+### Minimal Docker example (PHP 8.3)
+
+```sh
+sudo mkdir -p /run/php-fpm
+sudo chmod 0755 /run/php-fpm
+
+docker run -d \
+  --name dinopanel-php-8.3 \
+  --restart=unless-stopped \
+  -v /opt/dinopanel/sites:/opt/dinopanel/sites:ro \
+  -v /run/php-fpm:/run/php-fpm \
+  --user "$(id -u www-data):$(id -g www-data)" \
+  php:8.3-fpm \
+  php-fpm \
+    --nodaemonize \
+    --fpm-config /usr/local/etc/php-fpm.d/zz-docker.conf
+```
+
+Then add a pool config that listens on the Unix socket. Drop a
+file at `/etc/dinopanel/php-8.3-pool.conf`:
+
+```ini
+[www]
+listen = /run/php-fpm/dinopanel-php-8.3.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+user = www-data
+group = www-data
+pm = dynamic
+pm.max_children = 16
+pm.start_servers = 4
+pm.min_spare_servers = 2
+pm.max_spare_servers = 8
+```
+
+…and mount it into the container with
+`-v /etc/dinopanel/php-8.3-pool.conf:/usr/local/etc/php-fpm.d/zz-pool.conf:ro`.
+
+### SELinux note (Rocky)
+
+The nginx user needs to read the socket. Label `/run/php-fpm/` with
+`httpd_var_run_t`:
+
+```sh
+sudo semanage fcontext -a -t httpd_var_run_t '/run/php-fpm(/.*)?'
+sudo restorecon -R /run/php-fpm
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+### PHP version selection in v0.3
+
+Only **PHP 8.3** is supported. The `siteCreate.payload.phpVersion`
+enum is locked to `'8.3'`. Other versions are deferred until a
+release sees demand; the schema is already in place to extend, but
+container provisioning + per-version socket routing has to land
+first.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
@@ -136,3 +207,4 @@ and land in Phase 4.
 | `WEBSITES_ROOT` | `/opt/dinopanel` | Root of the on-disk tree |
 | `WEBSITES_NGINX_INCLUDE_PATH` | `/etc/nginx/conf.d/00-dinopanel.conf` | Where the include glue file lands |
 | `WEBSITES_REQUIRE_SUDO` | `true` | Warn at boot if `sudo -n nginx -t` fails |
+| `PHP_FPM_SOCKET_PATH` | `/run/php-fpm/dinopanel-php-8.3.sock` | Unix socket DinoPanel writes into PHP-site confs |

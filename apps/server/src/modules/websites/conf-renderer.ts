@@ -1,5 +1,6 @@
 import type {
   Domain,
+  PhpPayload,
   ReverseProxyPayload,
   SiteCertInfo,
   SitePayload,
@@ -20,12 +21,23 @@ export interface RenderContext {
   acmeRoot: string;
   /** Issued cert paths, when SSL is provisioned. */
   cert?: SiteCertInfo | null;
+  /** PHP-FPM Unix socket path; required when rendering PHP sites. */
+  phpFpmSocketPath?: string;
 }
 
 export class NotImplementedYetError extends Error {
   constructor(public readonly feature: string) {
     super(`${feature}: NOT_IMPLEMENTED_YET`);
     this.name = 'NotImplementedYetError';
+  }
+}
+
+export class MissingPhpFpmConfigError extends Error {
+  constructor() {
+    super(
+      'PHP site requires phpFpmSocketPath in RenderContext (set PHP_FPM_SOCKET_PATH env)',
+    );
+    this.name = 'MissingPhpFpmConfigError';
   }
 }
 
@@ -45,7 +57,7 @@ export function renderSiteConf(ctx: RenderContext): string {
     case 'reverse_proxy':
       return renderReverseProxy(ctx, ctx.payload);
     case 'php':
-      throw new NotImplementedYetError('PHP site template (Phase 3)');
+      return renderPhp(ctx, ctx.payload);
   }
 }
 
@@ -95,6 +107,41 @@ function renderStatic(ctx: RenderContext, payload: StaticSitePayload): string {
     indexDirective,
     '    location / {',
     '        try_files $uri $uri/ =404;',
+    '    }',
+    '}',
+    '',
+  ]
+    .filter((s) => s !== '')
+    .join('\n');
+}
+
+function renderPhp(ctx: RenderContext, payload: PhpPayload): string {
+  if (!ctx.phpFpmSocketPath) throw new MissingPhpFpmConfigError();
+  const docRoot = join(ctx.siteRoot, 'public');
+  const indexDirective = `    index ${payload.documentIndex.join(' ')};`;
+  return [
+    renderHead(ctx),
+    `# PHP ${payload.phpVersion} via FPM at ${ctx.phpFpmSocketPath}`,
+    'server {',
+    renderListen(ctx),
+    `    server_name ${ctx.primaryDomain};`,
+    ctx.cert ? renderSslBlock(ctx.cert) : '',
+    renderAcmeChallengeLocation(ctx.acmeRoot),
+    `    root ${docRoot};`,
+    indexDirective,
+    '    location / {',
+    '        try_files $uri $uri/ /index.php?$query_string;',
+    '    }',
+    '    location ~ \\.php$ {',
+    `        fastcgi_pass unix:${ctx.phpFpmSocketPath};`,
+    '        fastcgi_index index.php;',
+    '        include fastcgi_params;',
+    '        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;',
+    '        fastcgi_param PATH_INFO $fastcgi_path_info;',
+    '        fastcgi_split_path_info ^(.+\\.php)(/.+)$;',
+    '    }',
+    '    location ~ /\\.(?!well-known) {',
+    '        deny all;',
     '    }',
     '}',
     '',

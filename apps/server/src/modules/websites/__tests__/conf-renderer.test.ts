@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
-  NotImplementedYetError,
+  MissingPhpFpmConfigError,
   renderSiteConf,
   type RenderContext,
 } from '../conf-renderer';
 import {
   siteCreateSchema,
+  type PhpPayload,
   type ReverseProxyPayload,
   type StaticSitePayload,
 } from '@dinopanel/shared';
@@ -20,6 +21,7 @@ const baseCtx = (overrides: Partial<RenderContext> = {}): RenderContext => ({
     indexFiles: ['index.html', 'index.htm'],
   } satisfies StaticSitePayload,
   cert: null,
+  phpFpmSocketPath: '/run/php-fpm/dinopanel-php-8.3.sock',
   ...overrides,
 });
 
@@ -73,15 +75,51 @@ describe('renderSiteConf — reverse_proxy', () => {
   });
 });
 
-describe('renderSiteConf — PHP stub', () => {
-  it('throws NotImplementedYetError; landing in Phase 3', () => {
+describe('renderSiteConf — PHP', () => {
+  const phpPayload: PhpPayload = {
+    type: 'php',
+    phpVersion: '8.3',
+    documentIndex: ['index.php', 'index.html'],
+  };
+
+  it('emits fastcgi_pass at the socket and routes .php through FPM', () => {
+    const out = renderSiteConf(
+      baseCtx({ name: 'wp', primaryDomain: 'wp.example.com', payload: phpPayload }),
+    );
+    expect(out).toContain(
+      'fastcgi_pass unix:/run/php-fpm/dinopanel-php-8.3.sock;',
+    );
+    expect(out).toContain('location ~ \\.php$');
+    expect(out).toContain(
+      'fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;',
+    );
+    expect(out).toContain('include fastcgi_params;');
+    // Hidden files (except .well-known) explicitly denied
+    expect(out).toContain('location ~ /\\.(?!well-known)');
+    expect(out).toContain('deny all;');
+  });
+
+  it('places index.php in the try_files fallback chain', () => {
+    const out = renderSiteConf(
+      baseCtx({ name: 'wp', primaryDomain: 'wp.example.com', payload: phpPayload }),
+    );
+    expect(out).toContain('index index.php index.html;');
+    expect(out).toContain('try_files $uri $uri/ /index.php?$query_string;');
+    // ACME challenge block still present
+    expect(out).toContain('/.well-known/acme-challenge/');
+  });
+
+  it('throws MissingPhpFpmConfigError when no socket is provided', () => {
     expect(() =>
       renderSiteConf(
         baseCtx({
-          payload: { type: 'php', phpVersion: '8.3', documentIndex: ['index.php'] },
+          name: 'wp',
+          primaryDomain: 'wp.example.com',
+          payload: phpPayload,
+          phpFpmSocketPath: undefined,
         }),
       ),
-    ).toThrow(NotImplementedYetError);
+    ).toThrow(MissingPhpFpmConfigError);
   });
 });
 

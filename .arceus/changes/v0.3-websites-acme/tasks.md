@@ -202,21 +202,61 @@ Phase-2 cases) · server build ✅ · web build ✅ (main bundle gzip
   list.
 - **`acmeOrderResponseSchema`** already noted in Phase 1.
 
-## Phase 3 — PHP site type
+## Phase 3 — PHP site type ✅ (2026-05-19)
 
-PHP-FPM coordination. Light phase; can land in parallel with Phase 4
-if a second developer is on it.
+PHP-FPM coordination, scoped down. The auto-provisioned-container
+plan from the spec was traded for an operator-provisioned socket
+to keep the phase at its 2 dev-day budget — see deviation log
+below.
 
-- [ ] PHP-FPM container template (managed by v0.2 containers
-  module) — provisioned on first PHP-site create, reused for all
-  subsequent ones.
-- [ ] `ConfRenderer` PHP template: `fastcgi_pass unix:<sock>;` with
-  the standard `fastcgi_params` includes. Renderer's
-  `NOT_IMPLEMENTED_YET` from Phase 1 is replaced here.
-- [ ] PHP-flavored conf renderer tests (the 3 cases held back in
-  Phase 1).
-- [ ] Documented PHP version selection (one default in v0.3 —
-  PHP 8.3 — others deferred until there's demand).
+- [x] **`ConfRenderer` PHP template** — emits
+  `fastcgi_pass unix:<socket>;` with `include fastcgi_params;`,
+  `SCRIPT_FILENAME` + `PATH_INFO` + `fastcgi_split_path_info`,
+  `try_files $uri $uri/ /index.php?$query_string;`, and an
+  explicit `location ~ /\.(?!well-known) { deny all; }` so the
+  ACME challenge keeps working while dotfiles stay private.
+- [x] **Renderer accepts `phpFpmSocketPath`** via `RenderContext`;
+  throws `MissingPhpFpmConfigError` (typed, easy to catch) when
+  it's missing. `SitesService` reads the path from
+  `PHP_FPM_SOCKET_PATH` env (default
+  `/run/php-fpm/dinopanel-php-8.3.sock`) at construction and
+  passes it on every render.
+- [x] **`PHP_FPM_SOCKET_PATH` env** added to `env.schema.ts`.
+- [x] **PHP renderer tests** — 3 cases replacing the Phase-1
+  `NOT_IMPLEMENTED_YET` stub test:
+  - `fastcgi_pass` + `location ~ \.php$` + dotfile deny block
+  - `index.php` in try_files chain, ACME block still present
+  - Throws `MissingPhpFpmConfigError` when socket is omitted
+- [x] **`docs/websites.md` PHP section**: minimal Docker run
+  example for `php:8.3-fpm` listening on the shared Unix socket,
+  SELinux relabel snippet for `/run/php-fpm/`, PHP-version
+  selection note (8.3 only for v0.3).
+- [ ] **Auto-provisioned FPM container — deferred to a future
+  release**. See deviation log.
+
+**Verification gates passed**: typecheck ✅ (0 errors) · lint ✅
+(0 errors, 0 warnings) · test **159/159** ✅ (157 → 159: -1 stub
+test removed, +3 real PHP tests). server build ✅. No web code
+touched, so web build skipped.
+
+### Phase 3 deviation log
+
+- **Auto-provisioned PHP-FPM container deferred** to a future
+  release. The spec said "provisioned on first PHP-site create,
+  reused for all subsequent ones" using the v0.2 containers
+  module. Doing that properly means image pull on first run,
+  restart policy management, per-version socket routing, error
+  surface for "image pull failed" / "container exited", and a
+  whole UX for picking PHP versions. That's a 3–5 dev-day phase
+  on its own, blowing the 2-day Phase 3 budget. The fallback
+  pattern matches sudoers + SELinux: documented one-time
+  operator setup. Open to revisiting in v0.4 / v0.5 if the v0.3
+  smoke pass shows the manual step is enough of a footgun to
+  warrant the complexity.
+- **PHP version locked to 8.3** in the Zod enum. The schema
+  surface is already in place to extend (it's an enum, not a
+  string), but the supporting container coordination is what
+  blocks multi-version — and that's the deferred work above.
 
 ## Phase 4 — ACME (HTTP-01 + Cloudflare DNS-01 + auto-renew)
 

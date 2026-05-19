@@ -81,8 +81,14 @@ function makeService(
     fatal: () => undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
+  const config = {
+    get: () => ({
+      env: { PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock' },
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
   return {
-    service: new SitesService(db, wrapped, logger),
+    service: new SitesService(db, config, wrapped, logger),
     reloadCount,
   };
 }

@@ -57,7 +57,13 @@ function makeService(db: Db, paths: WebsitesPaths): SitesService {
     fatal: () => undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
-  return new SitesService(db, makeFakeNginx(paths), logger);
+  const config = {
+    get: () => ({
+      env: { PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock' },
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+  return new SitesService(db, config, makeFakeNginx(paths), logger);
 }
 
 const sampleCreate: SiteCreate = {

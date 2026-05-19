@@ -7,6 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { eq } from 'drizzle-orm';
 import type {
@@ -18,6 +19,7 @@ import type {
   SiteResponse,
   SiteType,
 } from '@dinopanel/shared';
+import type { AppConfig } from '../../config/configuration';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { sites, type Site } from '../../database/schema';
 import { renderSiteConf, type RenderContext } from './conf-renderer';
@@ -34,11 +36,19 @@ import { NginxCommandError, NginxService } from './nginx.service';
  */
 @Injectable()
 export class SitesService {
+  private readonly phpFpmSocketPath: string;
+
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
+    @Inject(ConfigService)
+    config: ConfigService<{ app: AppConfig }>,
     private readonly nginx: NginxService,
     private readonly logger: Logger,
-  ) {}
+  ) {
+    const app = config.get<AppConfig>('app', { infer: true });
+    if (!app) throw new Error('App config missing');
+    this.phpFpmSocketPath = app.env.PHP_FPM_SOCKET_PATH;
+  }
 
   // -------------------------------------------------------------------
   // Reads
@@ -296,6 +306,7 @@ export class SitesService {
       siteRoot: this.nginx.siteRoot(args.name),
       acmeRoot: this.nginx.acmeRoot(),
       cert: args.cert,
+      phpFpmSocketPath: this.phpFpmSocketPath,
     };
     return renderSiteConf(ctx);
   }

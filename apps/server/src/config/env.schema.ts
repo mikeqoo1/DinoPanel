@@ -33,6 +33,12 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+  // PHP-FPM Unix socket path. v0.3 expects an operator-provisioned
+  // container exposing this socket via a shared volume mount; see
+  // docs/websites.md. Override if the operator chose a different path.
+  PHP_FPM_SOCKET_PATH: z
+    .string()
+    .default('/run/php-fpm/dinopanel-php-8.3.sock'),
 });
 
 export type Env = z.infer<typeof envSchema>;
