@@ -11,6 +11,7 @@ import * as schema from '../../../database/schema';
 import { dbInstances } from '../../../database/schema';
 import { DbInstancesService } from '../db-instances.service';
 import { DbEngineRegistry } from '../db-engine.registry';
+import type { DbMetricsService } from '../db-metrics.service';
 import { MariadbDriver } from '../engines/mariadb.driver';
 import { MongoDriver } from '../engines/mongo.driver';
 import { MysqlDriver } from '../engines/mysql.driver';
@@ -121,13 +122,24 @@ function makeService(
   const config = {
     get: () => ({ env: { DATABASES_ROOT: databasesRoot } }),
   } as unknown as ConstructorParameters<typeof DbInstancesService>[2];
+  const metrics = {
+    invalidate: vi.fn(),
+    invalidateAll: vi.fn(),
+  } as unknown as DbMetricsService;
   const logger = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  } as unknown as ConstructorParameters<typeof DbInstancesService>[4];
-  return new DbInstancesService(db, docker, config, makeRegistry(), logger);
+  } as unknown as ConstructorParameters<typeof DbInstancesService>[5];
+  return new DbInstancesService(
+    db,
+    docker,
+    config,
+    makeRegistry(),
+    metrics,
+    logger,
+  );
 }
 
 describe('DbInstancesService.create', () => {

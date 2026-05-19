@@ -25,6 +25,7 @@ import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { dbInstances, type DbInstance } from '../../database/schema';
 import { DOCKER } from '../containers/docker.token';
 import { DbEngineRegistry } from './db-engine.registry';
+import { DbMetricsService } from './db-metrics.service';
 import {
   assertSafeInstanceName,
   containerNameOf,
@@ -48,6 +49,7 @@ export class DbInstancesService {
     @Inject(ConfigService)
     private readonly config: ConfigService<{ app: AppConfig }>,
     private readonly registry: DbEngineRegistry,
+    private readonly metrics: DbMetricsService,
     private readonly logger: Logger,
   ) {
     const app = this.config.get<AppConfig>('app', { infer: true });
@@ -268,6 +270,7 @@ export class DbInstancesService {
       await this.safeRmrf(row.dataDir);
     }
     await this.db.delete(dbInstances).where(eq(dbInstances.id, id));
+    this.metrics.invalidate(id);
   }
 
   async rotatePassword(id: number): Promise<DbInstanceResponse> {
@@ -303,6 +306,11 @@ export class DbInstancesService {
         updatedAt: now,
       })
       .where(eq(dbInstances.id, id));
+    // Cache contents are still numerically correct (PMM doesn't see
+    // passwords), but rotating password is a notable event — bust the
+    // cache so the operator can refresh and see fresh metrics post-
+    // restart. Cheap.
+    this.metrics.invalidate(id);
     return this.get(id);
   }
 

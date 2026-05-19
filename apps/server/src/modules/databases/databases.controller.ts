@@ -8,6 +8,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   createDbInstanceSchema,
@@ -15,6 +16,7 @@ import {
   removeDbInstanceSchema,
   type CreateDbInstance,
   type DbInstanceResponse,
+  type DbMetricsSummary,
   type DbReconcileResponse,
   type PatchDbInstance,
   type RemoveDbInstance,
@@ -22,12 +24,14 @@ import {
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { DatabasesService } from './databases.service';
 import { DbInstancesService } from './db-instances.service';
+import { DbMetricsService } from './db-metrics.service';
 
 @Controller('databases')
 export class DatabasesController {
   constructor(
     private readonly databases: DatabasesService,
     private readonly instances: DbInstancesService,
+    private readonly dbMetrics: DbMetricsService,
   ) {}
 
   @Get()
@@ -98,5 +102,17 @@ export class DatabasesController {
   @Post('reconcile')
   reconcile(): Promise<DbReconcileResponse> {
     return this.instances.reconcile();
+  }
+
+  /**
+   * PMM PromQL summary for the instance. `?refresh=1` bypasses the
+   * 30 s cache (spec.md §summaryFor WARN-3 fix).
+   */
+  @Get(':id/metrics')
+  metrics(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('refresh') refresh?: string,
+  ): Promise<DbMetricsSummary> {
+    return this.dbMetrics.summaryFor(id, { refresh: refresh === '1' });
   }
 }
