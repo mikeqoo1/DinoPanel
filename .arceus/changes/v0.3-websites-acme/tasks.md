@@ -127,27 +127,80 @@ work).
   the renderer and bootstrap tests exercise the safety gate
   without instantiating Nest DI. No behavior change.
 
-## Phase 2 — Static sites + reverse proxy (REST + reconciliation)
+## Phase 2 — Static sites + reverse proxy (REST + reconciliation) ✅ (2026-05-19)
 
 First user-visible value path. After this phase, an operator can
 hit the API to create a static site or reverse proxy and serve
 plain HTTP. SSL still requires Phase 4.
 
-- [ ] `SitesService.create / update / delete` — full implementation
+- [x] `SitesService.create / update / remove` — full implementation
   with the atomic conf-write + validate + reload + metadata-upsert
-  flow from spec.md §1.
-- [ ] `SitesService.reconcile` — full implementation (orphan flag
-  + external conf detection).
-- [ ] `WebsitesController` — `GET / POST / PATCH / DELETE
+  flow from spec.md §1. (`remove` not `delete` to avoid the JS
+  reserved-word footgun for IDE autocomplete; controller routes
+  `DELETE /api/websites/:id` to it.)
+- [x] `SitesService.reconcile` — orphan flag flips both ways (DB
+  row marked orphaned when conf disappears, cleared when conf
+  reappears from a backup). External (non-DinoPanel) conf files
+  are counted and logged but **not** imported as DB rows — see
+  deviation log below.
+- [x] `WebsitesController` — `GET / POST / PATCH / DELETE
   /api/websites`, `POST /api/websites/reconcile`,
-  `GET /api/websites/:id/conf`. Zod-validated bodies, JWT-protected.
-- [ ] Conf rollback on validate failure: rename `current → backup`,
-  write `new → current`, validate; on fail, `backup → current` then
-  reload (to be sure nginx is on the good config) and throw.
-- [ ] Unit tests: 6 sites-service cases + 4 reconciliation cases
-  per spec.md.
-- [ ] `e2e/websites-create-static.spec.ts` (per spec.md).
-- [ ] `e2e/websites-reverse-proxy.spec.ts` (per spec.md).
+  `GET /api/websites/:id/conf`, plus `GET /api/websites/status`
+  for the degraded-bootstrap flag. Auth is global via
+  `APP_GUARD: JwtAuthGuard` so no per-route `@UseGuards` needed.
+- [x] **Conf rollback on validate failure**: copy `current →
+  current.bak`, write `current.tmp` → `fs.rename` to `current`,
+  `nginx -t`; on fail `fs.rename current.bak → current` and
+  best-effort reload to put nginx back on the known-good config.
+  Verified end-to-end by the `update() — validate failure` test.
+- [x] **Pre-create conflict guards**: rejects `SITE_NAME_TAKEN`
+  (DB row exists) and `SITE_CONF_PATH_TAKEN` (file at the conf
+  path with no DB row — likely an external conf the operator
+  doesn't want silently clobbered).
+- [x] **`ensureSiteContentDir`**: static + PHP sites auto-mkdir
+  `<siteRoot>/public/` so a freshly-created static site has a
+  content directory ready for `/api/files` uploads. Reverse-proxy
+  sites skip this — they don't have a content root.
+- [x] Unit tests: **10 new cases** (planned 10 from spec.md):
+  - `__tests__/sites.service.test.ts` — 6 cases (create happy
+    path, duplicate-name conflict, validate-failure rollback,
+    update happy path, update validate-failure restores backup,
+    remove drops conf + reloads + drops row)
+  - `__tests__/reconcile.test.ts` — 4 cases (empty,
+    no-divergence, file-missing-marks-orphaned, external-conf-not-imported)
+- [ ] **`e2e/websites-create-static.spec.ts`** — deferred. Spec
+  proposes running against a real local nginx via `--add-host`;
+  the dev sandbox doesn't have host nginx with sudoers configured,
+  and a CI container that does would balloon the playwright
+  config. Lands with Phase 5 manual smoke on Rocky 9.4 instead.
+- [ ] **`e2e/websites-reverse-proxy.spec.ts`** — same deferral as
+  above.
+
+**Verification gates passed**: typecheck ✅ (0 errors) · lint ✅
+(0 errors, 0 warnings) · test **157/157** ✅ (147 → 157, +10
+Phase-2 cases) · server build ✅ · web build ✅ (main bundle gzip
+110.11 kB unchanged).
+
+### Phase 2 deviation log
+
+- **External conf import is deferred to Phase 5**. The spec said
+  "for each file with no metadata row, insert one with
+  `managed_by_dinopanel: false`", but the schema requires
+  non-null `type`, `payload`, and `primary_domain` — fields that
+  don't have honest values for an externally-managed conf. Phase
+  2 instead counts external confs (logged at warn level via
+  `sites.reconcile.external_confs_seen`) and leaves the DB
+  untouched. Phase 5 can revisit once the response schema gains
+  a managed/external discriminator (option sketched in the
+  spec.md commentary section).
+- **`SitesService.remove` not `delete`** — `delete` is a reserved
+  word in older JS toolchains and some IDEs misautocomplete it.
+  Cosmetic. The HTTP verb is still `DELETE /api/websites/:id`.
+- **`SiteResponse.id` stays non-null in Phase 2** — only managed
+  rows ever flow through `list()`, so the schema doesn't need
+  loosening yet. Phase 5 revisits when the UI gets the merged
+  list.
+- **`acmeOrderResponseSchema`** already noted in Phase 1.
 
 ## Phase 3 — PHP site type
 

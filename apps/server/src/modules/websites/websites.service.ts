@@ -78,11 +78,6 @@ export class WebsitesService implements OnApplicationBootstrap {
     return this.degraded;
   }
 
-  // Phase 1 stub — Phase 2 fills this in (DB row + conf-file join).
-  async list(): Promise<unknown[]> {
-    return Promise.resolve([]);
-  }
-
   // -------------------------------------------------------------------
   // Bootstrap internals
   // -------------------------------------------------------------------
