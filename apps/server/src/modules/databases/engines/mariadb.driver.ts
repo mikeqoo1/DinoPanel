@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type Dockerode from 'dockerode';
 import type { DbHealth } from '@dinopanel/shared';
 import {
-  DB_DRIVER_PHASE2_ERROR,
+  execHealthProbe,
+  mysqlFamilySpec,
   type BuildContainerSpecInput,
   type DbEngineDriver,
   type PromqlBundle,
@@ -20,12 +21,13 @@ export class MariadbDriver implements DbEngineDriver {
   readonly defaultPort = 3306;
   readonly dataDirInContainer = '/var/lib/mysql';
 
-  buildContainerSpec(_input: BuildContainerSpecInput): Dockerode.ContainerCreateOptions {
-    throw new Error(DB_DRIVER_PHASE2_ERROR);
+  buildContainerSpec(input: BuildContainerSpecInput): Dockerode.ContainerCreateOptions {
+    // MariaDB image is API-compatible with MySQL for env + healthcheck.
+    return mysqlFamilySpec(this.engine, this.defaultImage, this.dataDirInContainer, input);
   }
 
-  healthProbe(_container: Dockerode.Container): Promise<DbHealth> {
-    throw new Error(DB_DRIVER_PHASE2_ERROR);
+  healthProbe(container: Dockerode.Container): Promise<DbHealth> {
+    return execHealthProbe(container, ['mysqladmin', 'ping', '-h', 'localhost']);
   }
 
   promqlBundle(serviceName: string): PromqlBundle {

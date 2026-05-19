@@ -7,13 +7,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { eq } from 'drizzle-orm';
-import type {
-  CreateDbInstance,
-  DbInstanceResponse,
-  DbReconcileResponse,
-  PatchDbInstance,
-  RemoveDbInstance,
-} from '@dinopanel/shared';
 import type { AppConfig } from '../../config/configuration';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
@@ -22,19 +15,11 @@ import { relabelPath } from './selinux.util';
 
 export const DATABASES_BOOTSTRAP_FLAG = 'databases.bootstrap_failed';
 const DATABASES_SELINUX_LABEL = 'container_file_t';
-const PHASE2_ERROR = 'NOT_IMPLEMENTED_YET (phase: 2)';
 
 /**
- * Phase 1 responsibilities:
- *
- * - Bootstrap the on-disk root (`<DATABASES_ROOT>`) with 0755.
- * - Apply SELinux `container_file_t` label to the root tree
- *   (no-op on non-SELinux hosts).
- * - Surface a degraded flag in `settings` when bootstrap fails;
- *   never crash the app.
- *
- * Phase 2 fills in `create / start / stop / restart / remove /
- * rotatePassword / reconcile`.
+ * Bootstrap + degraded-flag surface. Container-level CRUD lives in
+ * `DbInstancesService` (Phase 2 split-out, mirroring v0.3
+ * WebsitesService / SitesService).
  */
 @Injectable()
 export class DatabasesService implements OnApplicationBootstrap {
@@ -102,53 +87,6 @@ export class DatabasesService implements OnApplicationBootstrap {
         'databases.bootstrap.selinux_skipped',
       );
     }
-  }
-
-  // -------------------------------------------------------------------
-  // Phase 2 — lifecycle (stubs)
-  // -------------------------------------------------------------------
-
-  async list(): Promise<DbInstanceResponse[]> {
-    return [];
-  }
-
-  async get(_id: number): Promise<DbInstanceResponse> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async create(_input: CreateDbInstance): Promise<DbInstanceResponse> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async patch(
-    _id: number,
-    _input: PatchDbInstance,
-  ): Promise<DbInstanceResponse> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async remove(_id: number, _input: RemoveDbInstance): Promise<void> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async start(_id: number): Promise<void> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async stop(_id: number): Promise<void> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async restart(_id: number): Promise<void> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async rotatePassword(_id: number): Promise<DbInstanceResponse> {
-    throw new Error(PHASE2_ERROR);
-  }
-
-  async reconcile(): Promise<DbReconcileResponse> {
-    throw new Error(PHASE2_ERROR);
   }
 
   // -------------------------------------------------------------------
