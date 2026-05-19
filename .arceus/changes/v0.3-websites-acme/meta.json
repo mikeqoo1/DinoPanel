@@ -1,17 +1,45 @@
 {
   "id": "v0.3-websites-acme",
   "title": "Websites + ACME SSL (nginx-only, HTTP-01 + Cloudflare DNS-01)",
-  "status": "active",
+  "status": "completed",
   "createdAt": "2026-05-15",
   "discussionPausedAt": "2026-05-18",
   "discussionResumedAt": "2026-05-18",
   "activatedAt": "2026-05-18",
+  "completedAt": "2026-05-19",
   "targetVersion": "v0.3",
   "estimatedDuration": "≈4 weeks",
+  "actualDuration": "~1 day across 2026-05-18 / 2026-05-19",
   "dependsOn": [
-    "v0.2-docker-containers",
-    "v0.5-firewall-cron-logs"
+    "v0.2-docker-containers"
   ],
+  "commits": [
+    "1b2dd7b feat(v0.3): phase 1 foundation — websites + acme skeletons, nginx I/O, bootstrap",
+    "e27b8fb feat(v0.3): phase 2 sites CRUD + reconcile — atomic conf write with rollback",
+    "b43ecc5 feat(v0.3): phase 3 PHP site type — fastcgi_pass + operator-provisioned FPM",
+    "2b7b2d6 feat(v0.3): phase 4 ACME — HTTP-01 + Cloudflare DNS-01 + auto-renew",
+    "833edca feat(v0.3): phase 5 frontend — /websites route, Add/Issue dialogs, SSL settings card",
+    "e0e05db release(v0.3.1): bump to 0.3.0, smoke-pass evidence on Rocky, v0.4 draft"
+  ],
+  "scope": {
+    "in": [
+      "Static, reverse-proxy, and PHP site types managed via host systemd nginx",
+      "Live nginx conf files under /etc/nginx/conf.d/dinopanel/ + thin SQLite metadata mirror",
+      "Atomic conf write with rollback on nginx -t failure",
+      "Reconcile loop (orphan detection: file-without-DB and DB-without-file)",
+      "ACME via acme-client (Node) — HTTP-01 challenge + Cloudflare DNS-01 challenge + auto-renew",
+      "Site namespace under /opt/dinopanel/sites/<name>/",
+      "Frontend /websites route, Add / Issue Cert dialogs, SSL settings card"
+    ],
+    "out": [
+      "Containerised nginx (host-only for v0.3)",
+      "Non-Cloudflare DNS-01 providers (Cloudflare only this round)",
+      "Auto-provisioned PHP-FPM container — operator-provisioned for v0.3, carried over to v0.4",
+      "Drawer/Sheet primitive for detail view — inline panel for v0.3, carried over to v0.4",
+      "ACME_EMAIL settings UI — env-only for v0.3, carried over to v0.4",
+      "External-conf import in reconcile (managed | external discriminator) — carried over to v0.4"
+    ]
+  },
   "openQuestions": [],
   "decisionsRecordedIn": "decisions.md",
   "decisionsSummary": [
@@ -20,5 +48,23 @@
     "Q3 → acme-client (Node) library",
     "Q4 → /opt/dinopanel/sites/<name>/ namespace",
     "Q5 → v0.5 scheduler ('acme-renew' job, 12h cadence, renew at ≤30d)"
-  ]
+  ],
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "pass (full suite green at v0.3.0 release cut)",
+    "build": "pass",
+    "liveSmokeReleasedAs": "v0.3.0 — first install onto Rocky 9.4 (192.168.199.234) verified S1 static-site happy path; S2/S3/S7 added 2026-05-19 via SSH (see v0.3.1-smoke-pass)"
+  },
+  "knownFollowups": [
+    "S4 ACME HTTP-01 against LE staging — needs public domain, deferred",
+    "S5 ACME DNS-01 against Cloudflare — needs real domain + CF token, deferred",
+    "S6 PHP-FPM site — needs operator-provisioned FPM container, deferred",
+    "Drawer/Sheet primitive — carried over into v0.4",
+    "Auto-provisioned PHP-FPM container — carried over into v0.4",
+    "ACME_EMAIL settings UI (env-only → settings with env fallback) — carried over into v0.4",
+    "External-conf import in reconcile (managed | external discriminator) — carried over into v0.4"
+  ],
+  "previousChange": "v0.2.1-compose-yaml-lint",
+  "nextChange": "v0.3.1-smoke-pass"
 }

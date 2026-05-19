@@ -1,0 +1,53 @@
+{
+  "id": "v0.1-mvp",
+  "title": "MVP v0.1 — Monorepo bootstrap + Auth + Dashboard + Terminal + Files + Settings + Packaging",
+  "status": "completed",
+  "createdAt": "2026-05-14",
+  "completedAt": "2026-05-14",
+  "targetVersion": "v0.1",
+  "note": "Reconstructed historical record. The MVP was implemented and shipped before the .arceus/changes/ mechanism existed (which began with v0.1.1-consolidation on 2026-05-14). Authoritative implementation plan: /home/mike/.claude/plans/whimsical-scribbling-sloth.md. This folder exists for version-history continuity — proposal/spec/tasks are short reconstructions, not the original artefacts.",
+  "commits": [
+    "9d464e5 feat: scaffold MVP — auth, dashboard, terminal, files, packaging"
+  ],
+  "scope": {
+    "in": [
+      "Phase 0 — pnpm + Turbo monorepo, TypeScript, ESLint, shared @dinopanel/shared (pure ESM Zod schemas + WS protocol)",
+      "Phase 1a — NestJS 11 + Fastify + Drizzle + better-sqlite3 (WAL) + pino",
+      "Phase 1b — JWT auth, bcrypt, refresh-token rotation, Throttler 5/min",
+      "Phase 2a — Vite 6 + React 19 + Tailwind 4 + shadcn/ui + i18n + theme",
+      "Phase 2b — Login + AppShell + Sidebar + UserMenu",
+      "Phase 3 — Dashboard with systeminformation 1Hz singleton broadcaster + Recharts",
+      "Phase 4 — Web SSH via node-pty + xterm.js (multi-tab, resize, heartbeat)",
+      "Phase 5 — Files (list/read/write/mkdir/rename/copy/delete/upload/download + Monaco)",
+      "Phase 6 — Settings (change password, theme, language, about)",
+      "Phase 7 — systemd unit + install.sh + build-release.sh + docs"
+    ],
+    "out": [
+      "Automated tests (deferred to v0.1.1)",
+      "Bundle splitting / size reduction (deferred to v0.1.1)",
+      "Production root posture + fs errno mapping (deferred to v0.1.2)",
+      "Docker, websites, databases, firewall, scheduler, logs (later versions)"
+    ]
+  },
+  "verification": {
+    "manualSmoke": "All 7 phases verified green by user 2026-05-14: login flow, refresh-token rotation, rate-limit, dashboard metrics WS, terminal pty echo, file CRUD",
+    "automated": "None at v0.1 — Vitest + Playwright added in v0.1.1"
+  },
+  "keyDecisions": [
+    "@dinopanel/shared kept pure ESM — relies on Node 22.12+ require(esm); explicitly NOT dual ESM/CJS (tried, broke)",
+    "WebSocket via raw ws package + Fastify httpServer.upgrade hook — NOT @nestjs/websockets (forces Socket.IO)",
+    "SPA fallback via fastifyStatic onSend hook rewriting 404→index.html — NOT setNotFoundHandler (conflicts with Nest)",
+    "Single port: API + WS + SPA all on 9999; vite dev 5173 via proxy",
+    "FilesService.resolvePath() rejects ../, null byte, relative paths, and dangerous deletes (/, /etc, /usr, /var, /root)"
+  ],
+  "knownDebtAtTimeOfShipping": [
+    "Web bundle 1.37 MB → 400 kB gzip (still big; addressed in v0.1.1)",
+    "No automated tests (addressed in v0.1.1)",
+    "node-pty native build fragile across OS (install.sh prebuild added in v0.1.1)",
+    "Files compress/extract UI missing (eventually shipped in backlog-files-compress-extract-ui)",
+    "fs errno not mapped to HTTP status (addressed in v0.1.2)",
+    "Production root posture not enforced (addressed in v0.1.2)"
+  ],
+  "previousChange": null,
+  "nextChange": "v0.1.1-consolidation"
+}

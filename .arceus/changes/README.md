@@ -1,8 +1,9 @@
 # Arceus Change Proposals
 
 This directory tracks structured change proposals for DinoPanel — both
-completed work (as historical record) and draft work (as a plan to be
-implemented). Each change lives in its own folder containing:
+completed work (as historical record) and draft / in-progress work (as
+plans to be implemented). Each change lives in its own folder
+containing:
 
 | File            | Purpose                                                  |
 | --------------- | -------------------------------------------------------- |
@@ -15,68 +16,82 @@ implemented). Each change lives in its own folder containing:
 Status values in `meta.json`:
 
 - `draft` — being discussed, not yet approved
+- `ready` — proposal/spec/tasks signed off, implementation not started
 - `active` — approved, implementation in progress
 - `completed` — implementation merged, history preserved
 - `archived` — superseded or abandoned
 
 ## Current changes
 
-| ID                              | Status      | Target  | Summary                                                          |
-| ------------------------------- | ----------- | ------- | ---------------------------------------------------------------- |
-| `v0.1.1-consolidation`          | completed   | v0.1.1  | Pre-v0.2 hardening: tests, bundle split, security, deploy        |
-| `v0.1.2-production-posture`     | completed   | v0.1.2  | Root posture, system info endpoint, fs errno mapping             |
-| `v0.2-docker-containers`        | completed   | v0.2    | Docker container management (dockerode + Compose, no App Store)  |
-| `v0.2.1-compose-yaml-lint`      | completed   | v0.2.1  | Add `yaml` dep + live JS-side YAML lint in the Compose editor    |
-| `v0.3-websites-acme`            | draft (paused) | v0.3 | Static / reverse proxy / PHP sites + ACME — 5-question discussion paused mid-stream 2026-05-18; claude's leans recorded in `discussion-state.md`, **none confirmed** |
-| `backlog-files-compress-extract-ui` | completed | any | Files: new compress-to-disk + extract endpoints + multi-select UI (zip-slip guarded) |
-| `backlog-compose-discovered-stack-readonly` | completed | any | Compose detail: read-only handling for discovered stacks (409 COMPOSE_FILE_UNAVAILABLE + banner) |
-| `backlog-pmm-integration`       | completed (A) | any → v0.4 | Option A shipped 2026-05-18: link card + 30s health-ping. Option C (API summary cards) deferred to v0.4 |
-| `v0.5-firewall-cron-logs`       | draft       | v0.5    | Firewall + Scheduled tasks + Log Center bundle (~3.5w). Key decision: firewall MUST implement 60s apply-with-rollback safeguard |
+| ID                                          | Status     | Target  | Summary                                                                              |
+| ------------------------------------------- | ---------- | ------- | ------------------------------------------------------------------------------------ |
+| `v0.1-mvp`                                  | completed  | v0.1    | MVP — Auth + Dashboard + Terminal + Files + Settings + Packaging (historical record) |
+| `v0.1.1-consolidation`                      | completed  | v0.1.1  | Pre-v0.2 hardening: tests (47 unit + 5 e2e), bundle 400 → 98 kB gzip, security, deploy |
+| `v0.1.2-production-posture`                 | completed  | v0.1.2  | Root posture, system info endpoint, fs errno mapping                                 |
+| `v0.2-docker-containers`                    | completed  | v0.2    | Docker container management (dockerode + Compose, no App Store)                      |
+| `v0.2.1-compose-yaml-lint`                  | completed  | v0.2.1  | Add `yaml` dep + live JS-side YAML lint in the Compose editor                        |
+| `backlog-files-compress-extract-ui`         | completed  | any     | Files: new compress-to-disk + extract endpoints + multi-select UI (zip-slip guarded) |
+| `backlog-compose-discovered-stack-readonly` | completed  | any     | Compose detail: read-only handling for discovered stacks (409 COMPOSE_FILE_UNAVAILABLE + banner) |
+| `backlog-pmm-integration`                   | completed  | any → v0.4 | Option A shipped 2026-05-18 (link card + 30s health-ping). Option C folded into v0.4 |
+| `v0.5-firewall-cron-logs`                   | completed  | v0.5    | Firewall (30s rollback) + Scheduler (6 task types) + Log Center (5 sources)          |
+| `v0.5.1-consolidation`                      | completed  | v0.5.1  | Manual smoke pass on Rocky 9.4 + dogfood validation for v0.5                         |
+| `v0.3-websites-acme`                        | completed  | v0.3    | Sites (static / reverse-proxy / PHP) + ACME (HTTP-01 + Cloudflare DNS-01)            |
+| `v0.3.1-smoke-pass`                         | completed  | v0.3.1  | First v0.3 deploy on Rocky 9.4 — S1 static + S2/S3/S7 verified; install.sh fixes     |
+| `v0.4-databases`                            | active     | v0.4    | Databases (MySQL/MariaDB/PostgreSQL/Redis/MongoDB, container-only) + v0.3 carry-over + PMM C |
+
+Released today (chronological, latest first): `e4d0da7` README reflects
+v0.3 shipped, `66a0c04` v0.3.1 S2/S3/S7 SSH smoke, `e0e05db` v0.3.1
+release cut, `70a8d48` install.sh upgrade-safe.
+
+## Where v0.1 went
+
+Note: `v0.1-mvp/` is a **reconstructed** historical record — the MVP
+itself shipped 2026-05-14, before this `.arceus/changes/` mechanism
+existed (the mechanism started with `v0.1.1-consolidation` on the same
+day). The authoritative implementation plan is still
+`/home/mike/.claude/plans/whimsical-scribbling-sloth.md`; the folder
+here exists for version-history continuity so the index reads
+end-to-end from v0.1 onwards.
 
 ## Backlog notes
 
-- **v0.3 is paused mid-discussion.** The 5 open questions were
-  bundled into one `AskUserQuestion` call which the user
-  interrupted. claude's lean per question is captured in
-  `v0.3-websites-acme/discussion-state.md` — these are
-  recommendations only, the user has not confirmed any of them.
-  When resuming, re-ask Q1 alone and proceed per-question so a
-  future interruption doesn't lose state again.
-- **PMM integration backlog opened 2026-05-18.** User runs an
-  existing PMM instance on internal network. claude recommends
-  shipping option A (external link card + health ping, ~0.25d)
-  immediately and saving option C (API summary cards) for when
-  the v0.4 database module gives those cards a natural home.
-- The Files compress/extract scope was bigger than the original
-  draft implied — the README's "backend already exists" claim was
-  wrong, only the streaming archive-download did. The completed
-  change adds two new endpoints + UI. See its `decisions.md` §1.
+- **PMM integration**: Option A shipped 2026-05-18 (external link card
+  + 30s health ping). Option C (API summary cards) is now folded into
+  `v0.4-databases` as the `pmmIntegration: api-summary-cards-plus-link`
+  decision — natural home alongside the database connection cards.
+- The Files compress/extract scope was bigger than the original draft
+  implied — the README's "backend already exists" claim was wrong, only
+  the streaming archive-download did. The completed change adds two
+  new endpoints + UI. See its `decisions.md` §1.
 
 ## Next session — pick up here
 
-Last working session ended 2026-05-18 with PMM A shipped (link
-card + 30s health ping, live-smoked against the user's real PMM
-instance) and `v0.5-firewall-cron-logs/` drafted with proposal +
-meta (3.5w bundle, firewall 60s-rollback safeguard called out as
-non-negotiable). v0.3-websites-acme still paused mid-discussion.
+Currently active: **`v0.4-databases`** (created + activated 2026-05-19,
+right after the v0.3.1 release cut). All five open questions resolved
+in `decisions.md`. Engines: MySQL / MariaDB / PostgreSQL / Redis /
+MongoDB, all container-only with bind-mounts under
+`/opt/dinopanel/databases/<engine>/<instance>/`. Carry-over from v0.3:
+Drawer/Sheet primitive, auto-provisioned PHP-FPM, ACME_EMAIL settings
+UI, external-conf import in reconcile.
 
-Recommended path going forward (user agreed 2026-05-18):
-`PMM A done` → **v0.5** → v0.4 + PMM C → v0.3 → ~~multi-node~~.
+Suggested execution order:
 
-Two live pickup options:
+1. **Phase 1 — Foundation** — engine registry + connection card schema
+   + container-launch helper (reusing v0.2 dockerode glue).
+2. **Phase 2 — Per-engine drivers** — incremental: MySQL/MariaDB first
+   (closest siblings), then PostgreSQL, then Redis, then MongoDB.
+3. **Phase 3 — Connection-card UI + Drawer/Sheet primitive** —
+   replaces the v0.3 inline detail panel on `/websites` at the same
+   time it lands on `/databases`.
+4. **Phase 4 — v0.3 carry-over** — auto-provisioned PHP-FPM container,
+   ACME_EMAIL settings page, reconcile `managed | external`
+   discriminator.
+5. **Phase 5 — PMM Option C** — API summary cards + deep links on the
+   connection card, keeping the existing Open-in-PMM link-card.
+6. **Phase 6 — Smoke pass on Rocky 234** (mirrors v0.3.1 / v0.5.1).
 
-1. **Activate v0.5-firewall-cron-logs** *(major, ~3.5w)* — see
-   `v0.5-firewall-cron-logs/`. Four open questions (audit log
-   retention, cron UX, log menu placement, firewall rule
-   storage). Resolve per-item into `decisions.md`, then write
-   `spec.md` and `tasks.md`, then start Phase 1 (firewall with
-   60s rollback first — the safety story has to land before the
-   feature is useful).
-
-2. **Resume v0.3 discussion** — only if priorities shift back to
-   websites before v0.5. Re-ask Q1 alone, per-question, write
-   `decisions.md` incrementally.
-
-Multi-node management was discussed and explicitly **rejected** as
-v0.x scope on 2026-05-18 (~8w+ work, security blast radius too
-big, premature for current install base). Revisit post-v1.0 only.
+After v0.4 the open headline items are: multi-node was explicitly
+**rejected** on 2026-05-18 (~8w+, security blast radius too big,
+premature for current install base — revisit post-v1.0 only); the
+remaining 1Panel-shaped surface to consider is backups + cross-host
+file sync, but neither is scheduled.

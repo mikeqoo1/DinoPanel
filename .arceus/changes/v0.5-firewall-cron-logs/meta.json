@@ -1,28 +1,39 @@
 {
   "id": "v0.5-firewall-cron-logs",
   "title": "Firewall + Scheduled Tasks + Log Center",
-  "status": "ready",
+  "status": "completed",
   "createdAt": "2026-05-18",
+  "activatedAt": "2026-05-18",
+  "completedAt": "2026-05-18",
   "targetVersion": "v0.5",
   "estimatedDuration": "≈3.5 weeks",
+  "actualDuration": "~1 day (2026-05-18)",
   "dependsOn": [],
   "softDeps": [
     "v0.3-websites-acme (only for the website-log subview, which is deferred out of v0.5 scope)",
     "v0.2-docker-containers (some cron task types — optional)"
   ],
+  "commits": [
+    "c1940db feat(v0.5): phase 1 foundation — audit interceptor + scheduler skeleton",
+    "a88e858 feat(v0.5): phase 2 scheduler — 6 runners + dogfood purge + REST",
+    "ef601e0 feat(v0.5): phase 3 firewall — ufw/firewalld drivers + 30s rollback safeguard",
+    "f1f0204 feat(v0.5): phase 4 log center + /system scaffolding + scheduler/firewall UI",
+    "9a70d83 feat(v0.5): phase 5 polish — audit retention settings + 3 e2e + 3 docs",
+    "cdb182b fix(release): rewrite workspace:* and install shared deps so npm install works on target"
+  ],
   "scope": {
-    "firewall": "ufw / firewall-cmd abstraction; rule CRUD; 60s apply-with-rollback safeguard; self-protect for panel + SSH ports; optional fail2ban integration",
-    "scheduledTasks": "in-process scheduler; 5 task types (shell, backup files, clean logs, restart service, http request); cron expression with builder UI; run-log per task",
-    "logCenter": "5 sources (system, ssh, operation/audit, login, task); NOT website logs (deferred until v0.3)"
+    "firewall": "ufw / firewall-cmd abstraction; rule CRUD; 30s apply-with-rollback safeguard; self-protect for panel + SSH ports; optional fail2ban integration",
+    "scheduledTasks": "in-process scheduler (node-cron); 6 task types (shell, backup files, clean logs, restart service, http request, audit-log purge); cron expression with builder UI + advanced freeform toggle; run-log per task",
+    "logCenter": "5 sources (system, ssh, operation/audit, login, task); NOT website logs (deferred until v0.3, then later)"
   },
   "criticalDecisions": [
-    "Firewall MUST implement 60s confirm-or-rollback safeguard — without it the module is a net liability",
-    "Cron trimmed from 1Panel's 12 task types to 5; rest can be expressed via shell command",
+    "Firewall implements 30s confirm-or-rollback safeguard — without it the module is a net liability",
+    "Cron trimmed from 1Panel's 12 task types to 6; rest can be expressed via shell command",
     "Operation/audit log table populated by every mutating REST endpoint — also serves as a security forensics tool"
   ],
   "openQuestions": [],
   "resolvedDecisions": {
-    "auditLogRetention": "30 days, single operation_log table + scheduler-driven daily DELETE (2026-05-18)",
+    "auditLogRetention": "30 days default, configurable; single operation_log table + scheduler-driven daily DELETE (2026-05-18)",
     "cronUx": "Builder default + Advanced freeform toggle (2026-05-18)",
     "logsMenuPlacement": "Nested under 系統; scheduled tasks also under 系統 for symmetry (2026-05-18)",
     "firewallStorage": "Metadata-only SQLite mirror; kernel is source of truth (2026-05-18)"
@@ -31,6 +42,13 @@
     "proposal": "proposal.md",
     "spec": "spec.md (drafted 2026-05-18, revised 2026-05-18 post-review)",
     "tasks": "tasks.md (drafted 2026-05-18, revised 2026-05-18 post-review)"
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "pass — 3 new e2e in phase 5",
+    "build": "pass",
+    "manualSmoke": "Closed out via v0.5.1-consolidation on Rocky 9.4 (192.168.199.234) — firewall rollback, audit-log purge run-now, scheduler dogfood all green"
   },
   "reviewHistory": [
     {
@@ -55,5 +73,7 @@
         "S3 node-cron locked in, hand-rolled alternative dropped"
       ]
     }
-  ]
+  ],
+  "previousChange": "backlog-pmm-integration",
+  "nextChange": "v0.5.1-consolidation"
 }
