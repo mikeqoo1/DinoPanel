@@ -132,36 +132,69 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 [ -d "$SRC/server" ] || err "Bundle missing: server/ not found in $SRC"
 [ -d "$SRC/web" ]    || err "Bundle missing: web/ not found in $SRC"
 
-# Interactive admin credentials
-if [ -z "${ADMIN_USERNAME:-}" ]; then
-  ADMIN_USERNAME=$(ask "Admin username" "admin")
-fi
-if [ -z "${ADMIN_PASSWORD:-}" ]; then
-  while true; do
-    read -r -s -p "Admin password (≥10 chars, letters + digits): " ADMIN_PASSWORD; echo
-    if [ ${#ADMIN_PASSWORD} -lt 10 ] || ! echo "$ADMIN_PASSWORD" | grep -q '[A-Za-z]' || ! echo "$ADMIN_PASSWORD" | grep -q '[0-9]'; then
-      echo "  → too weak, try again"
-      continue
-    fi
-    read -r -s -p "Confirm password: " ADMIN_PASSWORD2; echo
-    if [ "$ADMIN_PASSWORD" = "$ADMIN_PASSWORD2" ]; then break; fi
-    echo "  → passwords do not match"
-  done
+# ── Upgrade vs fresh-install detection ──────────────────────────────────────
+# If INSTALL_DIR/.env exists we treat this as an upgrade:
+#   - preserve the existing .env (keeps JWT_SECRET, PORT, HOST, etc.)
+#   - skip admin credential prompts (existing user is preserved by the
+#     idempotent seed step further down)
+#   - stop the systemd service before swapping code so we don't blow up
+#     a running process
+UPGRADE=0
+if [ -f "$INSTALL_DIR/.env" ]; then
+  UPGRADE=1
+  info "Existing install detected at $INSTALL_DIR — upgrade mode"
+  # Stop the service to release file handles before we swap code
+  if systemctl list-unit-files | grep -q "^${SERVICE_NAME}.service"; then
+    info "Stopping $SERVICE_NAME service"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+  fi
 fi
 
-PORT=$(ask "HTTP port" "$PORT")
-HOST=$(ask "Bind address (use 0.0.0.0 to expose publicly)" "$HOST")
+# Interactive admin credentials (skipped on upgrade)
+if [ "$UPGRADE" = "0" ]; then
+  if [ -z "${ADMIN_USERNAME:-}" ]; then
+    ADMIN_USERNAME=$(ask "Admin username" "admin")
+  fi
+  if [ -z "${ADMIN_PASSWORD:-}" ]; then
+    while true; do
+      read -r -s -p "Admin password (≥10 chars, letters + digits): " ADMIN_PASSWORD; echo
+      if [ ${#ADMIN_PASSWORD} -lt 10 ] || ! echo "$ADMIN_PASSWORD" | grep -q '[A-Za-z]' || ! echo "$ADMIN_PASSWORD" | grep -q '[0-9]'; then
+        echo "  → too weak, try again"
+        continue
+      fi
+      read -r -s -p "Confirm password: " ADMIN_PASSWORD2; echo
+      if [ "$ADMIN_PASSWORD" = "$ADMIN_PASSWORD2" ]; then break; fi
+      echo "  → passwords do not match"
+    done
+  fi
 
-info "Installing into $INSTALL_DIR"
+  PORT=$(ask "HTTP port" "$PORT")
+  HOST=$(ask "Bind address (use 0.0.0.0 to expose publicly)" "$HOST")
+fi
+
+info "Installing into $INSTALL_DIR ($([ "$UPGRADE" = "1" ] && echo upgrade || echo fresh))"
 mkdir -p "$INSTALL_DIR" "$DATA_DIR" "$LOG_DIR"
+
+# `cp -r SRC DEST` copies INTO DEST when DEST already exists, producing
+# DEST/SRC instead of overwriting. Remove first so cp creates DEST anew.
+# This is the upgrade-clobber bug fix: without the rm step a re-install
+# would leave the old code at INSTALL_DIR/server/dist/ and nest the new
+# code at INSTALL_DIR/server/server/dist/ — systemd keeps serving the
+# old build.
+rm -rf "$INSTALL_DIR/server" "$INSTALL_DIR/web" "$INSTALL_DIR/shared" "$INSTALL_DIR/deploy"
 cp -r "$SRC/server"  "$INSTALL_DIR/server"
 cp -r "$SRC/web"     "$INSTALL_DIR/web"
 cp -r "$SRC/shared"  "$INSTALL_DIR/shared" 2>/dev/null || true
 cp -r "$SRC/deploy"  "$INSTALL_DIR/deploy" 2>/dev/null || true
 cp    "$SRC/LICENSE" "$INSTALL_DIR/"      2>/dev/null || true
 
-JWT_SECRET=$(node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("hex"))')
-cat > "$INSTALL_DIR/.env" <<EOF
+# Write .env only on fresh install. On upgrade the existing .env is
+# preserved so JWT_SECRET / operator-tuned vars (PORT, HOST, ACME_*,
+# WEBSITES_*, PHP_FPM_SOCKET_PATH, etc.) stay intact and existing
+# sessions don't get invalidated.
+if [ "$UPGRADE" = "0" ]; then
+  JWT_SECRET=$(node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("hex"))')
+  cat > "$INSTALL_DIR/.env" <<EOF
 NODE_ENV=production
 PORT=$PORT
 HOST=$HOST
@@ -173,7 +206,10 @@ WEB_DIST=$INSTALL_DIR/web
 LOG_LEVEL=info
 CORS_ORIGINS=
 EOF
-chmod 600 "$INSTALL_DIR/.env"
+  chmod 600 "$INSTALL_DIR/.env"
+else
+  info "Preserved existing $INSTALL_DIR/.env"
+fi
 
 info "Installing shared package runtime dependencies"
 # shared/dist/*.js imports `zod` directly; Node's ESM resolver walks
