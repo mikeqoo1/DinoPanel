@@ -7,6 +7,7 @@ export const scheduledTaskTypeSchema = z.enum([
   'restart_service',
   'http_request',
   'purge',
+  'acme_renew',
 ]);
 export type ScheduledTaskType = z.infer<typeof scheduledTaskTypeSchema>;
 

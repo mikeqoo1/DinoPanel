@@ -57,6 +57,11 @@ export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy
   async onApplicationBootstrap(): Promise<void> {
     await this.abortStaleRunningRuns();
     await this.ensureBuiltins();
+    // NOTE: loadFromDb runs AFTER this.ensureBuiltins() but does not pick
+    // up rows inserted by other modules (e.g. AcmeModule) whose bootstrap
+    // runs later. Those modules must call `ensureBuiltinTask` then
+    // `register(taskId)` themselves — see `system.acme_renew` in
+    // `AcmeModule`.
     await this.loadFromDb();
   }
 
@@ -199,6 +204,52 @@ export class SchedulerService implements OnApplicationBootstrap, OnModuleDestroy
       .where(
         and(eq(scheduledRuns.status, 'running'), isNull(scheduledRuns.finishedAt)),
       );
+  }
+
+  /**
+   * Allow other modules to plug in their own runners. Used by AcmeModule
+   * to register `acme_renew` without forcing SchedulerModule to import it
+   * (which would create a circular dependency since AcmeModule already
+   * imports SchedulerModule).
+   */
+  registerRunner(type: ScheduledTaskType, runner: TaskRunner): void {
+    if (this.runners.has(type)) {
+      throw new Error(`Runner for type "${type}" already registered`);
+    }
+    this.runners.set(type, runner);
+  }
+
+  /**
+   * Idempotent builtin-task upsert callable from other modules during
+   * their own bootstrap. Returns the row id either way so the caller can
+   * follow up with `register(id)` to wire the cron handle.
+   */
+  async ensureBuiltinTask(args: {
+    name: string;
+    cron: string;
+    type: ScheduledTaskType;
+    payload: unknown;
+  }): Promise<number> {
+    const existing = await this.db
+      .select({ id: scheduledTasks.id })
+      .from(scheduledTasks)
+      .where(eq(scheduledTasks.name, args.name))
+      .limit(1);
+    if (existing[0]) return existing[0].id;
+    const inserted = await this.db
+      .insert(scheduledTasks)
+      .values({
+        name: args.name,
+        type: args.type,
+        cron: args.cron,
+        payload: args.payload,
+        enabled: true,
+        builtin: true,
+      })
+      .returning({ id: scheduledTasks.id });
+    const row = inserted[0];
+    if (!row) throw new Error('ensureBuiltinTask insert returned no row');
+    return row.id;
   }
 
   private async ensureBuiltins(): Promise<void> {

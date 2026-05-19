@@ -39,6 +39,16 @@ export const envSchema = z.object({
   PHP_FPM_SOCKET_PATH: z
     .string()
     .default('/run/php-fpm/dinopanel-php-8.3.sock'),
+  // ACME directory URL. Default = Let's Encrypt staging (so a botched
+  // smoke pass doesn't burn the 5/week prod rate limit). Operators flip
+  // to LE prod after staging works.
+  ACME_DIRECTORY_URL: z
+    .string()
+    .url()
+    .default('https://acme-staging-v02.api.letsencrypt.org/directory'),
+  // Account email for ACME registration. Empty by default — issuance
+  // throws ACME_EMAIL_NOT_SET if it's missing at first attempt.
+  ACME_EMAIL: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

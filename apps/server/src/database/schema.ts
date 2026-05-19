@@ -72,6 +72,7 @@ export const scheduledTasks = sqliteTable('scheduled_tasks', {
       'restart_service',
       'http_request',
       'purge',
+      'acme_renew',
     ],
   }).notNull(),
   cron: text('cron').notNull(),

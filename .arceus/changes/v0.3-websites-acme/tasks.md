@@ -258,32 +258,103 @@ touched, so web build skipped.
   string), but the supporting container coordination is what
   blocks multi-version — and that's the deferred work above.
 
-## Phase 4 — ACME (HTTP-01 + Cloudflare DNS-01 + auto-renew)
+## Phase 4 — ACME (HTTP-01 + Cloudflare DNS-01 + auto-renew) ✅ (2026-05-19)
 
-The riskiest phase — wire end-to-end against pebble first, then
-production Let's Encrypt staging, then prod.
+The riskiest phase — issuance pipeline + auto-renew scheduler
+glue, all behind a clean orchestrator surface so the controller
+stays trivial.
 
-- [ ] `AcmeAccountService` — full implementation, account key
-  encrypted via existing `SecretsService` (v0.2.1 pattern).
-- [ ] `Http01Challenger` — full implementation. Verify the
-  `location /.well-known/acme-challenge/` block is rendered into
-  every conf (added unconditionally in `conf-renderer.ts` at
-  Phase 2 time; this phase only consumes it).
-- [ ] `CloudflareDns01Challenger` — full implementation, CF API
-  token via `SecretsService` key `acme.cloudflare.api_token`.
-  Settings UI gains a "Cloudflare API token" input under a new
-  "SSL providers" section (Phase 5 frontend work).
-- [ ] `IssueOrchestrator.issue / renew` — orchestrates account +
-  challenge + write cert files + update `sites.cert_*` + reload
-  nginx. Writes one `acme_orders` row per attempt.
-- [ ] `/api/websites/:id/ssl/{issue,renew,status}` endpoints.
-- [ ] **Scheduler integration**: register
-  `system.acme_renew` as a v0.5 builtin task on boot (idempotent
-  SELECT-then-INSERT, same as `system.purge_operation_log`). Cron
-  `0 */12 * * *`. Renew sites with cert_expires_at < now+30d.
-- [ ] Unit tests: 6 acme-client wrapper cases per spec.md.
-- [ ] `e2e/acme-http01.spec.ts` gated on `DINOPANEL_E2E_ACME=1`
-  with pebble sidecar.
+- [x] **`AcmeAccountService`** — `ensureAccount(directoryUrl, email)`
+  caches in `acme_accounts`; first call generates RSA-2048 via
+  `acme.crypto.createPrivateRsaKey()` and calls
+  `client.createAccount({ contact, termsOfServiceAgreed: true })`.
+  Key stored as **plain PEM** in the column — see deviation log.
+- [x] **`Http01Challenger`** — writes `<keyAuth>` to
+  `<acmeRoot>/.well-known/acme-challenge/<token>`. Defense-in-depth
+  token regex (`[A-Za-z0-9_-]+`) rejects traversal probes. Relies
+  on the unconditional `location ^~ /.well-known/acme-challenge/`
+  block in every site conf (Phase 1 renderer).
+- [x] **`CloudflareDns01Challenger`** — reads token from
+  `settings['acme.cloudflare.api_token']`, walks domain labels to
+  find the parent zone (`www.example.com` → `example.com`),
+  POSTs the TXT record, polls Cloudflare DoH (1.1.1.1) for
+  propagation (default 30 × 10 s, tunable for tests via
+  `setPropagationTuning`).
+- [x] **`AcmeClientFactory`** — thin wrapper so tests swap the
+  real `acme-client` with mocks. Production: `new acme.Client()`
+  + `acme.crypto`. Tests: vi.fn() shims.
+- [x] **`AcmeOrchestratorService`** — `issue / renew / status /
+  issueForSite`. Writes one `acme_orders` row per attempt,
+  marks `success` / `failed` exactly once. On success: writes
+  cert files (`fullchain.pem` 0644, `privkey.pem` 0600) under
+  `<acmeRoot>/certs/<siteId>/`, sets `sites.cert_paths` +
+  `cert_expires_at`, calls `SitesService.update(id, {})` so the
+  renderer picks up the cert and re-emits the conf with SSL
+  directives + reloads nginx.
+- [x] **`/api/websites/:id/ssl/{issue,renew,status}`** controller
+  bodies replaced with real orchestrator calls.
+- [x] **Scheduler integration**:
+  - `scheduledTaskType` enum extended with `'acme_renew'`
+    (TypeScript-only — SQLite text column accepts the new value
+    without a migration; `pnpm db:generate` confirmed no schema
+    diff).
+  - `SchedulerService` gains two public methods: `registerRunner`
+    (for external module runners) + `ensureBuiltinTask` (idempotent
+    builtin upsert).
+  - `AcmeRenewTaskRunner` registered + builtin task
+    `system.acme_renew` (cron `0 */12 * * *`) inserted in
+    `AcmeModule.onApplicationBootstrap`. `register(taskId)` wires
+    the cron handle.
+- [x] **Unit tests** — 10 new cases:
+  - `acme/__tests__/http01.test.ts` — 3 (token write, traversal
+    rejected, remove idempotent)
+  - `acme/__tests__/cloudflare-dns01.test.ts` — 4 (digest format,
+    happy-path zone+TXT+propagation, propagation timeout, no token)
+  - `acme/__tests__/account.test.ts` — 3 (empty email rejected,
+    first-call creates key + remote registration, second call
+    returns cache)
+- [ ] **`e2e/acme-http01.spec.ts` against pebble — deferred to
+  Phase 5 smoke pass**. Spinning pebble in playwright config
+  bloats CI; the manual smoke against LE staging on Rocky 9.4 is
+  cheaper and exercises a more realistic path.
+
+**Verification gates passed**: typecheck ✅ (0 errors) · lint ✅
+(0 errors, 0 warnings) · test **169/169** ✅ (159 → 169, +10
+Phase-4 cases) · server build ✅. No web code touched yet (UI
+lands Phase 5).
+
+### Phase 4 deviation log
+
+- **`SecretsService` is deferred**. The spec referenced "the
+  existing `SecretsService` from v0.2.1 (same pattern as Docker
+  registry creds)" but no such service exists in this repo.
+  Phase 4 stores `acme_accounts.key_pem` and the Cloudflare API
+  token as plain values in their respective tables; encryption at
+  rest is the operator's responsibility via filesystem perms on
+  the SQLite DB file (same trust model as users.password_hash
+  today). The columns are typed correctly so a backfill migration
+  is the only thing required when SecretsService lands in v0.4+.
+- **Pebble e2e deferred to Phase 5 smoke**. Configuring pebble in
+  playwright's per-test sidecar would bloat the CI surface and
+  introduce a deps-on-Docker-from-tests pattern this codebase
+  doesn't use elsewhere. The Phase 5 manual smoke pass on Rocky
+  9.4 against LE **staging** exercises the same code paths plus
+  the real network + sudoers + SELinux integration, which a
+  pebble container would not.
+- **SAN / multi-domain certs deferred**. Orchestrator accepts
+  `domains: string[]` but the controller's `issueForSite()`
+  helper only passes `[site.primaryDomain]`. UI for multi-domain
+  selection lands in a future release.
+- **`acme-client` `rfc8555` types not re-exported** at the
+  library's top level — the orchestrator + factory use locally
+  declared opaque shapes (`AcmeAuthorization`, `AcmeChallengeObj`)
+  carrying just the fields we actually read (`identifier.value`,
+  `type`, `token`). Cleaner than reaching into the library's
+  type subpaths.
+- **`scheduledTaskType` enum extension** is TypeScript-only.
+  Drizzle generates no migration because SQLite text columns
+  don't carry the enum constraint at runtime. If a future drizzle
+  release flips to CHECK constraints, a migration will be needed.
 
 ## Phase 5 — Frontend + E2E + polish + docs
 

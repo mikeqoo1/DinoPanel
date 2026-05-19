@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  NotImplementedException,
   Param,
   ParseIntPipe,
   Post,
@@ -14,40 +13,40 @@ import {
   type AcmeStatusResponse,
 } from '@dinopanel/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { AcmeOrchestratorService } from './acme-orchestrator.service';
 
 /**
- * Phase 1 stub. Mounted under the parent `/api/websites/:id/ssl` so the
- * route surface is visible now. Bodies land with Phase 4.
+ * Mounted under `/api/websites/:id/ssl`.
  *
- * Auth is enforced globally via `APP_GUARD: JwtAuthGuard`.
+ * Auth is enforced globally via `APP_GUARD: JwtAuthGuard` registered
+ * in AuthModule — no per-route guard needed.
  */
 @Controller('websites/:id/ssl')
 export class AcmeController {
+  constructor(private readonly orchestrator: AcmeOrchestratorService) {}
+
   @Post('issue')
   @UsePipes(new ZodValidationPipe(acmeIssueRequestSchema))
-  issue(
-    @Param('id', ParseIntPipe) _id: number,
-    @Body() _body: AcmeIssueRequest,
-  ): never {
-    throw new NotImplementedException({
-      code: 'NOT_IMPLEMENTED_YET',
-      phase: 4,
-    });
+  async issue(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: AcmeIssueRequest,
+  ): Promise<AcmeStatusResponse> {
+    await this.orchestrator.issueForSite(id, body.challenge, body.dnsProvider);
+    return this.orchestrator.status(id);
   }
 
   @Post('renew')
-  renew(@Param('id', ParseIntPipe) _id: number): never {
-    throw new NotImplementedException({
-      code: 'NOT_IMPLEMENTED_YET',
-      phase: 4,
-    });
+  async renew(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<AcmeStatusResponse> {
+    await this.orchestrator.renew(id);
+    return this.orchestrator.status(id);
   }
 
   @Get('status')
-  status(@Param('id', ParseIntPipe) _id: number): AcmeStatusResponse {
-    throw new NotImplementedException({
-      code: 'NOT_IMPLEMENTED_YET',
-      phase: 4,
-    });
+  status(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<AcmeStatusResponse> {
+    return this.orchestrator.status(id);
   }
 }
