@@ -31,20 +31,45 @@ verification items that landed in v0.3.1.
   - 4 × `package.json`
   - Sidebar version string
 
-## Deferred to a follow-up smoke (operator-side)
+## Validated 2026-05-19 (operator-side, second smoke session)
 
-- [ ] **S2 reverse proxy** — pick any host-side upstream (PMM,
-  Grafana, whatever's already on the box) and verify end-to-end
-  pass-through with `X-Forwarded-*` headers honoured.
-- [ ] **S3 reconcile orphan detection** —
-  `sudo rm /opt/dinopanel/nginx/conf.d/test1.conf`, then
-  `POST /api/websites/reconcile`; row should flip to
-  `orphaned: true`. Reinstate the file, re-run reconcile; flag
-  clears.
+- [x] **S2 reverse proxy** — created `dino-proxy` (type
+  reverse_proxy, primary domain `dp.local`, upstream
+  `http://127.0.0.1:9999` — DinoPanel dogfooded itself).
+  `curl -sIH "Host: dp.local" http://192.168.199.234/` returned
+  200 with `X-Forwarded-*` headers correctly set on the proxied
+  request. Site was then deleted as part of S7.
+- [x] **S3 reconcile orphan detection** — `sudo rm
+  /opt/dinopanel/nginx/conf.d/test1.conf`, clicked 重新對帳 in
+  UI, observed test1 row flip to `orphaned: true` badge with
+  toast "已掃描 ... 1 個孤兒". Cleanup followed via UI delete.
+- [x] **S7 delete + reload** — UI delete on dino-proxy: conf file
+  removed from `/opt/dinopanel/nginx/conf.d/`, nginx auto-reloaded,
+  `curl` on `Host: dp.local` falls through to the default nginx
+  welcome (no `X-Forwarded-*` headers anymore). DB row gone.
+
+**Post-smoke state** (SSH verification by Claude, 2026-05-19):
+- `dinopanel.service` active, 28 min stable uptime since last
+  restart
+- `/etc/nginx/conf.d/00-dinopanel.conf` intact (bootstrap idempotent
+  across restarts)
+- `/opt/dinopanel/nginx/conf.d/` empty — both confs cleanly removed
+- `/opt/dinopanel/sites/test1/` content directory still present —
+  expected behaviour: `SitesService.remove()` only deletes the conf
+  file and the DB row, never touches site content (avoids accidental
+  data loss when the operator just wants to take a site offline).
+  A future "delete site + remove content" option could opt into the
+  destructive flavour.
+- `sites` table: 0 rows
+- `acme_orders` table: 0 rows (no ACME exercises run; S4/S5 still
+  deferred)
+
+## Still deferred (need real-world prerequisites)
+
 - [ ] **S4 ACME HTTP-01** — needs a public-facing domain (none of
-  the .local hostnames work; LE needs to reach the challenge file
-  over the public Internet on port 80). Wait until the operator
-  has a real domain pointed at the box.
+  the `.local` hostnames work; LE needs to reach the challenge
+  file over the public Internet on port 80). Wait until the
+  operator has a real domain pointed at the box.
 - [ ] **S5 ACME DNS-01 via Cloudflare** — needs a domain on
   Cloudflare + an API token with `Zone:Read` +
   `Zone.DNS:Edit`. Set the token via Settings → SSL providers,
@@ -54,8 +79,6 @@ verification items that landed in v0.3.1.
   + pool config + SELinux relabel of `/run/php-fpm/`). Then create
   a PHP site and verify a `.php` file gets dispatched through
   FastCGI.
-- [ ] **S7 delete + reload** — UI delete on a managed site;
-  expect conf file removed, nginx reloaded, DB row gone.
 
 ## Verification gates (code-side, after version bump + evidence)
 

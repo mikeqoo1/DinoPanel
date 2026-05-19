@@ -13,14 +13,19 @@
     "fixes": "install.sh upgrade-safe (clobber-free cp + preserve .env)"
   },
   "validatedChecklist": [
-    "S1 static site create — UI → conf write → nginx -t → reload → curl Host: header returns served file"
+    "S1 static site create — UI → conf write → nginx -t → reload → curl Host: header returns served file",
+    "S2 reverse proxy — dino-proxy dogfooded against DinoPanel itself on 127.0.0.1:9999, X-Forwarded-* headers verified",
+    "S3 reconcile orphan detection — rm conf + UI reconcile flipped row to orphaned: true",
+    "S7 delete + reload — UI delete removed conf, nginx auto-reloaded, DB row gone, content dir intentionally preserved"
   ],
   "deferredChecklist": [
-    "S2 reverse proxy with real upstream",
-    "S3 reconcile orphan detection",
     "S4 ACME HTTP-01 against LE staging (needs public domain)",
     "S5 ACME DNS-01 against Cloudflare (needs real domain + CF token)",
-    "S6 PHP-FPM site (needs operator-provisioned FPM container)",
-    "S7 delete + reload round-trip"
+    "S6 PHP-FPM site (needs operator-provisioned FPM container)"
+  ],
+  "postSmokeObservations": [
+    "Site content dir (/opt/dinopanel/sites/<name>/) persists after SitesService.remove — by design; potential future flag for destructive-delete",
+    "00-dinopanel.conf include is idempotent across DinoPanel restarts",
+    "dinopanel.service stable 28 min after the smoke session ended; no leaked file handles or memory growth"
   ]
 }
