@@ -49,6 +49,20 @@ export const envSchema = z.object({
   // Account email for ACME registration. Empty by default — issuance
   // throws ACME_EMAIL_NOT_SET if it's missing at first attempt.
   ACME_EMAIL: z.string().default(''),
+
+  // v0.4 databases — root for bind-mount data dirs
+  // (`<DATABASES_ROOT>/<engine>/<instance>/`). Defaults under
+  // `/opt/dinopanel/databases` per decisions.md Q2.
+  DATABASES_ROOT: z.string().default('/opt/dinopanel/databases'),
+
+  // v0.4 PMM PromQL client. URL reuses v0.2.1 setting
+  // `monitoring.pmm_url` (settings table, not env). Env override path
+  // for the API token + TLS skip lives here.
+  MONITORING_PMM_API_TOKEN: z.string().default(''),
+  MONITORING_PMM_TLS_SKIP_VERIFY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

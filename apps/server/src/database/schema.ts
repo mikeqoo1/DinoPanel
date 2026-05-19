@@ -165,6 +165,7 @@ export const sites = sqliteTable(
       .notNull()
       .default(true),
     orphaned: integer('orphaned', { mode: 'boolean' }).notNull().default(false),
+    externalConfPath: text('external_conf_path'),
     certPaths: text('cert_paths', { mode: 'json' }),
     certExpiresAt: integer('cert_expires_at'),
     createdAt: integer('created_at')
@@ -192,6 +193,45 @@ export const acmeAccounts = sqliteTable(
   },
   (t) => ({
     pairIdx: uniqueIndex('uniq_acme_accounts_pair').on(t.directoryUrl, t.email),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// v0.4 — databases module (all-container; bind-mount data dirs)
+// ---------------------------------------------------------------------------
+
+export const dbInstances = sqliteTable(
+  'db_instances',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull().unique(),
+    engine: text('engine', {
+      enum: ['mysql', 'mariadb', 'postgresql', 'redis', 'mongodb'],
+    }).notNull(),
+    imageTag: text('image_tag').notNull(),
+    port: integer('port').notNull(),
+    username: text('username').notNull(),
+    // TODO(v0.5): encrypt via SecretsService — landing alongside audit-log integration
+    password: text('password').notNull(),
+    dataDir: text('data_dir').notNull(),
+    containerName: text('container_name').notNull().unique(),
+    status: text('status', {
+      enum: ['running', 'stopped', 'restarting', 'creating', 'removing', 'error'],
+    }).notNull(),
+    lastError: text('last_error'),
+    pmmRegistered: integer('pmm_registered', { mode: 'boolean' })
+      .notNull()
+      .default(false),
+    createdAt: integer('created_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    updatedAt: integer('updated_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => ({
+    engineIdx: index('idx_db_instances_engine').on(t.engine),
+    portIdx: uniqueIndex('uniq_db_instances_port').on(t.port),
   }),
 );
 
@@ -239,3 +279,5 @@ export type AcmeAccount = typeof acmeAccounts.$inferSelect;
 export type NewAcmeAccount = typeof acmeAccounts.$inferInsert;
 export type AcmeOrder = typeof acmeOrders.$inferSelect;
 export type NewAcmeOrder = typeof acmeOrders.$inferInsert;
+export type DbInstance = typeof dbInstances.$inferSelect;
+export type NewDbInstance = typeof dbInstances.$inferInsert;

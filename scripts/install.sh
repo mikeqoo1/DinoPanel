@@ -25,6 +25,42 @@ ask()  {
   fi
 }
 
+# ── relabel_path: idempotent SELinux fcontext + restorecon ──────────────────
+# v0.4: same helper backs (1) install-time relabel of /opt/dinopanel/sites
+# and /opt/dinopanel/databases roots, and (2) runtime per-instance relabel
+# called by DatabasesService (Phase 2) via the `relabel-path` subcommand.
+# No-op on non-SELinux hosts (no `semanage` available).
+relabel_path() {
+  local path="$1" label="$2"
+  if ! command -v semanage >/dev/null 2>&1; then
+    info "semanage not installed — SELinux relabel skipped for $path"
+    return 0
+  fi
+  local output
+  if ! output=$(semanage fcontext -a -t "$label" "$path(/.*)?" 2>&1); then
+    # `-a` returns non-zero with "already defined" / "sameLabelException"
+    # when the mapping is already in place — that's the steady state.
+    if ! echo "$output" | grep -qE "already defined|sameLabelException"; then
+      err "semanage fcontext failed for $path: $output"
+    fi
+  fi
+  if ! restorecon -R "$path" 2>/dev/null; then
+    err "restorecon failed for $path"
+  fi
+  ok "SELinux relabel: $path → $label"
+}
+
+# Subcommand dispatch — runtime DinoPanel shells out via
+# `bash install.sh relabel-path <path> <label>` for per-instance
+# data-dir labelling (Phase 2). Must come BEFORE the global root check
+# so the helper can be invoked directly without re-running install flow.
+if [ "${1:-}" = "relabel-path" ]; then
+  [ "$#" -eq 3 ] || err "Usage: install.sh relabel-path <path> <label>"
+  [ "$(id -u)" -eq 0 ] || err "relabel-path requires root"
+  relabel_path "$2" "$3"
+  exit 0
+fi
+
 [ "$(id -u)" -eq 0 ] || err "此腳本必須以 root 身份執行（請使用：sudo bash $0）"
 
 # Detect platform
@@ -260,6 +296,27 @@ db.prepare('INSERT INTO users (username, password_hash, created_at, updated_at) 
 db.close();
 console.log('admin user created');
 " )
+
+# ── DinoPanel filesystem tree under /opt/dinopanel ──────────────────────────
+# Both websites (v0.3) and databases (v0.4) share `/opt/dinopanel/` as their
+# managed root (decisions.md Q2/Q4). install.sh ensures the directories
+# exist + applies the correct SELinux label so future runtime mkdirs land
+# under a labelled tree on Rocky / RHEL.
+DINOPANEL_TREE_ROOT="${DINOPANEL_TREE_ROOT:-/opt/dinopanel}"
+DATABASES_ROOT="${DATABASES_ROOT:-${DINOPANEL_TREE_ROOT}/databases}"
+WEBSITES_SITES_ROOT="${WEBSITES_SITES_ROOT:-${DINOPANEL_TREE_ROOT}/sites}"
+
+mkdir -p "$DATABASES_ROOT"
+relabel_path "$DATABASES_ROOT" "container_file_t"
+
+# v0.3 backfill — /opt/dinopanel/sites was historically relabeled by hand
+# on Rocky 234. Apply the same label here so future installs are
+# reproducible. Only run when the dir exists (don't pre-create — Websites
+# bootstrap mkdir runs at runtime under WEBSITES_ROOT which is operator-
+# configurable).
+if [ -d "$WEBSITES_SITES_ROOT" ]; then
+  relabel_path "$WEBSITES_SITES_ROOT" "httpd_sys_content_t"
+fi
 
 info "Installing systemd service"
 cp "$INSTALL_DIR/deploy/systemd/dinopanel.service" "/etc/systemd/system/${SERVICE_NAME}.service" 2>/dev/null \

@@ -1,6 +1,7 @@
 export * from './acme.js';
 export * from './auth.js';
 export * from './containers.js';
+export * from './databases.js';
 export * from './files.js';
 export * from './firewall.js';
 export * from './logs.js';

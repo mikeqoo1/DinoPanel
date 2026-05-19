@@ -91,6 +91,7 @@ export const siteResponseSchema = z.object({
   payload: sitePayloadSchema,
   managedByDinopanel: z.boolean(),
   orphaned: z.boolean(),
+  externalConfPath: z.string().nullable().optional(),
   certPaths: siteCertInfoSchema.nullable(),
   certExpiresAt: z.number().int().nullable(),
   createdAt: z.number().int(),

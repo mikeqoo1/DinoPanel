@@ -23,6 +23,7 @@ function setupDb(): Db {
       payload TEXT NOT NULL,
       managed_by_dinopanel INTEGER NOT NULL DEFAULT 1,
       orphaned INTEGER NOT NULL DEFAULT 0,
+      external_conf_path TEXT,
       cert_paths TEXT,
       cert_expires_at INTEGER,
       created_at INTEGER NOT NULL,
