@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Terminal, FolderOpen, Settings, Settings2, ChevronLeft, Container, Layers, Network, HardDrive, Workflow, Activity } from 'lucide-react';
+import { LayoutDashboard, Terminal, FolderOpen, Settings, Settings2, ChevronLeft, Container, Layers, Network, HardDrive, Workflow, Activity, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -24,6 +24,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { to: '/volumes', icon: HardDrive, label: t('nav.volumes') },
     { to: '/compose', icon: Workflow, label: t('nav.compose') },
     { to: '/monitoring', icon: Activity, label: t('nav.monitoring') },
+    { to: '/websites', icon: Globe, label: t('nav.websites') },
     { to: '/system', icon: Settings2, label: t('nav.system') },
     { to: '/settings', icon: Settings, label: t('nav.settings') },
   ];

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Lock, Sun, Moon, Monitor, Activity, FileClock } from 'lucide-react';
+import { Loader2, Lock, Sun, Moon, Monitor, Activity, FileClock, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { changePasswordSchema, type ChangePasswordInput } from '@dinopanel/shared';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { useSystemInfo } from '@/hooks/use-system';
 import { api, extractErrorMessage } from '@/lib/api';
 import { usePmmConfig, useSetPmmConfig } from '@/hooks/use-monitoring';
 import { useAuditRetention, useSetAuditRetention } from '@/hooks/use-audit';
+import { useAcmeConfig, useSetAcmeConfig } from '@/hooks/use-websites';
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -41,6 +42,31 @@ export function SettingsPage() {
   const setRetention = useSetAuditRetention();
   const [retentionInput, setRetentionInput] = useState<number | null>(null);
   const effectiveRetention = retentionInput ?? retention.data?.days ?? 30;
+
+  const acmeConfig = useAcmeConfig();
+  const setAcmeConfig = useSetAcmeConfig();
+  const [cfTokenInput, setCfTokenInput] = useState('');
+  const [showCfToken, setShowCfToken] = useState(false);
+
+  const onSaveCfToken = async () => {
+    try {
+      await setAcmeConfig.mutateAsync({ cloudflareApiToken: cfTokenInput });
+      setCfTokenInput('');
+      toast.success(t('settings.ssl.saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const onClearCfToken = async () => {
+    try {
+      await setAcmeConfig.mutateAsync({ cloudflareApiToken: null });
+      setCfTokenInput('');
+      toast.success(t('settings.ssl.cleared'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
 
   const onSaveRetention = async () => {
     try {
@@ -234,6 +260,75 @@ export function SettingsPage() {
               {setRetention.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('settings.save_changes')}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            {t('settings.ssl.section_title')}
+          </CardTitle>
+          <CardDescription>{t('settings.ssl.section_desc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex max-w-md flex-col gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="cf-token">
+                {t('settings.ssl.cf_token_label')}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="cf-token"
+                  type={showCfToken ? 'text' : 'password'}
+                  placeholder={
+                    acmeConfig.data?.cloudflareTokenSet
+                      ? t('settings.ssl.cf_token_set_placeholder')
+                      : t('settings.ssl.cf_token_unset_placeholder')
+                  }
+                  value={cfTokenInput}
+                  onChange={(e) => setCfTokenInput(e.target.value)}
+                  disabled={acmeConfig.isPending}
+                  autoComplete="off"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCfToken((v) => !v)}
+                >
+                  {showCfToken
+                    ? t('settings.ssl.hide')
+                    : t('settings.ssl.show')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.ssl.cf_token_hint')}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={onSaveCfToken}
+                disabled={setAcmeConfig.isPending || !cfTokenInput.trim()}
+                className="w-fit"
+              >
+                {setAcmeConfig.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                {t('settings.save_changes')}
+              </Button>
+              {acmeConfig.data?.cloudflareTokenSet && (
+                <Button
+                  variant="outline"
+                  onClick={onClearCfToken}
+                  disabled={setAcmeConfig.isPending}
+                  className="w-fit"
+                >
+                  {t('settings.ssl.clear')}
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

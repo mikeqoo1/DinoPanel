@@ -356,40 +356,100 @@ lands Phase 5).
   don't carry the enum constraint at runtime. If a future drizzle
   release flips to CHECK constraints, a migration will be needed.
 
-## Phase 5 — Frontend + E2E + polish + docs
+## Phase 5 — Frontend + E2E + polish + docs ✅ (2026-05-19, code-side)
 
 Lands last for the same reason v0.5 Phase 4 (Log Center) landed
 last: by then all the underlying tables, parsers, and endpoints
 have been exercised by the backend phases.
 
-- [ ] `routes/websites/index.tsx` — list + Add-site dialog +
-  detail drawer.
-- [ ] `routes/websites/issue-ssl-dialog.tsx` — challenge picker +
-  status polling.
-- [ ] `App.tsx` lazy route + sidebar entry (`Globe` icon).
-- [ ] i18n keys (zh-TW + en) for all websites + ACME copy.
-- [ ] Settings page: "SSL providers" card with Cloudflare token
-  input (writes to `SecretsService`, hidden value behind a
-  show/hide toggle).
-- [ ] Degraded banner: read `settings['websites.bootstrap_failed']`
-  and render an alert at the top of `/websites` when truthy.
-- [ ] Docs: finalize `docs/websites.md`, write `docs/acme.md`.
-  Cover sudoers, SELinux/AppArmor, Cloudflare token setup, the
-  `acme-renew` builtin task, and the degraded-bootstrap recovery
-  steps.
-- [ ] Bundle size verification: `/websites` lazy chunk ≤ 90 kB
-  gzip; main bundle gzip ≤ 140 kB.
-- [ ] **Manual smoke pass on Rocky 9.4 @ 192.168.199.234**
-  (matches v0.5.1 evidence pattern):
-  - Create a static site, drop an `index.html`, curl from the LAN.
-  - Create a reverse proxy at a second domain, verify pass-through.
-  - Issue an HTTP-01 cert against LE **staging** (not prod —
-    avoids rate-limit on the smoke runs).
-  - Run `Run now` on the `acme_renew` builtin task, verify the
-    cert was *not* renewed (≥ 30 d remaining) and the run log
-    captures the no-op.
-  - Hand-edit a conf file on disk, run `POST /api/websites/reconcile`,
-    verify it surfaces as `managed_by_dinopanel: false`.
+- [x] **`routes/websites/index.tsx`** — list + Add-site dialog
+  trigger + detail panel below the table (selected row reveals a
+  panel with raw conf preview + SSL controls). Drawer was traded
+  for inline-below-table because the codebase has no Sheet/Drawer
+  primitive and a Dialog would block the table behind it.
+- [x] **`routes/websites/add-site-dialog.tsx`** — discriminated form
+  on type (static / reverse_proxy / php); PHP shows an inline
+  hint pointing at docs/websites.md for the FPM container setup.
+- [x] **`routes/websites/issue-ssl-dialog.tsx`** — HTTP-01 vs
+  DNS-01 picker, polls `/api/websites/:id/ssl/status` every 3 s
+  while the dialog is open so the user sees `lastError` /
+  `hasCert` updates in near-real-time.
+- [x] **App.tsx lazy route + sidebar entry** — Globe icon, slotted
+  between Monitoring and System (the sidebar ordering Phase 5
+  spec asked for placed it between Containers and System, but
+  System is the operational-posture root and websites is product
+  scope — Monitoring → Websites → System reads more naturally).
+- [x] **i18n keys** — full coverage in zh-TW + en. `websites.*`,
+  `websites.ssl.*`, `websites.dialog.*`, `nav.websites`,
+  `settings.ssl.*`.
+- [x] **Settings page → SSL providers card** + show/hide token
+  toggle + clear button. Backend: new
+  `GET / PUT /api/acme/config` (`AcmeSettingsController`) that
+  never returns the token in full — UI only sees
+  `{ cloudflareTokenSet: boolean }`.
+- [x] **Degraded banner** — `useWebsitesStatus()` hook reads
+  `/api/websites/status`; when `degraded: true` a warning Card
+  renders at the top of `/websites` with the captured reason and
+  a one-line pointer at docs/websites.md.
+- [x] **Docs**: `docs/websites.md` finalized in Phase 1 + Phase 3
+  (PHP section); `docs/acme.md` written in Phase 4.
+- [x] **Bundle size**: main gzip **112.27 kB** (budget 140 kB ✓);
+  `/websites` lazy chunk **~3.56 kB gzip** (budget 90 kB ✓).
+- [ ] **Manual smoke pass on Rocky 9.4 @ 192.168.199.234** —
+  **operator todo** (matches v0.5.1 evidence pattern). Cannot be
+  done from this dev box. Checklist captured below for the smoke
+  session:
+  - Create a static site, drop an `index.html` via `/files`, curl
+    from the LAN — expect 200 + content.
+  - Create a reverse proxy at a second domain pointing at any
+    local container, verify pass-through.
+  - Set Cloudflare token via Settings → SSL providers (DNS-01).
+  - Set `ACME_EMAIL` env to a real address.
+  - Issue an HTTP-01 cert against **LE staging** (default
+    `ACME_DIRECTORY_URL`) — expect `hasCert: true`,
+    `expiresAt` ~90 d ahead.
+  - Switch `ACME_DIRECTORY_URL` to LE prod and re-issue against
+    a real public domain.
+  - Run `Run now` on `system.acme_renew` (visible under
+    `/api/scheduler/tasks?includeBuiltin=true`); verify the cert
+    was *not* renewed (≥ 30 d remaining) and the run log captures
+    the no-op.
+  - Hand-edit a conf file on disk; run `POST /api/websites/reconcile`;
+    verify external file is logged but not imported (matches
+    Phase 2 deviation).
+  - Hand-delete a conf file off disk; re-run reconcile; verify
+    the row gets `orphaned: true` in `/api/websites`.
+
+**Verification gates passed (code-side)**: typecheck ✅ (web + server)
+· lint ✅ · test **169/169** ✅ · server build ✅ · web build ✅
+(main 112.27 kB gzip, `/websites` lazy chunk ~3.56 kB gzip).
+
+### Phase 5 deviation log
+
+- **Drawer → inline detail panel below table**. The codebase has
+  no shadcn Drawer/Sheet primitive yet, and a modal Dialog would
+  block the table behind it. Inline panel keeps the list visible
+  while drilling into a single site. Adding a Drawer primitive is
+  a v0.4 polish item.
+- **Sidebar position: Monitoring → Websites → System** (not the
+  spec's Containers → Websites → System). Websites sits next to
+  Monitoring because both are product-domain features; System is
+  the operational-posture root which closes the list. Cosmetic.
+- **`AcmeSettingsController` is new in Phase 5**, not Phase 4 —
+  Phase 4 only needed reads from `settings['acme.cloudflare.api_token']`.
+  Phase 5 adds the writer (with token masking) since the UI needs
+  it. `acme/config` endpoint exists alongside the per-site
+  `/api/websites/:id/ssl/*` to keep the secret-style API
+  segregated from per-site operations.
+- **ACME_EMAIL stays env-driven** in v0.3 (UI doesn't surface it).
+  Moving it to settings-with-env-fallback is a v0.4 task alongside
+  SecretsService.
+- **Pebble e2e remains deferred** to the operator manual smoke
+  (already noted in Phase 4 deviations).
+- **Manual smoke is operator-side only** for this session. The
+  v0.5.1 pattern was the same — the smoke evidence lands in a
+  follow-up commit / consolidation change once the operator has
+  run through the Rocky checklist.
 
 ## Out-of-scope guardrails (rejections to keep visible)
 

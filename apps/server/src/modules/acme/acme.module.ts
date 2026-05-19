@@ -7,6 +7,7 @@ import { AcmeAccountService } from './acme-account.service';
 import { AcmeClientFactory } from './acme-client.factory';
 import { AcmeController } from './acme.controller';
 import { AcmeOrchestratorService } from './acme-orchestrator.service';
+import { AcmeSettingsController } from './acme-settings.controller';
 import {
   CloudflareDns01Challenger,
   CloudflareDohPropagationPoller,
@@ -22,7 +23,7 @@ import {
 
 @Module({
   imports: [SchedulerModule, WebsitesModule],
-  controllers: [AcmeController],
+  controllers: [AcmeController, AcmeSettingsController],
   providers: [
     AcmeClientFactory,
     AcmeAccountService,
