@@ -1,0 +1,53 @@
+{
+  "id": "v0.4.1-smoke-patches",
+  "title": "v0.4.1 smoke patches — five fixes surfaced during v0.4 Rocky 234 smoke",
+  "status": "completed",
+  "createdAt": "2026-05-20",
+  "completedAt": "2026-05-20",
+  "targetVersion": "v0.4.1",
+  "dependsOn": ["v0.4-databases"],
+  "host": "192.168.199.234 — Rocky Linux 9.4, SELinux disabled (smoke origin)",
+  "scope": {
+    "release": "Patch bump — no functional additions. Bundles five fixes that landed on main after the v0.4.0 cut (033db4c) during operator-driven smoke on Rocky 234.",
+    "bumps": "0.4.0 → 0.4.1 across 4 package.json + sidebar label + README tarball reference",
+    "fixes": "install.sh upgrade safety x2 · PostgreSQL 18 PGDATA layout · dockerode ensureImage · clipboard non-secure context fallback"
+  },
+  "commits": [
+    {
+      "sha": "a8b4fa9",
+      "subject": "fix(install): skip admin seed in upgrade mode (set -u unbound ADMIN_USERNAME)",
+      "area": "install.sh"
+    },
+    {
+      "sha": "89eacd5",
+      "subject": "fix(databases): postgres:18 default + cross-version PGDATA layout",
+      "area": "PostgresDriver"
+    },
+    {
+      "sha": "bf49ef3",
+      "subject": "fix(install): tail-message ADMIN_USERNAME default — set -u survives upgrade",
+      "area": "install.sh"
+    },
+    {
+      "sha": "6a21d19",
+      "subject": "fix(databases): auto-pull image before createContainer",
+      "area": "DbInstancesService"
+    },
+    {
+      "sha": "c4a29e2",
+      "subject": "fix(web): clipboard fallback for non-secure (HTTP + non-localhost) contexts",
+      "area": "apps/web/src/lib/clipboard.ts"
+    }
+  ],
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass",
+    "build": "pass",
+    "note": "All five fixes already on main and individually verified during smoke. This change is meta-only — version-bump + release-record. Verification re-runs guard against bump-induced regressions."
+  },
+  "deferredFollowups": [
+    "v0.4.x-pmm-cards-conditional — drawer PMM cards show '—' when instance not registered with PMM (draft)",
+    "v0.X-multihost-pmm-inventory — operator request to surface non-DinoPanel DBs under PMM in /databases (draft, blocked on product-direction decision)"
+  ]
+}

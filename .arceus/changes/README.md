@@ -37,11 +37,17 @@ Status values in `meta.json`:
 | `v0.5.1-consolidation`                      | completed  | v0.5.1  | Manual smoke pass on Rocky 9.4 + dogfood validation for v0.5                         |
 | `v0.3-websites-acme`                        | completed  | v0.3    | Sites (static / reverse-proxy / PHP) + ACME (HTTP-01 + Cloudflare DNS-01)            |
 | `v0.3.1-smoke-pass`                         | completed  | v0.3.1  | First v0.3 deploy on Rocky 9.4 — S1 static + S2/S3/S7 verified; install.sh fixes     |
-| `v0.4-databases`                            | active     | v0.4    | Databases (MySQL/MariaDB/PostgreSQL/Redis/MongoDB, container-only) + v0.3 carry-over + PMM C |
+| `v0.4-databases`                            | completed  | v0.4    | Databases (MySQL/MariaDB/PostgreSQL/Redis/MongoDB, container-only) + v0.3 carry-over + PMM C |
+| `v0.4.1-smoke-patches`                      | completed  | v0.4.1  | Bundle five fixes surfaced during v0.4 Rocky 234 smoke (install.sh × 2, PG18 PGDATA, ensureImage, clipboard) |
+| `v0.4.x-pmm-cards-conditional`              | draft      | v0.4.x  | Drawer PMM cards conditional rendering — distinguish 'not registered' from 'broken'          |
+| `v0.X-multihost-pmm-inventory`              | draft      | v0.X    | Multi-host PMM inventory unified in /databases list (blocked on product-direction decision)  |
 
-Released today (chronological, latest first): `e4d0da7` README reflects
-v0.3 shipped, `66a0c04` v0.3.1 S2/S3/S7 SSH smoke, `e0e05db` v0.3.1
-release cut, `70a8d48` install.sh upgrade-safe.
+Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5
+frontend, `5d17596` Phase 4 v0.3 carry-over, `0df3071` Phase 3 PMM,
+`1538a05` Phase 2 engine drivers, `620f4fd` Phase 1 foundation,
+`b421711` Phase 0 activation. Followed by five smoke patches:
+`a8b4fa9`, `89eacd5`, `bf49ef3`, `6a21d19`, `c4a29e2` — bundled into
+the v0.4.1 cut.
 
 ## Where v0.1 went
 
