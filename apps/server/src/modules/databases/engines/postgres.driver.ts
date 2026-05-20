@@ -10,19 +10,31 @@ import {
 } from './driver.interface';
 
 /**
- * PostgreSQL 16 (default). The only engine that sets `dataSubdir`:
- * the official image refuses to initialise when `PGDATA` points at a
- * bind-mount root with any pre-existing entries (ext4 `lost+found`,
- * dotfiles, etc.). The documented workaround is to set
- * `PGDATA=<bind-mount>/pgdata` and let the entrypoint own the subdir.
- * `buildContainerSpec` (Phase 2) emits the corresponding `PGDATA` env.
+ * PostgreSQL 18 (default — current major as of 2025-09 release).
+ *
+ * Cross-version bind-mount strategy: we bind the host data dir to
+ * `/var/lib/postgresql` (not `.../data`) and set `PGDATA` explicitly
+ * to `/var/lib/postgresql/pgdata`. This works on every major:
+ *   - postgres:16/17 — image VOLUME at `/var/lib/postgresql/data` is
+ *     captured by our bind; our explicit PGDATA env wins so the
+ *     entrypoint inits at `<bind>/pgdata/` instead.
+ *   - postgres:18+ — image moved the VOLUME up one level to
+ *     `/var/lib/postgresql` AND made the default PGDATA major-aware
+ *     (`/var/lib/postgresql/18/docker`). Our explicit PGDATA env
+ *     keeps the layout consistent across major upgrades.
+ *
+ * Why `dataSubdir` at all: the postgres entrypoint refuses to init
+ * when PGDATA points at a directory containing pre-existing entries
+ * (ext4 `lost+found`, dotfiles). Pointing at a subdir lets the
+ * entrypoint own + chown the subdir cleanly. Documented in the
+ * postgres image README under "PGDATA / Important Change".
  */
 @Injectable()
 export class PostgresDriver implements DbEngineDriver {
   readonly engine = 'postgresql' as const;
-  readonly defaultImage = 'postgres:16';
+  readonly defaultImage = 'postgres:18';
   readonly defaultPort = 5432;
-  readonly dataDirInContainer = '/var/lib/postgresql/data';
+  readonly dataDirInContainer = '/var/lib/postgresql';
   readonly dataSubdir = 'pgdata';
 
   buildContainerSpec(input: BuildContainerSpecInput): Dockerode.ContainerCreateOptions {

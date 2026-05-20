@@ -38,19 +38,23 @@ The five open questions resolved at activation are recorded in
 
 ## Engines table
 
-| Engine     | Default image       | Default port | Data dir (container)         | Default user |
-| ---------- | ------------------- | ------------ | ---------------------------- | ------------ |
-| mysql      | `mysql:8.4`         | 3306         | `/var/lib/mysql`             | `root`       |
-| mariadb    | `mariadb:11.4`      | 3306         | `/var/lib/mysql`             | `root`       |
-| postgresql | `postgres:16`       | 5432         | `/var/lib/postgresql/data`†  | `postgres`   |
-| redis      | `redis:7.4-alpine`  | 6379         | `/data`                      | `default`‡   |
-| mongodb    | `mongo:7.0`         | 27017        | `/data/db`                   | `root`       |
+| Engine     | Default image       | Default port | Bind-mount target (container) | Default user |
+| ---------- | ------------------- | ------------ | ----------------------------- | ------------ |
+| mysql      | `mysql:8.4`         | 3306         | `/var/lib/mysql`              | `root`       |
+| mariadb    | `mariadb:11.4`      | 3306         | `/var/lib/mysql`              | `root`       |
+| postgresql | `postgres:18`       | 5432         | `/var/lib/postgresql`†        | `postgres`   |
+| redis      | `redis:7.4-alpine`  | 6379         | `/data`                       | `default`‡   |
+| mongodb    | `mongo:7.0`         | 27017        | `/data/db`                    | `root`       |
 
-> **†** Postgres `PGDATA` actually points at `<bind>/pgdata`. The
-> official image refuses to initialise when its `PGDATA` is the
-> bind-mount root with any pre-existing entries (ext4 `lost+found`,
-> dotfiles, etc.); the documented workaround is the subdir. v0.4
-> driver handles this automatically — operators don't need to know.
+> **†** Postgres `PGDATA` actually points at `<bind>/pgdata`. Two
+> reasons. (1) The entrypoint refuses to initialise when `PGDATA`
+> is a directory containing pre-existing entries (ext4 `lost+found`,
+> dotfiles) — the subdir lets it own + `chown` cleanly. (2) The
+> bind target deliberately mirrors the postgres:18+ image's `VOLUME`
+> declaration of `/var/lib/postgresql` (was `/var/lib/postgresql/data`
+> in 16/17); pointing the bind one level higher + writing the
+> explicit `PGDATA` env keeps the layout identical across major
+> upgrades. v0.4 driver handles this automatically.
 >
 > **‡** Redis has no user concept — `default` is a UI placeholder.
 > Auth is purely `requirepass`.

@@ -35,7 +35,7 @@ export const ENGINE_META: Record<DbEngine, EngineMeta> = {
   },
   postgresql: {
     engine: 'postgresql',
-    defaultImage: 'postgres:16',
+    defaultImage: 'postgres:18',
     defaultPort: 5432,
     labelKey: 'databases.engine.postgresql',
     badgeClass: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30',

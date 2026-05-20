@@ -58,13 +58,16 @@ describe('MariadbDriver', () => {
 describe('PostgresDriver', () => {
   const d: DbEngineDriver = new PostgresDriver();
 
-  it('engine constants match spec.md defaults + sets dataSubdir for PGDATA', () => {
+  it('engine constants — postgres:18 default + cross-version PGDATA layout', () => {
     expect(d.engine).toBe('postgresql');
-    expect(d.defaultImage).toBe('postgres:16');
+    // 18 default — bumped during v0.4 smoke when PostgreSQL 18 released
+    // (2025-09) AND the official image moved VOLUME up to
+    // /var/lib/postgresql. The driver binds at that location for
+    // forward compat; PGDATA env keeps the layout stable across
+    // upgrades.
+    expect(d.defaultImage).toBe('postgres:18');
     expect(d.defaultPort).toBe(5432);
-    expect(d.dataDirInContainer).toBe('/var/lib/postgresql/data');
-    // Only postgres sets dataSubdir — see decisions.md §Q2 BLOCK-2 fix
-    // (postgres image refuses init when PGDATA points at a bind-mount root).
+    expect(d.dataDirInContainer).toBe('/var/lib/postgresql');
     expect(d.dataSubdir).toBe('pgdata');
   });
 
