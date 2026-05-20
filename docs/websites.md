@@ -207,4 +207,91 @@ first.
 | `WEBSITES_ROOT` | `/opt/dinopanel` | Root of the on-disk tree |
 | `WEBSITES_NGINX_INCLUDE_PATH` | `/etc/nginx/conf.d/00-dinopanel.conf` | Where the include glue file lands |
 | `WEBSITES_REQUIRE_SUDO` | `true` | Warn at boot if `sudo -n nginx -t` fails |
-| `PHP_FPM_SOCKET_PATH` | `/run/php-fpm/dinopanel-php-8.3.sock` | Unix socket DinoPanel writes into PHP-site confs |
+| `PHP_FPM_SOCKET_PATH` | `` (empty) | v0.4: empty → managed mode (auto-provision php:8.3-fpm); `unix:/path` or `/path` → external socket; `tcp://host:port` → external TCP |
+| `HOST_NGINX_CONFD_DIR` | `/etc/nginx/conf.d` | v0.4: host nginx tree scanned for external confs during reconcile |
+| `ACME_EMAIL` | `` (empty) | Env-first ACME registration email; v0.4 also reads `settings['acme.email']` as fallback |
+
+## v0.4 carry-over changes
+
+Three things shifted in v0.4 without changing the v0.3 contract.
+
+### External-conf reconcile
+
+`SitesService.reconcile` now walks both:
+
+1. `/opt/dinopanel/nginx/conf.d/*.conf` — the managed tree
+   (orphan detection: missing files → row marked `orphaned: true`).
+2. `/etc/nginx/conf.d/*.conf` (or wherever `HOST_NGINX_CONFD_DIR`
+   points) — operator-managed external confs (new for v0.4).
+
+External entries are imported as rows with
+`managedByDinopanel: false` and an `externalConfPath` field set to
+the absolute path. The UI badges them as **External** in the list
+and renders the drawer in read-only mode (Issue/Renew/Delete are
+disabled — the file isn't ours to touch).
+
+**Exclusions** (reconcile skips these even when present in the
+host tree):
+
+- The DinoPanel glue file
+  (`WEBSITES_NGINX_INCLUDE_PATH`, default
+  `/etc/nginx/conf.d/00-dinopanel.conf`) — it's an `include`
+  directive, not a server block.
+- Any file whose `realpath` resolves under `WEBSITES_ROOT` — covers
+  symlinks pointing back into our managed tree.
+
+**`server_name` conflicts**: when the same `server_name` appears
+in two external files, reconcile surfaces the conflict in
+`ReconcileResponse.serverNameConflicts: string[]` and the UI shows
+a toast. Reconcile **never** auto-resolves — the operator chooses
+which file wins (usually by `mv`-ing one out of the way).
+
+**`server_name` extraction**: lightweight regex parse —
+`/\bserver_name\s+([^;]+);/`. We don't run `nginx -t` against
+external files; reconcile is read-only on the operator's tree.
+The first non-wildcard hostname becomes the row's `primaryDomain`;
+wildcards (`*.foo`) and the special `_` token are surfaced as-is
+when nothing else is present.
+
+### PHP-FPM auto-provision
+
+v0.3 expected the operator to run a `php:8.3-fpm` container by
+hand and point `PHP_FPM_SOCKET_PATH` at its socket. v0.4 makes
+that the *external* mode (still supported) and adds a *managed*
+mode where DinoPanel runs the container itself.
+
+| `PHP_FPM_SOCKET_PATH` env value | Mode | What happens |
+| --- | --- | --- |
+| (empty) | **managed** | First PHP-site creation triggers `docker run php:8.3-fpm` named `dinopanel-php-fpm` listening on TCP `127.0.0.1:9000`, with a 1:1 bind-mount of `<WEBSITES_ROOT>/sites/` so the entrypoint sees the same paths nginx resolves to. After the last PHP site is removed, a 10-min idle timer stops the container. |
+| `/path/to/socket` or `unix:/path/to/socket` | **external** | DinoPanel writes `fastcgi_pass unix:/path/to/socket;` into the conf and never touches the operator's container. |
+| `tcp://host:port` | **external** | DinoPanel writes `fastcgi_pass host:port;` directly. |
+
+Status surfaces at `GET /api/websites/php-fpm/status` (also visible
+under Settings → PHP-FPM card):
+
+```json
+{
+  "mode": "managed",
+  "upstream": "127.0.0.1:9000",
+  "containerRunning": true,
+  "containerName": "dinopanel-php-fpm"
+}
+```
+
+`POST /api/websites/php-fpm/restart` restarts the managed container
+(no-op in external mode).
+
+### ACME_EMAIL — env-first + settings fallback
+
+v0.3 made `ACME_EMAIL` env-only. v0.4 resolves the email per
+issuance attempt with this precedence:
+
+1. `process.env.ACME_EMAIL` — env wins, always.
+2. `settings['acme.email']` — written by the new email input
+   under Settings → SSL providers.
+3. Neither set → `IssueOrchestrator.getEmail()` throws
+   `ACME_EMAIL_MISSING` with a clear "configure your email" hint.
+
+The settings input is **disabled in the UI** when env is set,
+showing a "Locked by ACME_EMAIL env: value@host" hint. Cleared
+settings value (empty string / null) falls back to env.

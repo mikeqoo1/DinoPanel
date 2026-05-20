@@ -11,11 +11,12 @@ web UI. Designed as an independent clean-room reimplementation
 inspired by best-in-class panels, deliberately trimmed to what one
 maintainer can actually own.
 
-> **Status:** Pre-1.0, actively developed. Through v0.3 the panel
-> handles containers, websites + ACME SSL, firewall, scheduler, and
-> log centre. Validated end-to-end on Rocky Linux 9.4 production-class
-> hardware (Xeon Gold 5218, 600+ days uptime). Next milestone is v0.4
-> (databases).
+> **Status:** Pre-1.0, actively developed. Through v0.4 the panel
+> handles containers, websites + ACME SSL, **databases (MySQL /
+> MariaDB / PostgreSQL / Redis / MongoDB) with PMM PromQL summary
+> cards**, firewall, scheduler, and log centre. Validated end-to-end
+> on Rocky Linux 9.4 production-class hardware (Xeon Gold 5218,
+> 600+ days uptime). Next milestone is v0.6 (toolbox).
 
 ## Features
 
@@ -38,17 +39,40 @@ maintainer can actually own.
 - Docker Compose stack editor with Monaco YAML highlighting
 - PMM integration (link card to existing Percona Monitoring)
 
-### Websites + ACME (v0.3)
+### Websites + ACME (v0.3, extended in v0.4)
 
 - Static / reverse-proxy / PHP-FPM site types
 - Host-side nginx integration (atomic conf write + rollback on
   `nginx -t` failure)
 - Reconcile / orphan detection — files on disk win on conflict
+- **v0.4 — external-conf import**: reconcile also walks
+  `/etc/nginx/conf.d/*.conf` and surfaces operator-managed confs as
+  read-only rows with an `External` badge
+- **v0.4 — PHP-FPM auto-provision**: empty `PHP_FPM_SOCKET_PATH`
+  flips to managed mode; DinoPanel runs `php:8.3-fpm` itself, idle
+  stops after the last PHP site is removed
 - Let's Encrypt cert issuance: HTTP-01 + Cloudflare DNS-01
+- **v0.4 — `ACME_EMAIL` settings UI** (env-first, settings fallback)
 - Auto-renewal every 12 h via the v0.5 scheduler (renews at ≤ 30 d
   expiry)
 - `/opt/dinopanel/` namespace keeps everything DinoPanel-managed under
   one tree (backup-friendly, uninstall-friendly)
+
+### Databases (v0.4)
+
+- Five engines, all-container: MySQL 8 / MariaDB 11 / PostgreSQL 16 /
+  Redis 7 / MongoDB 7
+- Bind-mount data dirs under `/opt/dinopanel/databases/<engine>/<instance>/`
+  — `ls`/`tar`/`du` directly, no named-volume ceremony
+- Plaintext credentials in the connection card with Copy + Rotate
+  (decisions.md Q3: don't run DinoPanel on hosts that expose the
+  data dir)
+- 6-step atomic create with rollback (validate → mkdir → SELinux
+  relabel → dockerode create → start → DB insert)
+- PMM PromQL summary cards inline in the drawer — QPS / connections /
+  uptime / replication lag, fan-out cached 30 s server-side; falls
+  back to the v0.2.1 "Open in PMM" link card when not configured
+- `Sheet` drawer primitive (also retrofitted to `/websites`)
 
 ### Operations (v0.5)
 
@@ -71,7 +95,7 @@ maintainer can actually own.
 | v0.2    | Containers (Docker + Compose) | ✅ shipped |
 | v0.5    | Firewall + scheduler + log centre | ✅ shipped |
 | v0.3    | Websites + ACME SSL | ✅ shipped (smoke S1/S2/S3/S7 on Rocky 9.4) |
-| v0.4    | Databases (MySQL / MariaDB / PostgreSQL / Redis / MongoDB) + v0.3 carry-over (SecretsService, Drawer primitive, auto-provision PHP-FPM) | 📋 draft |
+| v0.4    | Databases (5 engines, all-container) + PMM summary cards + v0.3 carry-over (Sheet drawer, auto-provision PHP-FPM, ACME_EMAIL UI, external-conf reconcile) | ✅ shipped |
 | v0.6    | Toolbox (Fail2Ban / Supervisor / Swap / NTP) + MFA + Passkey | planned |
 | v1.0    | Stable release with full i18n | planned |
 
@@ -123,8 +147,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # Copy the tarball to the target host, then on the target:
-tar -xzf dinopanel-0.3.0-prebuild-x64.tar.gz
-cd dinopanel-0.3.0-prebuild-x64
+tar -xzf dinopanel-0.4.0-prebuild-x64.tar.gz
+cd dinopanel-0.4.0-prebuild-x64
 sudo bash install.sh
 ```
 

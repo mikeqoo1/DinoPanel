@@ -1,12 +1,44 @@
 {
   "id": "v0.4-databases",
   "title": "Databases module (MySQL/MariaDB/PostgreSQL/Redis/MongoDB, all-container) + v0.3 carry-over",
-  "status": "active",
+  "status": "completed",
   "createdAt": "2026-05-19",
   "activatedAt": "2026-05-19",
+  "completedAt": "2026-05-20",
   "targetVersion": "v0.4",
   "estimatedDuration": "≈4 weeks",
+  "actualDuration": "~2 days across 2026-05-19 / 2026-05-20",
   "dependsOn": ["v0.2-docker-containers", "v0.3-websites-acme", "v0.3.1-smoke-pass"],
+  "commits": [
+    "b421711 docs(arceus): activate v0.4-databases — decisions, spec, tasks",
+    "620f4fd feat(v0.4): phase 1 foundation — databases module + Sheet primitive",
+    "1538a05 feat(v0.4): phase 2 engine drivers + DbInstancesService lifecycle",
+    "0df3071 feat(v0.4): phase 3 PMM PromQL client + DB metrics summary",
+    "5d17596 feat(v0.4): phase 4 v0.3 carry-over — external-conf, PHP-FPM, ACME_EMAIL",
+    "c8f76c4 feat(v0.4): phase 5 frontend — /databases, /websites Sheet, ACME email UI"
+  ],
+  "scope": {
+    "in": [
+      "5 engine drivers (mysql/mariadb/postgres/redis/mongo) — all-container",
+      "DbInstancesService 6-step atomic create with rollback + lifecycle (start/stop/restart/remove/rotatePassword/reconcile)",
+      "Per-instance bind-mount under /opt/dinopanel/databases/<engine>/<instance>/",
+      "SELinux container_file_t labelling via install.sh relabel_path() helper",
+      "PMM PromQL client (5 failure reasons taxonomy, never throws) + 30s in-memory cache",
+      "GET /api/databases/:id/metrics endpoint with ?refresh bypass",
+      "Sheet drawer primitive shared between /databases and /websites",
+      "External-conf reconcile (HOST_NGINX_CONFD_DIR scan + server_name conflict detection)",
+      "PHP-FPM auto-provision (managed mode for empty PHP_FPM_SOCKET_PATH, external for unix:/path or tcp://host:port)",
+      "ACME_EMAIL env-first + settings fallback (throws ACME_EMAIL_MISSING on neither)",
+      "/databases route + drawer (Connection + PMM summary + Lifecycle sections)",
+      "/websites refactor to Sheet drawer with External badge for managed_by_dinopanel=false rows"
+    ],
+    "out": [
+      "SecretsService — deferred to v0.5 paired with audit log integration (decisions.md Q4)",
+      "PMM auto-register on instance create — Phase 6 stretch, deferred",
+      "Operator-customisable PromQL bundles — fixed in driver code for v0.4 (decisions.md Q5)",
+      "Playwright e2e (databases-create-mysql, rotate-password, pmm-card, websites-drawer-refactor) — Rocky smoke covers integration gate"
+    ]
+  },
   "openQuestions": [],
   "decisionsRecordedIn": "decisions.md",
   "decisionsSummary": [
@@ -24,5 +56,21 @@
   ],
   "engines": ["mysql", "mariadb", "postgresql", "redis", "mongodb"],
   "installMode": "container-only",
-  "pmmIntegration": "api-summary-cards-plus-link"
+  "pmmIntegration": "api-summary-cards-plus-link",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (0 warnings)",
+    "vitest": "pass 247/247 (gate ≥ 235, +12 headroom)",
+    "build": "pass — main gzip 114.89 kB < 140 kB · /databases chunk gzip 4.73 kB < 100 kB · /websites chunk gzip 3.79 kB < 90 kB",
+    "liveSmokeReleasedAs": "v0.4.0 — see smoke-pass.md once Rocky 234 run is logged"
+  },
+  "knownFollowups": [
+    "S7 PMM summary cards on Rocky 234 — defer until PMM is reachable from the test host",
+    "Playwright e2e — backfill from Rocky smoke evidence when CI infrastructure lands",
+    "PMM auto-register on instance create — stretch goal, re-evaluate if operators ask",
+    "SecretsService — encrypt acme_accounts.key_pem + acme.cloudflare.api_token + db_instances.password; planned for v0.5 alongside audit-log integration",
+    "Per-engine UID/GID table in docs (currently relies on image entrypoint to fix data-dir ownership)"
+  ],
+  "previousChange": "v0.3.1-smoke-pass",
+  "nextChange": null
 }
