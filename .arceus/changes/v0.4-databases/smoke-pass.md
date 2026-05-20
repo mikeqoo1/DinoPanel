@@ -17,9 +17,19 @@ smoke-pass layout — each scenario gets a status + evidence block.
 
 ## Scenarios
 
-### S1 — Create MySQL instance, connect via mysql cli
+### Smoke patches surfaced (all on main, candidate v0.4.1)
 
-- **Status:** ⏳ pending
+| Commit    | Fix |
+| --------- | --- |
+| `a8b4fa9` | install.sh — skip admin seed on upgrade (set -u unbound ADMIN_USERNAME) |
+| `89eacd5` | PostgresDriver — postgres:18 default + cross-version PGDATA layout |
+| `bf49ef3` | install.sh tail message — ${ADMIN_USERNAME:-} default |
+| `6a21d19` | DbInstancesService.create — auto-pull image before createContainer |
+| `c4a29e2` | drawer Copy buttons — execCommand fallback for non-secure HTTP context |
+
+### S1 — Create instance, connect via cli
+
+- **Status:** ✅ PASS (PostgreSQL on 2026-05-20, MySQL also validated by operator)
 - **Steps:**
   1. UI → /databases → Add database → name=`shop`, engine=`mysql`,
      port=`3306`, leave imageTag default (`mysql:8.4`), no custom
@@ -32,11 +42,21 @@ smoke-pass layout — each scenario gets a status + evidence block.
      mysql -uroot -h127.0.0.1 -P3306 -p<paste> -e 'SELECT 1'
      ```
   5. Expect `+---+\n| 1 |\n+---+\n` output.
-- **Evidence:** _(paste curl/mysql output here after run)_
+- **Evidence (PostgreSQL):**
+  ```
+  $ sudo docker exec -e PGPASSWORD=pQe9npbOD-... dinopanel-postgresql-shop \
+      psql -U postgres -c "SELECT version();"
+  PostgreSQL 18.4 (Debian 18.4-1.pgdg13+1) on x86_64-pc-linux-gnu,
+    compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+  (1 row)
+  ```
+  - DB row: `id=1 · shop · postgresql · postgres:18 · port=5432 · user=postgres · status=running · password 43 chars (base64url 32B)`
+  - Bind-mount: `/opt/dinopanel/databases/postgresql/shop/pgdata/` owned by UID 999 (postgres inside container = systemd-coredump on host), mode 0700.
+- **Evidence (MySQL):** operator-validated via UI + cli (`mysql -uroot ... SELECT 1`).
 
 ### S2 — Rotate password, old conn fails, new works
 
-- **Status:** ⏳ pending
+- **Status:** ✅ PASS (operator-validated: drawer rotate button → new password → old auth fails, new auth works)
 - **Steps:**
   1. Drawer → Rotate password → confirm.
   2. Verify old password (from S1 step 4) now fails:
@@ -49,7 +69,7 @@ smoke-pass layout — each scenario gets a status + evidence block.
 
 ### S3 — Stop / start / restart from drawer
 
-- **Status:** ⏳ pending
+- **Status:** ✅ PASS (operator-validated: 啟動 / 停止 / 重啟 三顆 lifecycle 按鈕都 OK)
 - **Steps:**
   1. Drawer → Stop. Status flips to `stopped`. `docker ps -a`
      shows container exited.
@@ -61,7 +81,11 @@ smoke-pass layout — each scenario gets a status + evidence block.
 
 ### S4 — Reconcile after `docker kill` outside DinoPanel
 
-- **Status:** ⏳ pending
+- **Status:** ⏸️ deferred — operator paused smoke at S3 with two new
+  followup topics surfaced (see "Followups raised during smoke"
+  below). Not blocking v0.4 ship; runtime path covered by Phase 2
+  reconcile unit tests (matching / missing-container / orphan /
+  empty).
 - **Steps:**
   1. From the host: `docker kill dinopanel-mysql-shop`.
   2. UI → /databases → Reconcile.
@@ -72,7 +96,9 @@ smoke-pass layout — each scenario gets a status + evidence block.
 
 ### S5 — External-conf scan picks up `/etc/nginx/conf.d/test.conf`
 
-- **Status:** ⏳ pending
+- **Status:** ⏸️ deferred — same operator-pause as S4. Coverage via
+  Phase 4 unit tests (managed-only / external-only / server_name
+  conflict / symlink resolution × 4 cases).
 - **Steps:**
   1. From the host: write a minimal external conf
      ```sh
@@ -98,7 +124,9 @@ smoke-pass layout — each scenario gets a status + evidence block.
 
 ### S6 — ACME_EMAIL settings UI saves, takes effect on next issue
 
-- **Status:** ⏳ pending
+- **Status:** ⏸️ deferred — same operator-pause. Coverage via
+  Phase 4 unit tests (env wins / settings fallback / both unset
+  throws / whitespace trim × 4 cases).
 - **Steps:**
   1. Verify `ACME_EMAIL` env on Rocky 234 is empty (or unset):
      `grep ACME_EMAIL /usr/local/dinopanel/.env || true`.
@@ -126,5 +154,30 @@ any unexpected SELinux denials in `ausearch -m AVC -ts recent`)_
 
 ## Bugs surfaced
 
-_(record anything that broke during the smoke — patch commit
-references like v0.3.1 did with 70a8d48)_
+All five fixes shipped in-flight, listed in the "Smoke patches
+surfaced" table near the top. v0.4.1 patch release will roll
+them up + bump version strings.
+
+## Followups raised during smoke (2026-05-20)
+
+Operator surfaced two design questions at the end of S3 that need
+their own change proposals (not v0.4.1 patch material):
+
+1. **PMM cards conditional rendering** — when an instance isn't
+   actually registered with PMM (the common case for fresh
+   instances; spec.md flagged auto-register as a Phase 6 stretch
+   that we didn't ship), the four cards render with "—"
+   placeholders. Misleading: looks like PMM is broken when it's
+   just "no service registered yet". Draft:
+   `.arceus/changes/v0.4.x-pmm-cards-conditional/`.
+
+2. **PMM-managed external databases in the /databases list** —
+   operator wants to see DBs that PMM is already monitoring but
+   that DinoPanel didn't create (different host, native install,
+   different orchestrator). Pulls in multi-host inventory model,
+   PMM service list API, UI badge for "monitored not managed".
+   Bigger scope — bumps into the v0.5+ roadmap. Draft:
+   `.arceus/changes/v0.X-multihost-pmm-inventory/`.
+
+Both drafts carry the conversation context so a future session can
+pick up without re-deriving the problem.

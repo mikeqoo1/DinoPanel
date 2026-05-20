@@ -1,0 +1,20 @@
+{
+  "id": "v0.X-multihost-pmm-inventory",
+  "title": "Multi-host PMM inventory unified in /databases list",
+  "status": "draft",
+  "createdAt": "2026-05-20",
+  "originDiscussion": "v0.4 Rocky 234 smoke S3 follow-up",
+  "candidateRelease": "v0.5 or v0.6 — bumps the post-v0.4 roadmap",
+  "scopeNote": "Bigger lift than v0.4.1 patch — touches inventory model, multi-source UI, PMM upstream auth.",
+  "openQuestions": [
+    "Q1 — Inventory refresh cadence: 30s poll / 60s poll + manual refresh / PMM webhook?",
+    "Q2 — UI representation: unified table with Source column / stacked sections (managed-on-top) / tabs?",
+    "Q3 — Display schema for PMM-only services (host / port / agent-id / engine type from PMM metadata; no connection card)",
+    "Q4 — Detect + surface 'DinoPanel-managed row whose PMM service was deleted out-of-band'",
+    "Q5 — Forward compatibility: does this commit us to multi-host DinoPanel itself (control-plane → remote agents) in v0.6+?"
+  ],
+  "blockedBy": [
+    "Operator product decision: positioning DinoPanel as unified DB inventory view across managed + monitored — confirm direction before activating."
+  ],
+  "previousChange": "v0.4-databases"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "v0.4.x-pmm-cards-conditional",
+  "title": "PMM cards conditional rendering — distinguish 'not registered' from 'broken'",
+  "status": "draft",
+  "createdAt": "2026-05-20",
+  "originDiscussion": "v0.4 Rocky 234 smoke S3 follow-up",
+  "candidateRelease": "v0.4.1 (Option A only) OR v0.5 (Options A + B together)",
+  "openQuestions": [
+    "Q1 — Distinguish 'instance not registered in PMM' from 'PMM exporter for that engine is down'? Probably needs a PMM service-list lookup before deciding which message to render.",
+    "Q2 — Auto-register UX: per-engine PMM agent credentials reuse the password we manage, OR ask the operator? PMM agent typically needs PROCESS / REPLICATION CLIENT privs which the root account already has."
+  ],
+  "previousChange": "v0.4-databases"
+}
