@@ -714,6 +714,8 @@
       "rotate_password": "Rotate password",
       "pmm_summary": "PMM summary",
       "pmm_not_configured": "PMM URL not configured. Set it in Settings to see live metrics.",
+      "pmm_not_registered": "This instance is not registered with PMM, so no live metrics are available. Run pmm-admin add on the PMM host, then come back.",
+      "pmm_exporter_unhealthy": "Marked as registered but PMM returned no data — the exporter may be unhealthy. Check the service on the PMM side.",
       "open_in_pmm": "Open in PMM",
       "lifecycle": "Lifecycle",
       "delete_warning_title": "Danger zone",

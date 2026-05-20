@@ -1,0 +1,31 @@
+{
+  "id": "v0.4.2-pmm-cards-conditional",
+  "title": "PMM cards conditional rendering — distinguish 'not registered' from 'exporter unhealthy'",
+  "status": "completed",
+  "createdAt": "2026-05-20",
+  "completedAt": "2026-05-20",
+  "targetVersion": "v0.4.2",
+  "dependsOn": ["v0.4.1-smoke-patches"],
+  "originDiscussion": "v0.4 Rocky 234 smoke S3 follow-up",
+  "scope": {
+    "ui": "Drawer PMM section adds two conditional branches: 'not-registered' (instance never told to PMM) and 'exporter-unhealthy' (marked registered but PMM returns no series). Metrics cards still render when any value arrives.",
+    "noServerChanges": "Q1 resolved by using the existing instance.pmmRegistered flag (already on DbInstanceResponse). No PMM service-list lookup endpoint added — keeps the change cheap and avoids the PMM Management API client that Option B would require.",
+    "deferred": "Option B (auto-register endpoint + button) deferred. The 'Register in PMM' button intentionally not added; operators still register from the PMM side via pmm-admin add."
+  },
+  "decisions": {
+    "Q1": "Use existing pmmRegistered flag instead of PMM service-list probe — no new server endpoint required, no new PMM API client.",
+    "Q2": "Out of scope (only relevant for Option B)."
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass (8/8 new helper unit tests + 247 existing pass)",
+    "build": "pass"
+  },
+  "filesChanged": [
+    "apps/web/src/routes/databases/pmm-card-state.ts (new — pure helper)",
+    "apps/web/src/routes/databases/__tests__/pmm-card-state.test.ts (new — 8 cases)",
+    "apps/web/src/routes/databases/database-drawer.tsx (use helper + two new branches)",
+    "apps/web/src/i18n/zh-TW.json + en.json (two new i18n keys)"
+  ]
+}

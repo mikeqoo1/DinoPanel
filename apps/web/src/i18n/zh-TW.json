@@ -714,6 +714,8 @@
       "rotate_password": "輪換密碼",
       "pmm_summary": "PMM 摘要",
       "pmm_not_configured": "尚未設定 PMM URL。請至設定頁配置以查看即時指標。",
+      "pmm_not_registered": "此實例尚未在 PMM 中註冊，無即時指標可顯示。請於 PMM 主機執行 pmm-admin add 後再回來檢視。",
+      "pmm_exporter_unhealthy": "已標記為已註冊但 PMM 沒有回傳資料，可能是 exporter 異常。請至 PMM 端確認該服務狀態。",
       "open_in_pmm": "在 PMM 中開啟",
       "lifecycle": "生命週期",
       "delete_warning_title": "危險區",

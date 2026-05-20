@@ -23,6 +23,7 @@ import {
   useStopDatabase,
 } from '@/hooks/use-databases';
 import { ENGINE_META } from './engine-meta';
+import { pmmCardState } from './pmm-card-state';
 import { RotatePasswordDialog } from './rotate-password-dialog';
 
 interface Props {
@@ -170,36 +171,61 @@ function DrawerBody({
               {t('databases.drawer.open_in_pmm')}
             </a>
           </div>
-          {metrics.isPending ? (
-            <Skeleton className="h-16 w-full" />
-          ) : metrics.data?.pmmConfigured === false ? (
-            <p className="text-xs text-muted-foreground">
-              {t('databases.drawer.pmm_not_configured')}
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <MetricCard
-                label={t('databases.metrics.qps')}
-                value={metrics.data?.qps}
-                fmt={(v) => v.toFixed(1)}
-              />
-              <MetricCard
-                label={t('databases.metrics.connections')}
-                value={metrics.data?.connections}
-                fmt={(v) => v.toFixed(0)}
-              />
-              <MetricCard
-                label={t('databases.metrics.uptime')}
-                value={metrics.data?.uptimeSeconds}
-                fmt={fmtDuration}
-              />
-              <MetricCard
-                label={t('databases.metrics.replication_lag')}
-                value={metrics.data?.replicationLagSeconds}
-                fmt={(v) => `${v.toFixed(2)} s`}
-              />
-            </div>
-          )}
+          {(() => {
+            const state = pmmCardState({
+              isPending: metrics.isPending,
+              data: metrics.data,
+              pmmRegistered: instance.pmmRegistered,
+            });
+            if (state === 'pending') {
+              return <Skeleton className="h-16 w-full" />;
+            }
+            if (state === 'not-configured') {
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {t('databases.drawer.pmm_not_configured')}
+                </p>
+              );
+            }
+            if (state === 'not-registered') {
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {t('databases.drawer.pmm_not_registered')}
+                </p>
+              );
+            }
+            if (state === 'exporter-unhealthy') {
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {t('databases.drawer.pmm_exporter_unhealthy')}
+                </p>
+              );
+            }
+            return (
+              <div className="grid grid-cols-2 gap-2">
+                <MetricCard
+                  label={t('databases.metrics.qps')}
+                  value={metrics.data?.qps}
+                  fmt={(v) => v.toFixed(1)}
+                />
+                <MetricCard
+                  label={t('databases.metrics.connections')}
+                  value={metrics.data?.connections}
+                  fmt={(v) => v.toFixed(0)}
+                />
+                <MetricCard
+                  label={t('databases.metrics.uptime')}
+                  value={metrics.data?.uptimeSeconds}
+                  fmt={fmtDuration}
+                />
+                <MetricCard
+                  label={t('databases.metrics.replication_lag')}
+                  value={metrics.data?.replicationLagSeconds}
+                  fmt={(v) => `${v.toFixed(2)} s`}
+                />
+              </div>
+            );
+          })()}
         </section>
       ) : null}
 
