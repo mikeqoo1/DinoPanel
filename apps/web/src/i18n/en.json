@@ -14,6 +14,7 @@
     "compose": "Compose",
     "monitoring": "DB Monitoring",
     "websites": "Websites",
+    "databases": "Databases",
     "system": "System",
     "settings": "Settings",
     "logout": "Log out"
@@ -32,6 +33,12 @@
     "degraded_help": "Check /opt/dinopanel directory permissions, sudoers, and SELinux/AppArmor per docs/websites.md. Restart the service after fixing — the banner clears automatically.",
     "status_active": "Active",
     "status_orphaned": "Orphaned (conf missing on disk)",
+    "external_badge": "External",
+    "external_disabled_hint": "External confs are read-only in DinoPanel.",
+    "external_path_label": "Source conf path",
+    "external_open": "Open",
+    "external_help": "This site was discovered in /etc/nginx/conf.d/. Edit the file on disk and run Reconcile to refresh.",
+    "server_name_conflicts": "{{count}} server_name conflict(s) — see logs.",
     "col_name": "Name",
     "col_domain": "Domain",
     "col_type": "Type",
@@ -454,6 +461,10 @@
     "ssl": {
       "section_title": "SSL providers",
       "section_desc": "Credentials used when issuing certificates for websites. Token values are never returned to the UI in full.",
+      "email_label": "ACME registration email",
+      "email_hint": "Used to register an account with Let's Encrypt. The ACME_EMAIL env var overrides this when set.",
+      "email_env_locked": "Locked by ACME_EMAIL env var: {{value}}",
+      "email_saved": "ACME email saved",
       "cf_token_label": "Cloudflare API token",
       "cf_token_set_placeholder": "Token is set — paste a new one to replace",
       "cf_token_unset_placeholder": "Paste your Cloudflare token here",
@@ -463,6 +474,18 @@
       "clear": "Clear",
       "saved": "Token saved",
       "cleared": "Token cleared"
+    },
+    "phpfpm": {
+      "section_title": "PHP-FPM",
+      "section_desc": "Status of the PHP-FPM upstream used by PHP sites.",
+      "mode_label": "Mode",
+      "upstream_label": "Upstream",
+      "container_label": "Container",
+      "running_label": "Running",
+      "mode": {
+        "managed": "Managed (auto-provisioned)",
+        "external": "External (operator-provided)"
+      }
     }
   },
   "images": {
@@ -629,6 +652,87 @@
     "retry": "Retry",
     "search": "Search",
     "close": "Close",
-    "back": "Back"
+    "back": "Back",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart"
+  },
+  "databases": {
+    "title": "Databases",
+    "add": "Add database",
+    "reconcile": "Reconcile",
+    "reconciled": "{{matched}} matched, {{missing}} missing, {{orphan}} orphan",
+    "empty": "No database instances yet.",
+    "degraded_title": "Databases module is degraded",
+    "degraded_unknown": "Unknown reason",
+    "col_name": "Name",
+    "col_engine": "Engine",
+    "col_port": "Port",
+    "col_user": "User",
+    "col_status": "Status",
+    "engine": {
+      "mysql": "MySQL",
+      "mariadb": "MariaDB",
+      "postgresql": "PostgreSQL",
+      "redis": "Redis",
+      "mongodb": "MongoDB"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "restarting": "Restarting",
+      "creating": "Creating",
+      "removing": "Removing",
+      "error": "Error"
+    },
+    "metrics": {
+      "qps": "QPS",
+      "connections": "Connections",
+      "uptime": "Uptime",
+      "replication_lag": "Replication lag"
+    },
+    "dialog": {
+      "title": "Create database instance",
+      "name": "Name",
+      "name_hint": "Lowercase letters, digits and dash — used as the container suffix.",
+      "engine": "Engine",
+      "image_tag": "Image tag",
+      "port": "Host port",
+      "custom_credentials": "Use custom credentials",
+      "custom_credentials_hint": "Leave unchecked to auto-generate a strong 32-char password.",
+      "username": "Username",
+      "password": "Password",
+      "plaintext_warning": "Passwords are stored in plaintext in the local DB (decisions.md Q3). Do not run DinoPanel on a host that exposes its data directory.",
+      "create": "Create",
+      "created": "Instance created",
+      "invalid_input": "Name is required."
+    },
+    "drawer": {
+      "connection": "Connection",
+      "username": "Username",
+      "password": "Password",
+      "rotate_password": "Rotate password",
+      "pmm_summary": "PMM summary",
+      "pmm_not_configured": "PMM URL not configured. Set it in Settings to see live metrics.",
+      "open_in_pmm": "Open in PMM",
+      "lifecycle": "Lifecycle",
+      "delete_warning_title": "Danger zone",
+      "drop_data_checkbox": "Also delete the bind-mount data directory (irreversible).",
+      "delete_instance": "Delete instance",
+      "confirm_delete": "Yes, delete it",
+      "deleted": "Instance deleted",
+      "data_dir": "Data dir: {{path}}",
+      "copied": "Copied {{label}}",
+      "copy_failed": "Copy failed"
+    },
+    "rotate": {
+      "title": "Rotate password for {{name}}",
+      "body": "Rotating the password will:",
+      "downtime_bullet": "stop and recreate the container (brief downtime, live app connections drop).",
+      "app_configs_bullet": "force you to update every app that connects with the old password.",
+      "irreversible_bullet": "be irreversible — the previous password is overwritten.",
+      "confirm": "Yes, rotate",
+      "done": "Rotated {{name}} (new password: {{password}})"
+    }
   }
 }

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Plus, RefreshCw, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { Globe, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SiteResponse } from '@dinopanel/shared';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { extractErrorMessage } from '@/lib/api';
 import {
-  useAcmeRenew,
-  useDeleteWebsite,
   useReconcileWebsites,
-  useWebsiteConf,
   useWebsites,
   useWebsitesStatus,
 } from '@/hooks/use-websites';
 import { AddSiteDialog } from './add-site-dialog';
 import { IssueSslDialog } from './issue-ssl-dialog';
+import { SiteDrawer } from './site-drawer';
 
 const RENEW_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -30,11 +28,10 @@ export function WebsitesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [issueOpen, setIssueOpen] = useState(false);
+  const [issueTarget, setIssueTarget] = useState<SiteResponse | null>(null);
 
-  const selected = useMemo(
-    () => sites.data?.find((s) => s.id === selectedId) ?? null,
-    [sites.data, selectedId],
-  );
+  const selected =
+    sites.data?.find((s) => s.id === selectedId) ?? null;
 
   return (
     <div className="space-y-4 p-6">
@@ -56,6 +53,13 @@ export function WebsitesPage() {
                     orphaned: r.orphaned,
                   }),
                 );
+                if (r.serverNameConflicts.length > 0) {
+                  toast.warning(
+                    t('websites.server_name_conflicts', {
+                      count: r.serverNameConflicts.length,
+                    }),
+                  );
+                }
               } catch (err) {
                 toast.error(extractErrorMessage(err));
               }
@@ -102,21 +106,23 @@ export function WebsitesPage() {
         />
       )}
 
-      {selected && (
-        <SiteDetailPanel
-          site={selected}
-          onIssueClick={() => setIssueOpen(true)}
-          onClose={() => setSelectedId(null)}
-        />
-      )}
-
       <AddSiteDialog open={addOpen} onOpenChange={setAddOpen} />
-      {selected && (
+      <SiteDrawer
+        site={selected}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        onIssueClick={(s) => {
+          setIssueTarget(s);
+          setIssueOpen(true);
+        }}
+      />
+      {issueTarget && (
         <IssueSslDialog
           open={issueOpen}
           onOpenChange={setIssueOpen}
-          siteId={selected.id}
-          siteName={selected.name}
+          siteId={issueTarget.id}
+          siteName={issueTarget.name}
         />
       )}
     </div>
@@ -161,15 +167,7 @@ function SitesTable({ sites, selectedId, onSelect }: TableProps) {
                 <SslBadge site={s} />
               </td>
               <td className="p-3 text-xs">
-                {s.orphaned ? (
-                  <Badge variant="destructive">
-                    {t('websites.status_orphaned')}
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary">
-                    {t('websites.status_active')}
-                  </Badge>
-                )}
+                <StatusBadge site={s} />
               </td>
             </tr>
           ))}
@@ -177,6 +175,26 @@ function SitesTable({ sites, selectedId, onSelect }: TableProps) {
       </table>
     </Card>
   );
+}
+
+function StatusBadge({ site }: { site: SiteResponse }) {
+  const { t } = useTranslation();
+  if (!site.managedByDinopanel) {
+    return (
+      <Badge
+        variant="outline"
+        className="border-amber-500/50 text-amber-600"
+      >
+        {t('websites.external_badge')}
+      </Badge>
+    );
+  }
+  if (site.orphaned) {
+    return (
+      <Badge variant="destructive">{t('websites.status_orphaned')}</Badge>
+    );
+  }
+  return <Badge variant="secondary">{t('websites.status_active')}</Badge>;
 }
 
 function SslBadge({ site }: { site: SiteResponse }) {
@@ -202,97 +220,5 @@ function SslBadge({ site }: { site: SiteResponse }) {
         date: new Date(site.certExpiresAt).toISOString().slice(0, 10),
       })}
     </Badge>
-  );
-}
-
-interface PanelProps {
-  site: SiteResponse;
-  onIssueClick: () => void;
-  onClose: () => void;
-}
-
-function SiteDetailPanel({ site, onIssueClick, onClose }: PanelProps) {
-  const { t } = useTranslation();
-  const conf = useWebsiteConf(site.id, true);
-  const del = useDeleteWebsite();
-  const renew = useAcmeRenew();
-
-  return (
-    <Card className="p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="font-semibold">{site.name}</h2>
-          <span className="text-xs text-muted-foreground">
-            {site.primaryDomain}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={onIssueClick}>
-            <ShieldCheck className="mr-1 h-4 w-4" />
-            {site.certPaths
-              ? t('websites.ssl_reissue')
-              : t('websites.ssl_issue')}
-          </Button>
-          {site.certPaths && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await renew.mutateAsync(site.id);
-                  toast.success(t('websites.ssl_renewed'));
-                } catch (err) {
-                  toast.error(extractErrorMessage(err));
-                }
-              }}
-              disabled={renew.isPending}
-            >
-              <RefreshCw className="mr-1 h-4 w-4" />
-              {t('websites.ssl_renew')}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={async () => {
-              if (!confirm(t('websites.delete_confirm', { name: site.name }))) {
-                return;
-              }
-              try {
-                await del.mutateAsync(site.id);
-                toast.success(t('websites.deleted'));
-                onClose();
-              } catch (err) {
-                toast.error(extractErrorMessage(err));
-              }
-            }}
-            disabled={del.isPending}
-          >
-            <Trash2 className="mr-1 h-4 w-4" />
-            {t('common.delete')}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            <ShieldOff className="mr-1 h-4 w-4" />
-            {t('common.close')}
-          </Button>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <div className="text-xs font-medium text-muted-foreground">
-          {t('websites.raw_conf')}
-        </div>
-        {conf.isPending ? (
-          <Skeleton className="h-32 w-full" />
-        ) : conf.error ? (
-          <div className="text-xs text-destructive">
-            {extractErrorMessage(conf.error)}
-          </div>
-        ) : (
-          <pre className="max-h-80 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">
-            {conf.data?.content ?? ''}
-          </pre>
-        )}
-      </div>
-    </Card>
   );
 }

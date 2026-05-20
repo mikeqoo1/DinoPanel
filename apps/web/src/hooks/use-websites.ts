@@ -138,6 +138,11 @@ export function useAcmeRenew() {
 
 export interface AcmeConfigResponse {
   cloudflareTokenSet: boolean;
+  // v0.4: resolved ACME registration email + which source it came
+  // from (env override always wins). null when neither env nor
+  // settings configures one.
+  email: string | null;
+  emailSource: 'env' | 'settings' | 'unset';
 }
 
 export const acmeConfigKeys = {
@@ -156,8 +161,28 @@ export function useAcmeConfig() {
 export function useSetAcmeConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: { cloudflareApiToken?: string | null }) =>
+    mutationFn: async (patch: {
+      cloudflareApiToken?: string | null;
+      email?: string | null;
+    }) =>
       (await api.put<AcmeConfigResponse>('/acme/config', patch)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: acmeConfigKeys.config() }),
+  });
+}
+
+// v0.4: PHP-FPM status (managed / external / not-running).
+export interface PhpFpmStatusResponse {
+  mode: 'external' | 'managed';
+  upstream: string;
+  containerRunning: boolean | null;
+  containerName: string | null;
+}
+
+export function usePhpFpmStatus() {
+  return useQuery<PhpFpmStatusResponse>({
+    queryKey: ['websites', 'php-fpm', 'status'] as const,
+    queryFn: async () =>
+      (await api.get<PhpFpmStatusResponse>('/websites/php-fpm/status')).data,
+    retry: 0,
   });
 }

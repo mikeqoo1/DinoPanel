@@ -17,7 +17,11 @@ import { useSystemInfo } from '@/hooks/use-system';
 import { api, extractErrorMessage } from '@/lib/api';
 import { usePmmConfig, useSetPmmConfig } from '@/hooks/use-monitoring';
 import { useAuditRetention, useSetAuditRetention } from '@/hooks/use-audit';
-import { useAcmeConfig, useSetAcmeConfig } from '@/hooks/use-websites';
+import {
+  useAcmeConfig,
+  usePhpFpmStatus,
+  useSetAcmeConfig,
+} from '@/hooks/use-websites';
 
 export function SettingsPage() {
   const { t, i18n } = useTranslation();
@@ -47,6 +51,10 @@ export function SettingsPage() {
   const setAcmeConfig = useSetAcmeConfig();
   const [cfTokenInput, setCfTokenInput] = useState('');
   const [showCfToken, setShowCfToken] = useState(false);
+  const [acmeEmailInput, setAcmeEmailInput] = useState<string | null>(null);
+  const effectiveAcmeEmail =
+    acmeEmailInput ??
+    (acmeConfig.data?.emailSource === 'settings' ? acmeConfig.data.email ?? '' : '');
 
   const onSaveCfToken = async () => {
     try {
@@ -63,6 +71,17 @@ export function SettingsPage() {
       await setAcmeConfig.mutateAsync({ cloudflareApiToken: null });
       setCfTokenInput('');
       toast.success(t('settings.ssl.cleared'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const onSaveAcmeEmail = async () => {
+    const value = effectiveAcmeEmail.trim();
+    try {
+      await setAcmeConfig.mutateAsync({ email: value === '' ? null : value });
+      setAcmeEmailInput(null);
+      toast.success(t('settings.ssl.email_saved'));
     } catch (err) {
       toast.error(extractErrorMessage(err));
     }
@@ -273,7 +292,47 @@ export function SettingsPage() {
           <CardDescription>{t('settings.ssl.section_desc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex max-w-md flex-col gap-3">
+          <div className="flex max-w-md flex-col gap-6">
+            {/* ACME email — v0.4 carry-over (env wins, settings fallback). */}
+            <div className="space-y-2">
+              <Label htmlFor="acme-email">
+                {t('settings.ssl.email_label')}
+              </Label>
+              <Input
+                id="acme-email"
+                type="email"
+                placeholder="ops@example.com"
+                value={effectiveAcmeEmail}
+                onChange={(e) => setAcmeEmailInput(e.target.value)}
+                disabled={
+                  acmeConfig.isPending ||
+                  acmeConfig.data?.emailSource === 'env'
+                }
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                {acmeConfig.data?.emailSource === 'env'
+                  ? t('settings.ssl.email_env_locked', {
+                      value: acmeConfig.data.email ?? '',
+                    })
+                  : t('settings.ssl.email_hint')}
+              </p>
+              {acmeConfig.data?.emailSource !== 'env' && (
+                <Button
+                  onClick={onSaveAcmeEmail}
+                  disabled={setAcmeConfig.isPending || acmeEmailInput === null}
+                  className="w-fit"
+                >
+                  {setAcmeConfig.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {t('settings.save_changes')}
+                </Button>
+              )}
+            </div>
+
+            <Separator />
+
             <div className="space-y-2">
               <Label htmlFor="cf-token">
                 {t('settings.ssl.cf_token_label')}
@@ -333,6 +392,9 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      <PhpFpmStatusCard />
+
+
       <Card>
         <CardHeader>
           <CardTitle>{t('settings.about')}</CardTitle>
@@ -353,6 +415,55 @@ export function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function PhpFpmStatusCard() {
+  const { t } = useTranslation();
+  const status = usePhpFpmStatus();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" />
+          {t('settings.phpfpm.section_title')}
+        </CardTitle>
+        <CardDescription>{t('settings.phpfpm.section_desc')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {status.isPending ? (
+          <Skeleton className="h-12 w-full" />
+        ) : status.data ? (
+          <dl className="grid max-w-md gap-x-6 gap-y-2 text-sm md:grid-cols-2">
+            <Row
+              label={t('settings.phpfpm.mode_label')}
+              value={t(`settings.phpfpm.mode.${status.data.mode}`)}
+            />
+            <Row
+              label={t('settings.phpfpm.upstream_label')}
+              value={status.data.upstream}
+            />
+            {status.data.containerName && (
+              <Row
+                label={t('settings.phpfpm.container_label')}
+                value={status.data.containerName}
+              />
+            )}
+            {status.data.containerRunning !== null && (
+              <Row
+                label={t('settings.phpfpm.running_label')}
+                value={
+                  status.data.containerRunning
+                    ? t('common.yes')
+                    : t('common.no')
+                }
+              />
+            )}
+          </dl>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

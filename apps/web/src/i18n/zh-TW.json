@@ -14,6 +14,7 @@
     "compose": "Compose",
     "monitoring": "資料庫監控",
     "websites": "網站",
+    "databases": "資料庫",
     "system": "系統",
     "settings": "設定",
     "logout": "登出"
@@ -32,6 +33,12 @@
     "degraded_help": "請依 docs/websites.md 檢查 /opt/dinopanel 目錄權限、sudoers 與 SELinux/AppArmor 設定，重啟服務後 banner 會自動消失。",
     "status_active": "正常",
     "status_orphaned": "孤兒（conf 不在磁碟上）",
+    "external_badge": "外部",
+    "external_disabled_hint": "外部 conf 在 DinoPanel 內為唯讀。",
+    "external_path_label": "原始 conf 路徑",
+    "external_open": "開啟",
+    "external_help": "這個網站來自 /etc/nginx/conf.d/。在磁碟上編輯後執行重整刷新。",
+    "server_name_conflicts": "{{count}} 個 server_name 衝突 — 詳見日誌。",
     "col_name": "名稱",
     "col_domain": "網域",
     "col_type": "類型",
@@ -454,6 +461,10 @@
     "ssl": {
       "section_title": "SSL 提供者",
       "section_desc": "申請憑證時使用的憑證。token 值不會回傳完整字串到 UI。",
+      "email_label": "ACME 註冊 Email",
+      "email_hint": "Let's Encrypt 帳號註冊用。若有設 ACME_EMAIL 環境變數則環境變數優先。",
+      "email_env_locked": "由環境變數 ACME_EMAIL 鎖定：{{value}}",
+      "email_saved": "ACME email 已儲存",
       "cf_token_label": "Cloudflare API token",
       "cf_token_set_placeholder": "已設定 — 貼新 token 即可覆寫",
       "cf_token_unset_placeholder": "貼入 Cloudflare token",
@@ -463,6 +474,18 @@
       "clear": "清除",
       "saved": "已儲存",
       "cleared": "已清除"
+    },
+    "phpfpm": {
+      "section_title": "PHP-FPM",
+      "section_desc": "PHP 站點所用的 PHP-FPM 上游狀態。",
+      "mode_label": "模式",
+      "upstream_label": "上游",
+      "container_label": "Container",
+      "running_label": "運行中",
+      "mode": {
+        "managed": "管理（自動 provision）",
+        "external": "外部（operator 自備）"
+      }
     }
   },
   "images": {
@@ -629,6 +652,87 @@
     "retry": "重試",
     "search": "搜尋",
     "close": "關閉",
-    "back": "返回"
+    "back": "返回",
+    "start": "啟動",
+    "stop": "停止",
+    "restart": "重啟"
+  },
+  "databases": {
+    "title": "資料庫",
+    "add": "新增資料庫",
+    "reconcile": "重整",
+    "reconciled": "{{matched}} 同步、{{missing}} 缺 container、{{orphan}} 孤兒",
+    "empty": "尚未建立資料庫實例。",
+    "degraded_title": "資料庫模組異常",
+    "degraded_unknown": "未知原因",
+    "col_name": "名稱",
+    "col_engine": "引擎",
+    "col_port": "Port",
+    "col_user": "使用者",
+    "col_status": "狀態",
+    "engine": {
+      "mysql": "MySQL",
+      "mariadb": "MariaDB",
+      "postgresql": "PostgreSQL",
+      "redis": "Redis",
+      "mongodb": "MongoDB"
+    },
+    "status": {
+      "running": "運行中",
+      "stopped": "停止",
+      "restarting": "重啟中",
+      "creating": "建立中",
+      "removing": "刪除中",
+      "error": "錯誤"
+    },
+    "metrics": {
+      "qps": "QPS",
+      "connections": "連線數",
+      "uptime": "運行時間",
+      "replication_lag": "複寫延遲"
+    },
+    "dialog": {
+      "title": "建立資料庫實例",
+      "name": "名稱",
+      "name_hint": "小寫英數字 + 連字號，會做為 container 名稱後綴。",
+      "engine": "引擎",
+      "image_tag": "Image tag",
+      "port": "Host port",
+      "custom_credentials": "自訂帳號密碼",
+      "custom_credentials_hint": "不勾選則自動產生 32 字元強密碼。",
+      "username": "帳號",
+      "password": "密碼",
+      "plaintext_warning": "密碼以明碼存在本機 DB（decisions Q3）。請勿在會暴露 data dir 的主機跑 DinoPanel。",
+      "create": "建立",
+      "created": "已建立",
+      "invalid_input": "名稱必填。"
+    },
+    "drawer": {
+      "connection": "連線資訊",
+      "username": "使用者",
+      "password": "密碼",
+      "rotate_password": "輪換密碼",
+      "pmm_summary": "PMM 摘要",
+      "pmm_not_configured": "尚未設定 PMM URL。請至設定頁配置以查看即時指標。",
+      "open_in_pmm": "在 PMM 中開啟",
+      "lifecycle": "生命週期",
+      "delete_warning_title": "危險區",
+      "drop_data_checkbox": "一併刪除 bind-mount 資料夾（無法復原）。",
+      "delete_instance": "刪除實例",
+      "confirm_delete": "確定刪除",
+      "deleted": "實例已刪除",
+      "data_dir": "Data dir：{{path}}",
+      "copied": "已複製 {{label}}",
+      "copy_failed": "複製失敗"
+    },
+    "rotate": {
+      "title": "輪換 {{name}} 密碼",
+      "body": "輪換密碼會：",
+      "downtime_bullet": "停止並重建 container（短暫停機，所有連線會斷）。",
+      "app_configs_bullet": "讓所有用舊密碼的應用程式必須改用新密碼。",
+      "irreversible_bullet": "不可逆 — 舊密碼會被覆寫。",
+      "confirm": "確認輪換",
+      "done": "{{name}} 已輪換（新密碼：{{password}}）"
+    }
   }
 }
