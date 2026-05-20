@@ -1,0 +1,46 @@
+{
+  "id": "v0.5-pmm-inventory-readonly",
+  "title": "Read-only PMM inventory section in /databases (B-scope of v0.X-multihost-pmm-inventory)",
+  "status": "active",
+  "createdAt": "2026-05-20",
+  "targetVersion": "v0.5",
+  "supersedes": "v0.X-multihost-pmm-inventory",
+  "dependsOn": ["v0.4.2-pmm-cards-conditional"],
+  "directionDecision": "Option B (limited integration). DinoPanel surfaces externally-PMM-monitored DBs as a read-only section under /databases. Does NOT commit to multi-host DinoPanel direction. Does NOT merge into one unified table — managed and monitored stay visually separated.",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "PMM listServices client + auth failure handling",
+      "estimateDays": 1,
+      "status": "completed",
+      "completedAt": "2026-05-20",
+      "tests": "10 new (265 total)"
+    },
+    {
+      "id": "phase-2",
+      "name": "Backend endpoint /api/databases/external-pmm + 30s cache",
+      "estimateDays": 0.5,
+      "status": "pending"
+    },
+    {
+      "id": "phase-3",
+      "name": "Frontend stacked section + read-only metric cards reuse",
+      "estimateDays": 1,
+      "status": "pending"
+    },
+    {
+      "id": "phase-4",
+      "name": "Test dedup-by-service-name + partial-failure paths",
+      "estimateDays": 0.5,
+      "status": "pending"
+    }
+  ],
+  "totalEstimateDays": 3,
+  "resolvedQuestions": {
+    "Q1_cadence": "Refresh-button + fetch on page load. No polling. Operator-driven action (adding DB to PMM) is deliberate; polling wastes API calls.",
+    "Q2_ui": "Two stacked sections in /databases: 'DinoPanel-managed' (existing table) on top, 'External PMM-monitored' (new read-only panel) below.",
+    "Q3_external_row_schema": "service-name, engine, host, port + the 4 PMM metric cards + per-row 'Open in PMM' deep link. No connection card, no actions.",
+    "Q4_managed_deregistered": "Already covered by v0.4.2 — reconcile flips pmmRegistered=false → drawer shows 'not registered' hint. No new work here.",
+    "Q5_multihost_lockin": "Explicitly avoided. B is pure UX-side fetch, no remote-host data model introduced."
+  }
+}

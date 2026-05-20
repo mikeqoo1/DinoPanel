@@ -40,7 +40,8 @@ Status values in `meta.json`:
 | `v0.4-databases`                            | completed  | v0.4    | Databases (MySQL/MariaDB/PostgreSQL/Redis/MongoDB, container-only) + v0.3 carry-over + PMM C |
 | `v0.4.1-smoke-patches`                      | completed  | v0.4.1  | Bundle five fixes surfaced during v0.4 Rocky 234 smoke (install.sh × 2, PG18 PGDATA, ensureImage, clipboard) |
 | `v0.4.2-pmm-cards-conditional`              | completed  | v0.4.2  | Drawer PMM cards conditional rendering — distinguish 'not registered' from 'exporter unhealthy' via existing pmmRegistered flag |
-| `v0.X-multihost-pmm-inventory`              | draft      | v0.X    | Multi-host PMM inventory unified in /databases list (blocked on product-direction decision)  |
+| `v0.5-pmm-inventory-readonly`               | active     | v0.5    | Read-only PMM inventory section in /databases (Option B scope of archived v0.X draft) — 4 phases ≈ 3 dev-days |
+| `archived-v0.X-multihost-pmm-inventory`     | archived   | —       | Superseded by v0.5-pmm-inventory-readonly. Original 3-option draft (A full union / B limited / C decline); operator picked B |
 
 Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5
 frontend, `5d17596` Phase 4 v0.3 carry-over, `0df3071` Phase 3 PMM,

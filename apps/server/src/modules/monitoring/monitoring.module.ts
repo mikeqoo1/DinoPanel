@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
+import { PmmInventoryClient } from './pmm-inventory.client';
 import { PmmPromqlClient } from './pmm-promql.client';
 
 @Module({
   controllers: [MonitoringController],
-  providers: [MonitoringService, PmmPromqlClient],
-  exports: [PmmPromqlClient],
+  providers: [MonitoringService, PmmPromqlClient, PmmInventoryClient],
+  exports: [PmmPromqlClient, PmmInventoryClient],
 })
 export class MonitoringModule {}
