@@ -20,7 +20,9 @@
       "id": "phase-2",
       "name": "Backend endpoint /api/databases/external-pmm + 30s cache",
       "estimateDays": 0.5,
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2026-05-20",
+      "tests": "8 new (273 total)"
     },
     {
       "id": "phase-3",

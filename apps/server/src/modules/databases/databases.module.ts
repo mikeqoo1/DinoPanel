@@ -6,6 +6,7 @@ import { DatabasesService } from './databases.service';
 import { DbEngineRegistry } from './db-engine.registry';
 import { DbInstancesService } from './db-instances.service';
 import { DbMetricsService } from './db-metrics.service';
+import { ExternalPmmService } from './external-pmm.service';
 import { MariadbDriver } from './engines/mariadb.driver';
 import { MongoDriver } from './engines/mongo.driver';
 import { MysqlDriver } from './engines/mysql.driver';
@@ -22,6 +23,7 @@ import { RedisDriver } from './engines/redis.driver';
     DatabasesService,
     DbInstancesService,
     DbMetricsService,
+    ExternalPmmService,
     DbEngineRegistry,
     MysqlDriver,
     MariadbDriver,
@@ -33,6 +35,7 @@ import { RedisDriver } from './engines/redis.driver';
     DatabasesService,
     DbInstancesService,
     DbMetricsService,
+    ExternalPmmService,
     DbEngineRegistry,
   ],
 })

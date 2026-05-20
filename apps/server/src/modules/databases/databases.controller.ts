@@ -19,12 +19,14 @@ import {
   type DbMetricsSummary,
   type DbReconcileResponse,
   type PatchDbInstance,
+  type PmmExternalServicesResponse,
   type RemoveDbInstance,
 } from '@dinopanel/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { DatabasesService } from './databases.service';
 import { DbInstancesService } from './db-instances.service';
 import { DbMetricsService } from './db-metrics.service';
+import { ExternalPmmService } from './external-pmm.service';
 
 @Controller('databases')
 export class DatabasesController {
@@ -32,6 +34,7 @@ export class DatabasesController {
     private readonly databases: DatabasesService,
     private readonly instances: DbInstancesService,
     private readonly dbMetrics: DbMetricsService,
+    private readonly externalPmm: ExternalPmmService,
   ) {}
 
   @Get()
@@ -42,6 +45,19 @@ export class DatabasesController {
   @Get('status')
   status(): { degraded: boolean; reason: string | null } {
     return this.databases.getStatus();
+  }
+
+  /**
+   * Read-only inventory of PMM-monitored DBs that are NOT managed
+   * by DinoPanel (dedup against `db_instances.containerName`).
+   * `?refresh=1` bypasses the 30 s cache (mirrors the `:id/metrics`
+   * refresh contract).
+   */
+  @Get('external-pmm')
+  listExternalPmm(
+    @Query('refresh') refresh?: string,
+  ): Promise<PmmExternalServicesResponse> {
+    return this.externalPmm.list({ refresh: refresh === '1' });
   }
 
   @Post()

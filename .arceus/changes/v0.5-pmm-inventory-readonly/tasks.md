@@ -17,15 +17,24 @@
 - [x] typecheck + lint + test + build all green (265/265)
 - [x] Commit: `feat(databases): PMM inventory client (phase 1 of v0.5)`
 
-## Phase 2 — Backend endpoint (next session)
+## Phase 2 — Backend endpoint (done 2026-05-20)
 
-- [ ] `GET /api/databases/external-pmm` route on existing databases controller
-- [ ] 30s in-memory cache (Map<pmmUrl, { ts, services }>)
-- [ ] Dedup at server: filter PMM services whose `serviceName` matches
-  any `db_instances.serviceName` (column already exists per v0.4 schema)
-- [ ] Failure modes wrap as `{ services: [], error: { reason } }`
-- [ ] Controller test ≥ 4 cases
-- [ ] Commit: `feat(databases): external-pmm endpoint with 30s cache (phase 2)`
+- [x] `GET /api/databases/external-pmm` route on databases controller
+  (refresh=1 bypass mirrors `:id/metrics` contract)
+- [x] 30s in-memory cache keyed on resolved PMM URL (auto-invalidate
+  when settings URL changes — different key)
+- [x] Dedup at server: filter PMM services whose `serviceName` matches
+  any `db_instances.containerName` (containerName == PMM service_name
+  by convention per paths.ts)
+- [x] Failure modes wrap as `{ services: [], error: { reason }, fetchedAt }`
+  with `not_configured | auth | unreachable | bad_response` reasons
+- [x] Shared schema `pmmExternalServicesResponseSchema` added
+- [x] `ExternalPmmService.invalidateAll()` for future settings-change hook
+- [x] 8 service-level tests (dedup, empty, auth surface, not_configured,
+  cache hit within 30s, refresh forces re-query, engine pass-through,
+  invalidateAll)
+- [x] typecheck + lint + test + build all green (273/273)
+- [x] Commit: `feat(databases): external-pmm endpoint + cache (phase 2 of v0.5)`
 
 ## Phase 3 — Frontend section (next session)
 

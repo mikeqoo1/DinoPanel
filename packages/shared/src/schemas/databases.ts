@@ -116,3 +116,53 @@ export const dbReconcileResponseSchema = z.object({
   orphanContainer: z.number().int(),
 });
 export type DbReconcileResponse = z.infer<typeof dbReconcileResponseSchema>;
+
+// External PMM service shape — PMM-monitored DBs that are NOT
+// managed by DinoPanel. Read-only; no credentials, no actions.
+// Engine union includes 'mariadb' for completeness even though PMM
+// 2.x reports MariaDB under the mysql bucket (no current way to
+// distinguish — kept here for forward compatibility).
+export const pmmExternalServiceSchema = z.object({
+  serviceId: z.string(),
+  serviceName: z.string(),
+  engine: z.enum([
+    'mysql',
+    'mariadb',
+    'postgresql',
+    'mongodb',
+    'redis',
+    'unknown',
+  ]),
+  nodeId: z.string(),
+  address: z.string().nullable(),
+  port: z.number().int().nullable(),
+});
+export type PmmExternalService = z.infer<typeof pmmExternalServiceSchema>;
+
+// Failure surface — keep the response shape stable (services
+// always present, possibly empty) and tag the error so the UI
+// can render distinct copy per reason. `not_configured` is also
+// surfaced rather than hidden so the section can collapse cleanly.
+export const pmmExternalErrorReasonSchema = z.enum([
+  'not_configured',
+  'auth',
+  'unreachable',
+  'bad_response',
+]);
+export type PmmExternalErrorReason = z.infer<
+  typeof pmmExternalErrorReasonSchema
+>;
+
+export const pmmExternalServicesResponseSchema = z.object({
+  services: z.array(pmmExternalServiceSchema),
+  error: z
+    .object({ reason: pmmExternalErrorReasonSchema })
+    .nullable(),
+  // Epoch ms when this snapshot was taken — frontend can show
+  // "last refreshed N seconds ago". When served from cache this
+  // is the original fetch time, not the cache-hit time.
+  fetchedAt: z.number().int(),
+});
+export type PmmExternalServicesResponse = z.infer<
+  typeof pmmExternalServicesResponseSchema
+>;
