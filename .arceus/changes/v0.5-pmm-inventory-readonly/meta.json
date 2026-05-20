@@ -26,9 +26,11 @@
     },
     {
       "id": "phase-3",
-      "name": "Frontend stacked section + read-only metric cards reuse",
+      "name": "Frontend stacked section + Open-in-PMM deep link (per-row metrics dropped per D7)",
       "estimateDays": 1,
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2026-05-20",
+      "tests": "0 new (no UI unit tests added — drawer pattern was deferred for the same reasons documented in v0.4.2-pmm-cards-conditional; section is mostly layout glue over the already-tested service layer)"
     },
     {
       "id": "phase-4",

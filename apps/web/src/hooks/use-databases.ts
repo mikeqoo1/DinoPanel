@@ -5,6 +5,7 @@ import type {
   DbMetricsSummary,
   DbReconcileResponse,
   PatchDbInstance,
+  PmmExternalServicesResponse,
   RemoveDbInstance,
 } from '@dinopanel/shared';
 import { api } from '@/lib/api';
@@ -15,6 +16,7 @@ export const databaseKeys = {
   detail: (id: number) => [...databaseKeys.all, 'detail', id] as const,
   metrics: (id: number) => [...databaseKeys.all, 'metrics', id] as const,
   status: () => [...databaseKeys.all, 'status'] as const,
+  externalPmm: () => [...databaseKeys.all, 'external-pmm'] as const,
 };
 
 export interface DatabasesStatusResponse {
@@ -116,6 +118,39 @@ export function useRotatePassword() {
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: databaseKeys.list() });
       qc.invalidateQueries({ queryKey: databaseKeys.metrics(id) });
+    },
+  });
+}
+
+export function useExternalPmm(enabled = true) {
+  return useQuery<PmmExternalServicesResponse>({
+    queryKey: databaseKeys.externalPmm(),
+    queryFn: async () =>
+      (
+        await api.get<PmmExternalServicesResponse>(
+          '/databases/external-pmm',
+        )
+      ).data,
+    enabled,
+    retry: 0,
+  });
+}
+
+export function useRefreshExternalPmm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      (
+        await api.get<PmmExternalServicesResponse>(
+          '/databases/external-pmm?refresh=1',
+        )
+      ).data,
+    onSuccess: (data) => {
+      // Drop the cached query under the same key in favour of the
+      // freshly-fetched payload so the UI updates immediately and
+      // the next observer read returns the new snapshot without an
+      // extra round-trip.
+      qc.setQueryData(databaseKeys.externalPmm(), data);
     },
   });
 }

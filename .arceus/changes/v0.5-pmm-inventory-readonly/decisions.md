@@ -82,6 +82,35 @@ the `service_name` matches `/redis/i`, otherwise `unknown`.
 - `unknown` for anything else preserves the row in the UI but
   hides the engine badge
 
+## D7: External rows show inventory metadata only, no per-row metric cards
+
+**Decision:** In Phase 3, external PMM rows render service-name +
+engine badge + host:port + Open-in-PMM link. **No** 4-card metric
+grid per row.
+
+**Why:**
+- Option B's design framing is "DinoPanel surfaces what PMM knows
+  about, PMM owns the live data". Rendering per-row metric cards
+  duplicates effort — the operator who wants live numbers clicks
+  Open-in-PMM, which is one click.
+- Per-row metrics would mean 4 PromQL queries × N rows per refresh.
+  Server-side 30s cache helps but the first refresh after any
+  inventory change still hits PMM with `4*N` queries.
+- The current proposal.md mentioned cards on external rows; this
+  decision intentionally pulls them back. Symmetric layout with
+  the drawer's 4 cards would be nice-to-have but is not load-bearing
+  for the "see external DBs in /databases" workflow.
+- Empty all-`—` cards would also collide visually with v0.4.2's
+  "not registered" / "exporter unhealthy" hint UX — operators would
+  rightly ask "is this exporter broken?" when the answer is just
+  "we didn't fetch metrics here".
+
+**Re-evaluate:** if operator asks for inline metrics on external
+rows, add a separate `GET /api/databases/external-pmm/:serviceId/metrics`
+endpoint with per-service PromQL fan-out + 30s cache (mirroring
+the managed `:id/metrics` shape). Estimated +1 day. Probably best
+to gate on real operator feedback rather than ship speculatively.
+
 ## D6: No version bump until all phases ship
 
 **Decision:** Phases 1-4 each commit individually with

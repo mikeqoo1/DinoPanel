@@ -13,6 +13,7 @@ import { usePmmConfig } from '@/hooks/use-monitoring';
 import { CreateDatabaseDialog } from './create-database-dialog';
 import { DatabaseDrawer } from './database-drawer';
 import { ENGINE_META } from './engine-meta';
+import { ExternalPmmSection } from './external-pmm-section';
 
 export function DatabasesPage() {
   const { t } = useTranslation();
@@ -73,23 +74,30 @@ export function DatabasesPage() {
         </Card>
       )}
 
-      {list.isPending ? (
-        <Skeleton className="h-32 w-full" />
-      ) : list.error ? (
-        <Card className="p-6 text-sm text-destructive">
-          {extractErrorMessage(list.error)}
-        </Card>
-      ) : !list.data || list.data.length === 0 ? (
-        <Card className="p-6 text-sm text-muted-foreground">
-          {t('databases.empty')}
-        </Card>
-      ) : (
-        <DatabasesTable
-          rows={list.data}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
-      )}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {t('databases.section_managed')}
+        </h2>
+        {list.isPending ? (
+          <Skeleton className="h-32 w-full" />
+        ) : list.error ? (
+          <Card className="p-6 text-sm text-destructive">
+            {extractErrorMessage(list.error)}
+          </Card>
+        ) : !list.data || list.data.length === 0 ? (
+          <Card className="p-6 text-sm text-muted-foreground">
+            {t('databases.empty')}
+          </Card>
+        ) : (
+          <DatabasesTable
+            rows={list.data}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
+        )}
+      </section>
+
+      <ExternalPmmSection pmmUrl={pmm.data?.url ?? null} />
 
       <CreateDatabaseDialog open={createOpen} onOpenChange={setCreateOpen} />
       <DatabaseDrawer

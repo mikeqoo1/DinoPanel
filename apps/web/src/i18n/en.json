@@ -691,6 +691,20 @@
       "uptime": "Uptime",
       "replication_lag": "Replication lag"
     },
+    "section_managed": "Managed by DinoPanel",
+    "external_pmm": {
+      "section_title": "PMM-monitored (external)",
+      "section_hint": "Databases PMM is monitoring that DinoPanel did not create. Read-only view — no connection details or lifecycle controls.",
+      "empty": "PMM is not monitoring any databases beyond the ones DinoPanel manages.",
+      "refresh": "Refresh",
+      "last_refreshed": "Refreshed {{seconds}}s ago",
+      "col_service": "Service name",
+      "col_host": "Host",
+      "open_in_pmm": "Open in PMM",
+      "error_auth": "PMM API auth failed — check the API token in Settings.",
+      "error_unreachable": "PMM is unreachable — check the URL and network.",
+      "error_bad_response": "PMM returned an unexpected response — check the PMM version and configuration."
+    },
     "dialog": {
       "title": "Create database instance",
       "name": "Name",

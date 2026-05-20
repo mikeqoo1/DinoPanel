@@ -691,6 +691,20 @@
       "uptime": "運行時間",
       "replication_lag": "複寫延遲"
     },
+    "section_managed": "DinoPanel 管理",
+    "external_pmm": {
+      "section_title": "PMM 監控（外部）",
+      "section_hint": "下列為 PMM 監控中但不由 DinoPanel 建立的資料庫。僅供檢視，無連線資訊與生命週期操作。",
+      "empty": "PMM 目前沒有 DinoPanel 以外的資料庫服務。",
+      "refresh": "重新整理",
+      "last_refreshed": "{{seconds}} 秒前更新",
+      "col_service": "服務名稱",
+      "col_host": "主機",
+      "open_in_pmm": "於 PMM 開啟",
+      "error_auth": "PMM API 驗證失敗，請於設定頁確認 token。",
+      "error_unreachable": "PMM 無法連線，請確認 URL 及網路狀態。",
+      "error_bad_response": "PMM 回應格式異常，請檢查 PMM 版本與設定。"
+    },
     "dialog": {
       "title": "建立資料庫實例",
       "name": "名稱",

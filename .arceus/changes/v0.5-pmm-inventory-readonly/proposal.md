@@ -32,8 +32,9 @@ Under `/databases`, two stacked sections:
 
 For each external row:
 - service-name, engine type, host, port from PMM inventory
-- the 4 metric cards (QPS / connections / uptime / replication lag)
 - a per-row "Open in PMM" deep link
+- **no** per-row metric cards (decisions.md D7 — Phase 3
+  implementation drop; operator clicks through to PMM for live data)
 - **no** connection-info card (we don't have credentials)
 - **no** start/stop/restart/rotate buttons (we don't manage it)
 

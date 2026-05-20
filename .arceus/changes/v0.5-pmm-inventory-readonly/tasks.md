@@ -36,18 +36,30 @@
 - [x] typecheck + lint + test + build all green (273/273)
 - [x] Commit: `feat(databases): external-pmm endpoint + cache (phase 2 of v0.5)`
 
-## Phase 3 — Frontend section (next session)
+## Phase 3 — Frontend section (done 2026-05-20)
 
-- [ ] New `apps/web/src/routes/databases/external-pmm-section.tsx`
-- [ ] New hook `useExternalPmm()` in `use-databases.ts`
-- [ ] `/databases/index.tsx` renders managed table + external section below
-- [ ] Hide entire external section when PMM URL not configured
-- [ ] Empty / error states with distinct copy
-- [ ] Each row uses existing MetricCard component for the 4 cards
-- [ ] Refresh button at section header → invalidates query + refetch
-- [ ] "Open in PMM" link template: `{pmmUrl}/graph/inventory/services/{serviceId}`
-- [ ] i18n keys (zh-TW + en) under `databases.external_pmm.*`
-- [ ] Commit: `feat(databases): /databases external PMM section (phase 3)`
+- [x] New `apps/web/src/routes/databases/external-pmm-section.tsx`
+- [x] New hooks `useExternalPmm()` + `useRefreshExternalPmm()` in `use-databases.ts`
+  (refresh hits `?refresh=1` and `setQueryData` so UI updates in one round-trip)
+- [x] `/databases/index.tsx` renders managed table + external section below,
+  managed wrapped in a labelled `<section>` for symmetry
+- [x] Hide entire external section when PMM URL not configured (either
+  `pmmUrl==null` from `usePmmConfig` OR server-side `error.reason='not_configured'`)
+- [x] Empty / error states with distinct copy (auth / unreachable /
+  bad_response → distinct strings; not_configured → section disappears)
+- [x] Extracted `MetricCard` + `fmtDuration` to shared `metric-card.tsx`
+  for drawer + future re-use (drawer imports the new module)
+- [x] Per-row layout: service-name (mono) + engine badge (reuses ENGINE_META)
+  + host:port + Open in PMM link. **No per-row metric cards** —
+  see D7 in decisions.md (cost vs. value).
+- [x] Refresh button at section header → invalidates query + refetch +
+  spinner animation while pending. Last-refreshed indicator alongside.
+- [x] "Open in PMM" link template: `{pmmUrl}/graph/inventory/services/{serviceId}`
+  (PMM 2.x deep-link to inventory service page)
+- [x] i18n keys (zh-TW + en) under `databases.external_pmm.*` and
+  `databases.section_managed` for the new label
+- [x] typecheck + lint + test + build all green (273/273)
+- [x] Commit: `feat(databases): /databases external PMM section (phase 3 of v0.5)`
 
 ## Phase 4 — Integration tests + v0.5.0 cut (next session)
 
