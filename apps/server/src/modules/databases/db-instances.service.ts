@@ -92,6 +92,20 @@ export class DbInstancesService {
     await this.assertPortFree(input.port);
     await this.assertNameAndContainerFree(input.name, containerName);
 
+    // ----- step 2.5: ensure the image is locally available -----
+    // Docker daemon's containerCreate API does NOT auto-pull missing
+    // images (unlike `docker run`). We pull explicitly BEFORE
+    // touching disk so a bad tag / network failure exits cleanly
+    // without any rollback work.
+    try {
+      await this.ensureImage(imageTag);
+    } catch (err) {
+      throw new InternalServerErrorException({
+        code: 'DB_IMAGE_PULL_FAILED',
+        message: `Failed to pull ${imageTag}: ${(err as Error).message ?? String(err)}`,
+      });
+    }
+
     // ----- step 3: mkdir host data dir + dataSubdir for postgres -----
     let createdDir = false;
     try {
@@ -386,6 +400,48 @@ export class DbInstancesService {
   // -------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------
+
+  /**
+   * Pull the image into the local Docker daemon if it isn't there
+   * already. dockerode's createContainer 404s on missing images
+   * (unlike `docker run`), so we have to do this explicitly. No-op
+   * when the image is already cached.
+   */
+  private async ensureImage(ref: string): Promise<void> {
+    try {
+      await this.docker.getImage(ref).inspect();
+      return; // already pulled
+    } catch (err) {
+      const status = (err as { statusCode?: number }).statusCode;
+      if (status !== 404) throw err;
+    }
+    this.logger.debug({ ref }, 'db.pull.start');
+    await new Promise<void>((resolve, reject) => {
+      this.docker.pull(ref, (pullErr: Error | null, stream: NodeJS.ReadableStream) => {
+        if (pullErr) {
+          reject(pullErr);
+          return;
+        }
+        // followProgress drains the pull stream and fires its callback
+        // once the daemon emits the "Status: Downloaded" terminal
+        // event. Errors mid-stream (e.g. tag not found on registry)
+        // come back via the first arg.
+        const modem = (this.docker as unknown as {
+          modem: {
+            followProgress: (
+              s: NodeJS.ReadableStream,
+              done: (err: Error | null, output: unknown[]) => void,
+            ) => void;
+          };
+        }).modem;
+        modem.followProgress(stream, (finishErr: Error | null) => {
+          if (finishErr) reject(finishErr);
+          else resolve();
+        });
+      });
+    });
+    this.logger.debug({ ref }, 'db.pull.done');
+  }
 
   private async fetchRow(id: number): Promise<DbInstance> {
     const rows = await this.db

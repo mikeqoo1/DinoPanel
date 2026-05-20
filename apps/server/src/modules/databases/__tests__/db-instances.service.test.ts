@@ -97,6 +97,14 @@ function makeMockDocker(opts: MockDockerOpts = {}): {
         remove: vi.fn(async () => undefined),
       };
     },
+    // ensureImage() pretends the image is already cached locally so
+    // we don't have to mock the streaming pull path. Tests that
+    // specifically cover image-pull failure can override via opts.
+    getImage(_ref: string) {
+      return {
+        inspect: vi.fn(async () => ({ Id: 'sha256:fake' })),
+      };
+    },
     async listContainers() {
       return [];
     },
