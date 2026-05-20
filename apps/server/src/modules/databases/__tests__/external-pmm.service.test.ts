@@ -162,6 +162,64 @@ describe('ExternalPmmService', () => {
     expect(result.error).toEqual({ reason: 'not_configured' });
   });
 
+  it('surfaces unreachable failures with services=[] and error.reason="unreachable"', async () => {
+    const inventory = makeMockInventory({ ok: false, reason: 'unreachable' });
+    const svc = new ExternalPmmService(
+      db,
+      inventory,
+      makeMockPromql('http://pmm.test'),
+    );
+    const result = await svc.list();
+    expect(result.services).toEqual([]);
+    expect(result.error).toEqual({ reason: 'unreachable' });
+  });
+
+  it('surfaces bad_response failures with services=[] and error.reason="bad_response"', async () => {
+    const inventory = makeMockInventory({ ok: false, reason: 'bad_response' });
+    const svc = new ExternalPmmService(
+      db,
+      inventory,
+      makeMockPromql('http://pmm.test'),
+    );
+    const result = await svc.list();
+    expect(result.services).toEqual([]);
+    expect(result.error).toEqual({ reason: 'bad_response' });
+  });
+
+  it('does not cache failure responses — a successful retry repopulates', async () => {
+    const failingInventory = makeMockInventory({
+      ok: false,
+      reason: 'unreachable',
+    });
+    const svc = new ExternalPmmService(
+      db,
+      failingInventory,
+      makeMockPromql('http://pmm.test'),
+    );
+    const first = await svc.list();
+    expect(first.error).toEqual({ reason: 'unreachable' });
+    // Swap the mock to "succeed" by replacing the listServices fn so
+    // the next call follows the success path and populates the cache.
+    (failingInventory.listServices as ReturnType<typeof vi.fn>).mockResolvedValue(
+      {
+        ok: true,
+        services: [
+          {
+            serviceId: 's1',
+            serviceName: 'pg-1',
+            engine: 'postgresql',
+            nodeId: 'n',
+            address: null,
+            port: null,
+          },
+        ],
+      },
+    );
+    const second = await svc.list();
+    expect(second.error).toBeNull();
+    expect(second.services).toHaveLength(1);
+  });
+
   it('reuses cached result within 30s', async () => {
     const inventory = makeMockInventory({
       ok: true,

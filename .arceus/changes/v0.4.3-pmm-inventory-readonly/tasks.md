@@ -1,4 +1,4 @@
-# Tasks — v0.5 PMM inventory readonly
+# Tasks — v0.4.3 PMM inventory readonly
 
 ## Phase 1 — PMM listServices client (done 2026-05-20)
 
@@ -61,21 +61,40 @@
 - [x] typecheck + lint + test + build all green (273/273)
 - [x] Commit: `feat(databases): /databases external PMM section (phase 3 of v0.5)`
 
-## Phase 4 — Integration tests + v0.5.0 cut (next session)
+## Phase 4 — Integration tests + v0.4.3 cut (done 2026-05-20)
 
-- [ ] Server: dedup test — managed serviceName='postgres-shop' AND
-  PMM returns same → external list excludes it
-- [ ] Server: partial-failure tests (auth, unreachable, bad_response)
-- [ ] Frontend: section renders against mock external services
-- [ ] Bump 0.4.2 → 0.5.0 (4 package.json + sidebar + README tarball ref)
-- [ ] Update `.arceus/changes/README.md` index → v0.5 completed
-- [ ] Update `README.md` roadmap row for v0.5
-- [ ] Update `docs/databases.md` with external-section docs
-- [ ] Commit: `release(v0.5.0): read-only PMM inventory section in /databases`
+> Re-numbered from v0.5.0 → v0.4.3 during Phase 4 — PMM inventory
+> is v0.4 lineage, not a new release line. The v0.5 label was
+> already taken by the firewall/scheduler/logs scope (shipped at
+> package version 0.2.x without ever owning the 0.5.x package).
+
+- [x] Server: dedup test — managed `containerName='dinopanel-mysql-shop'`
+  AND PMM returns same → external list excludes it (Phase 2 test #1)
+- [x] Server: partial-failure tests — auth (Phase 2) +
+  not_configured (Phase 2) + unreachable (Phase 4) +
+  bad_response (Phase 4) + failure-not-cached (Phase 4)
+- [x] Frontend section: no new test — same deferral pattern as
+  v0.4.2's drawer test (mostly layout glue over already-tested
+  service layer)
+- [x] Bump 0.4.2 → 0.4.3 (4 package.json + sidebar label + README
+  tarball ref)
+- [x] Rename change folder v0.5-pmm-inventory-readonly →
+  v0.4.3-pmm-inventory-readonly; update meta.json id +
+  archived-v0.X meta.json supersededBy reference
+- [x] Update `.arceus/changes/README.md` index — v0.4.3 completed
+  row replaces v0.5 row
+- [x] Update `README.md` roadmap — add v0.4.3 row between v0.4.2
+  and v0.6
+- [x] Update `docs/databases.md` — header bump, new "External PMM
+  section (v0.4.3)" with endpoint contract, dedup, engine
+  normalization, D7 rationale. Also folded in a v0.4.2 drawer
+  section that was missing from earlier docs.
+- [x] typecheck + lint + test + build all green (276/276)
+- [x] Commit: `release(v0.4.3): read-only PMM inventory section in /databases`
 
 ## Smoke (optional, post-merge, Rocky 234 has no PMM)
 
-- v0.5 ships meaningful UI only if a PMM instance is reachable.
+- v0.4.3 ships meaningful UI only if a PMM instance is reachable.
   Rocky 234 doesn't have one. Smoke this against a dev PMM container
-  before tagging v0.5.0 as "smoke-passed", OR ship as code-only and
+  before tagging v0.4.3 as "smoke-passed", OR ship as code-only and
   flag in meta.

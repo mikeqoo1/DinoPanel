@@ -1,4 +1,4 @@
-# Databases (v0.4)
+# Databases (v0.4 + v0.4.2 / v0.4.3 PMM follow-ups)
 
 The Databases module manages MySQL / MariaDB / PostgreSQL / Redis /
 MongoDB instances running as Docker containers. Sits behind
@@ -150,6 +150,118 @@ The PromQL response is cached server-side for 30 s. Operators who
 need a faster snapshot can hit `GET /api/databases/:id/metrics?refresh=1`
 to bypass the cache — that's also what the drawer's manual refresh
 button (TBD in a future polish round) would call.
+
+## Drawer PMM cards conditional rendering (v0.4.2)
+
+When PMM is configured globally but the specific instance returns
+no data, the drawer distinguishes two cases via `instance.pmmRegistered`:
+
+| `pmmConfigured` | metrics | `pmmRegistered` | UI state            |
+| --------------- | ------- | --------------- | ------------------- |
+| `false`         | —       | —               | "PMM URL not configured" |
+| `true`          | all null| `false`         | "未在 PMM 中註冊"        |
+| `true`          | all null| `true`          | "exporter 異常"      |
+| `true`          | any value | —             | normal 4-card grid  |
+
+Resolution lives in `apps/web/src/routes/databases/pmm-card-state.ts`
+(pure 5-state helper, 8 unit tests). The `pmmRegistered` flag was
+already on the schema since v0.4 — v0.4.2 just started using it.
+No PMM Management API client was added; flipping the flag to `true`
+will be Option B of `archived-v0.X-multihost-pmm-inventory` if
+operators eventually want it (see the change folder's D3).
+
+## External PMM section (v0.4.3)
+
+The `/databases` page renders two stacked sections:
+
+1. **DinoPanel-managed** — the existing table of instances DinoPanel
+   created.
+2. **PMM-monitored (external)** — a read-only panel listing services
+   PMM knows about that are NOT in `db_instances`. Surfaces from
+   `GET /api/databases/external-pmm`.
+
+The external section only renders when `monitoring.pmm_url` is set;
+otherwise it disappears entirely (no error banner, no empty card —
+the page reads as if the feature didn't exist).
+
+### Endpoint contract
+
+```bash
+# Default (30 s cache hit if available)
+curl -H 'Authorization: Bearer <jwt>' \
+  http://127.0.0.1:9999/api/databases/external-pmm
+
+# Force re-query (bypasses the 30 s cache)
+curl -H 'Authorization: Bearer <jwt>' \
+  'http://127.0.0.1:9999/api/databases/external-pmm?refresh=1'
+```
+
+Response shape (always 200; failures are tagged in `error`):
+
+```json
+{
+  "services": [
+    {
+      "serviceId": "<uuid>",
+      "serviceName": "shop-mysql",
+      "engine": "mysql",
+      "nodeId": "<uuid>",
+      "address": "10.0.0.5",
+      "port": 3306
+    }
+  ],
+  "error": null,
+  "fetchedAt": 1716200000000
+}
+```
+
+`error` is one of:
+
+| Reason            | When                                                              |
+| ----------------- | ----------------------------------------------------------------- |
+| `not_configured`  | `monitoring.pmm_url` unset (section collapses on UI side)         |
+| `auth`            | PMM returned 401 / 403 — check the API token in Settings          |
+| `unreachable`     | DNS / connect / TLS / timeout failure                             |
+| `bad_response`    | 200 OK but body doesn't look like a PMM inventory response        |
+
+Failure responses are not cached — the next call re-probes PMM.
+
+### Server-side dedup
+
+Services whose `service_name` matches **any** `db_instances.container_name`
+are filtered out before the response is shaped. DinoPanel's container
+naming convention (`dinopanel-<engine>-<name>`) is also the canonical
+PMM `service_name` per the v0.4 decisions doc, so this is a direct
+string match.
+
+### Engine normalization
+
+PMM 2.x doesn't have a first-class Redis service type — operators
+typically register `redis_exporter` as an `external` service. The
+client maps `external` services with names matching `/redis/i` to
+engine `redis`, everything else under `external` to `unknown`. Other
+buckets pass through (`mysql` → `mysql`, etc.). The `unknown` engine
+renders without an engine badge but is still listed.
+
+### Why no per-row metric cards
+
+The proposal originally suggested four metric cards per external
+row (mirroring the drawer's QPS / connections / uptime / replication
+lag layout). The Phase 3 implementation drops them — see the change
+folder's `decisions.md` D7. Briefly:
+
+- Per-row metrics = 4 PromQL queries × N rows per refresh.
+- Empty all-`—` cards visually collide with v0.4.2's
+  "not registered" / "exporter unhealthy" hints — operators would
+  ask "is this exporter broken?" when the answer is just "we didn't
+  fetch metrics here".
+- Option B's design framing is "DinoPanel surfaces what PMM knows,
+  PMM owns the live data". The Open-in-PMM deep link
+  (`{pmm_url}/graph/inventory/services/<serviceId>`) drops the
+  operator onto PMM's real metrics page in one click.
+
+If operators ask for inline metrics later, a per-`serviceId` metrics
+endpoint can be added (~1 day, gated on real feedback).
 
 ## Lifecycle cheat-sheet
 

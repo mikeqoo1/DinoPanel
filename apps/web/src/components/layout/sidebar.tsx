@@ -42,7 +42,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div className="flex flex-col leading-tight">
             <span className="font-semibold">DinoPanel</span>
-            <span className="text-[10px] text-muted-foreground">v0.4.2</span>
+            <span className="text-[10px] text-muted-foreground">v0.4.3</span>
           </div>
         )}
       </div>

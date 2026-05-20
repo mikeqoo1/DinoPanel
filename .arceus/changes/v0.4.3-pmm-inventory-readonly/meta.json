@@ -1,9 +1,12 @@
 {
-  "id": "v0.5-pmm-inventory-readonly",
+  "id": "v0.4.3-pmm-inventory-readonly",
   "title": "Read-only PMM inventory section in /databases (B-scope of v0.X-multihost-pmm-inventory)",
-  "status": "active",
+  "status": "completed",
+  "completedAt": "2026-05-20",
   "createdAt": "2026-05-20",
-  "targetVersion": "v0.5",
+  "targetVersion": "v0.4.3",
+  "renamedFrom": "v0.5-pmm-inventory-readonly",
+  "renameReason": "Re-numbered from v0.5 → v0.4.3 because PMM inventory is semantically a v0.4 databases extension, not a v0.5 release. The v0.5 label was already taken by the firewall/scheduler/logs scope (already shipped). v0.4.3 reads cleanly in the README roadmap (v0.4 → v0.4.1 → v0.4.2 → v0.4.3) and the package version goes 0.4.2 → 0.4.3 naturally.",
   "supersedes": "v0.X-multihost-pmm-inventory",
   "dependsOn": ["v0.4.2-pmm-cards-conditional"],
   "directionDecision": "Option B (limited integration). DinoPanel surfaces externally-PMM-monitored DBs as a read-only section under /databases. Does NOT commit to multi-host DinoPanel direction. Does NOT merge into one unified table — managed and monitored stay visually separated.",
@@ -34,9 +37,11 @@
     },
     {
       "id": "phase-4",
-      "name": "Test dedup-by-service-name + partial-failure paths",
+      "name": "Integration tests + v0.4.3 release cut + docs update",
       "estimateDays": 0.5,
-      "status": "pending"
+      "status": "completed",
+      "completedAt": "2026-05-20",
+      "tests": "3 new (276 total) — unreachable + bad_response + failure-not-cached"
     }
   ],
   "totalEstimateDays": 3,

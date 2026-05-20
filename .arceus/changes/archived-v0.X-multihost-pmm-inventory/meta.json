@@ -3,7 +3,7 @@
   "title": "Multi-host PMM inventory unified in /databases list (superseded)",
   "status": "archived",
   "archivedAt": "2026-05-20",
-  "supersededBy": "v0.5-pmm-inventory-readonly",
+  "supersededBy": "v0.4.3-pmm-inventory-readonly",
   "supersededReason": "Operator chose Option B (limited read-only integration) over A (full union). New change folder v0.5-pmm-inventory-readonly carries forward the B-scope; this draft preserved as historical record.",
   "createdAt": "2026-05-20",
   "originDiscussion": "v0.4 Rocky 234 smoke S3 follow-up",
