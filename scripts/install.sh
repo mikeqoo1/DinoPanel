@@ -275,11 +275,16 @@ db.close();
 console.log('migrations applied');
 " )
 
-info "Seeding admin user"
-( cd "$INSTALL_DIR/server" \
-  && set -a && . "$INSTALL_DIR/.env" && set +a \
-  && ADMIN_USERNAME="$ADMIN_USERNAME" ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-     node -e "
+# Seed admin only on fresh installs. On upgrade the admin already
+# exists (seed step would skip anyway, but `set -u` blows up earlier
+# on the unbound ADMIN_USERNAME/PASSWORD env vars we deliberately
+# never collected in upgrade mode).
+if [ "$UPGRADE" = "0" ]; then
+  info "Seeding admin user"
+  ( cd "$INSTALL_DIR/server" \
+    && set -a && . "$INSTALL_DIR/.env" && set +a \
+    && ADMIN_USERNAME="$ADMIN_USERNAME" ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+       node -e "
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const { mkdirSync } = require('fs');
@@ -296,6 +301,9 @@ db.prepare('INSERT INTO users (username, password_hash, created_at, updated_at) 
 db.close();
 console.log('admin user created');
 " )
+else
+  info "Skipping admin seed (upgrade mode — admin preserved)"
+fi
 
 # ── DinoPanel filesystem tree under /opt/dinopanel ──────────────────────────
 # Both websites (v0.3) and databases (v0.4) share `/opt/dinopanel/` as their
