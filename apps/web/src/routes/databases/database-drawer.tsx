@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { extractErrorMessage } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   useDbMetrics,
   useDeleteDatabase,
@@ -94,10 +95,12 @@ function DrawerBody({
   const [dropData, setDropData] = useState(false);
 
   const copyText = async (value: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
+    // copyToClipboard handles the navigator.clipboard / execCommand
+    // fallback chain for non-secure contexts (HTTP + non-localhost).
+    const ok = await copyToClipboard(value);
+    if (ok) {
       toast.success(t('databases.drawer.copied', { label }));
-    } catch {
+    } else {
       toast.error(t('databases.drawer.copy_failed'));
     }
   };

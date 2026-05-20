@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { extractErrorMessage } from '@/lib/api';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   useAcmeRenew,
   useDeleteWebsite,
@@ -152,14 +153,14 @@ function DrawerBody({
               variant="ghost"
               aria-label="Copy path"
               onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(externalPath);
+                const ok = await copyToClipboard(externalPath);
+                if (ok) {
                   toast.success(
                     t('databases.drawer.copied', {
                       label: t('websites.external_path_label'),
                     }),
                   );
-                } catch {
+                } else {
                   toast.error(t('databases.drawer.copy_failed'));
                 }
               }}
