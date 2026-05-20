@@ -338,7 +338,9 @@ systemctl restart "$SERVICE_NAME"
 sleep 2
 if systemctl is-active --quiet "$SERVICE_NAME"; then
   ok "DinoPanel is running on http://$HOST:$PORT/"
-  ok "Admin user: $ADMIN_USERNAME"
+  # On upgrade we never collected ADMIN_USERNAME — fall back to a
+  # placeholder so `set -u` doesn't blow up at the very last line.
+  ok "Admin user: ${ADMIN_USERNAME:-(preserved from prior install)}"
   echo
   echo "  Logs:   journalctl -u $SERVICE_NAME -f"
   echo "  Stop:   sudo systemctl stop $SERVICE_NAME"
