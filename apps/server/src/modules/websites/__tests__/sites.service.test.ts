@@ -84,12 +84,27 @@ function makeService(
   } as any;
   const config = {
     get: () => ({
-      env: { PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock' },
+      env: {
+        PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock',
+        HOST_NGINX_CONFD_DIR: '/etc/nginx/conf.d',
+        WEBSITES_ROOT: '/opt/dinopanel',
+        WEBSITES_NGINX_INCLUDE_PATH: '/etc/nginx/conf.d/00-dinopanel.conf',
+      },
     }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
+  const phpFpm = {
+    getUpstream: () => 'unix:/run/php-fpm/test.sock',
+    ensureRunning: () => Promise.resolve(),
+    scheduleIdleStop: () => Promise.resolve(),
+    isExternalMode: () => true,
+    getStatus: () => Promise.resolve({ mode: 'external', upstream: 'unix:/run/php-fpm/test.sock', containerRunning: null, containerName: null }),
+    restart: () => Promise.resolve(),
+    stopManagedContainer: () => Promise.resolve(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
   return {
-    service: new SitesService(db, config, wrapped, logger),
+    service: new SitesService(db, config, wrapped, phpFpm, logger),
     reloadCount,
   };
 }

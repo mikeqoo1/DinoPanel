@@ -33,12 +33,19 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
-  // PHP-FPM Unix socket path. v0.3 expects an operator-provisioned
-  // container exposing this socket via a shared volume mount; see
-  // docs/websites.md. Override if the operator chose a different path.
-  PHP_FPM_SOCKET_PATH: z
-    .string()
-    .default('/run/php-fpm/dinopanel-php-8.3.sock'),
+  // PHP-FPM upstream — Unix socket path OR `tcp://host:port`.
+  // v0.3 expected an operator-provisioned container exposing a Unix
+  // socket. v0.4 PhpFpmService auto-provisions a `php:8.3-fpm`
+  // container listening on TCP 127.0.0.1:9000 when this env is empty
+  // (default behaviour); operators who want manual control still
+  // set this to their own socket path or `tcp://host:port`.
+  PHP_FPM_SOCKET_PATH: z.string().default(''),
+
+  // v0.4: host nginx conf.d directory that may contain operator-managed
+  // (external) conf files. SitesService.reconcile walks this in
+  // addition to DinoPanel's own tree; default matches Rocky / Ubuntu
+  // nginx packaging.
+  HOST_NGINX_CONFD_DIR: z.string().default('/etc/nginx/conf.d'),
   // ACME directory URL. Default = Let's Encrypt staging (so a botched
   // smoke pass doesn't burn the 5/week prod rate limit). Operators flip
   // to LE prod after staging works.

@@ -49,7 +49,11 @@ function makeFakeNginx(paths: WebsitesPaths): NginxService {
   } as any as NginxService;
 }
 
-function makeService(db: Db, paths: WebsitesPaths): SitesService {
+function makeService(
+  db: Db,
+  paths: WebsitesPaths,
+  overrides: { hostNginxConfdDir?: string } = {},
+): SitesService {
   const logger = {
     debug: () => undefined,
     warn: () => undefined,
@@ -60,11 +64,23 @@ function makeService(db: Db, paths: WebsitesPaths): SitesService {
   } as any;
   const config = {
     get: () => ({
-      env: { PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock' },
+      env: {
+        PHP_FPM_SOCKET_PATH: '/run/php-fpm/test.sock',
+        HOST_NGINX_CONFD_DIR: overrides.hostNginxConfdDir ?? '/etc/nginx/conf.d',
+        WEBSITES_ROOT: paths.root,
+        WEBSITES_NGINX_INCLUDE_PATH: '/etc/nginx/conf.d/00-dinopanel.conf',
+      },
     }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
-  return new SitesService(db, config, makeFakeNginx(paths), logger);
+  const phpFpm = {
+    getUpstream: () => 'unix:/run/php-fpm/test.sock',
+    ensureRunning: () => Promise.resolve(),
+    scheduleIdleStop: () => Promise.resolve(),
+    isExternalMode: () => true,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+  return new SitesService(db, config, makeFakeNginx(paths), phpFpm, logger);
 }
 
 const sampleCreate: SiteCreate = {
@@ -91,22 +107,39 @@ describe('SitesService.reconcile', () => {
   });
 
   it('empty conf dir + empty DB returns all zeros', async () => {
-    const service = makeService(db, paths);
+    const service = makeService(db, paths, {
+      hostNginxConfdDir: join(tmp, 'no-such-dir'),
+    });
     const result = await service.reconcile();
-    expect(result).toEqual({ scanned: 0, imported: 0, orphaned: 0 });
+    expect(result).toMatchObject({
+      scanned: 0,
+      imported: 0,
+      orphaned: 0,
+      external: 0,
+      serverNameConflicts: [],
+    });
   });
 
   it('files match DB rows: no orphans, no imports', async () => {
-    const service = makeService(db, paths);
+    const service = makeService(db, paths, {
+      hostNginxConfdDir: join(tmp, 'no-such-dir'),
+    });
     await service.create(sampleCreate);
     const result = await service.reconcile();
-    expect(result).toEqual({ scanned: 1, imported: 0, orphaned: 0 });
+    expect(result).toMatchObject({
+      scanned: 1,
+      imported: 0,
+      orphaned: 0,
+      external: 0,
+    });
     const row = (await db.select().from(schema.sites))[0]!;
     expect(row.orphaned).toBe(false);
   });
 
   it('DB row whose file is missing gets marked orphaned', async () => {
-    const service = makeService(db, paths);
+    const service = makeService(db, paths, {
+      hostNginxConfdDir: join(tmp, 'no-such-dir'),
+    });
     const created = await service.create(sampleCreate);
 
     // Operator yanks the conf file out from under DinoPanel
@@ -121,8 +154,10 @@ describe('SitesService.reconcile', () => {
     expect(rows[0]!.id).toBe(created.id);
   });
 
-  it('conf file with no DB row is counted as external, NOT imported', async () => {
-    const service = makeService(db, paths);
+  it('legacy: conf file inside managed dir with no DB row is logged but NOT imported', async () => {
+    const service = makeService(db, paths, {
+      hostNginxConfdDir: join(tmp, 'no-such-dir'),
+    });
 
     // Operator dropped a hand-rolled conf with no DinoPanel involvement
     await fs.writeFile(
@@ -132,7 +167,7 @@ describe('SitesService.reconcile', () => {
 
     const result = await service.reconcile();
     expect(result.scanned).toBe(1);
-    expect(result.imported).toBe(0); // Phase 2 deliberately doesn't import
+    expect(result.imported).toBe(0); // managed-tree extras are not imported (only /etc/nginx/conf.d external)
     expect(result.orphaned).toBe(0);
 
     const rows = await db.select().from(schema.sites);

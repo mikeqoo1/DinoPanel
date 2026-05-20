@@ -86,7 +86,13 @@ export type SiteCertInfo = z.infer<typeof siteCertInfoSchema>;
 export const siteResponseSchema = z.object({
   id: z.number().int(),
   name: siteNameSchema,
-  primaryDomain: domainSchema,
+  // External rows (v0.4: managedByDinopanel=false) can carry whatever
+  // server_name the operator wrote — including bare hostnames like
+  // `_` or `localhost` that wouldn't pass domainSchema. Loosened to
+  // `z.string()` so reconcile can surface those rows alongside
+  // managed ones in the unified /websites list. Validation on create
+  // still goes through `domainSchema` via siteCreateSchema.
+  primaryDomain: z.string(),
   type: siteTypeSchema,
   payload: sitePayloadSchema,
   managedByDinopanel: z.boolean(),
@@ -103,5 +109,12 @@ export const reconcileResponseSchema = z.object({
   scanned: z.number().int(),
   imported: z.number().int(),
   orphaned: z.number().int(),
+  // v0.4: external confs (managed_by_dinopanel=false) imported from
+  // the host's nginx tree. `imported` counts NEW external rows added
+  // this round; `external` is the running total of external rows
+  // post-reconcile. `serverNameConflicts` flags `server_name` values
+  // that show up in more than one file — operator must pick a winner.
+  external: z.number().int().default(0),
+  serverNameConflicts: z.array(z.string()).default([]),
 });
 export type ReconcileResponse = z.infer<typeof reconcileResponseSchema>;

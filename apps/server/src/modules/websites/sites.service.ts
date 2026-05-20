@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, resolve as resolvePath, sep } from 'node:path';
 import {
   BadRequestException,
   ConflictException,
@@ -24,6 +24,7 @@ import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { sites, type Site } from '../../database/schema';
 import { renderSiteConf, type RenderContext } from './conf-renderer';
 import { NginxCommandError, NginxService } from './nginx.service';
+import { PhpFpmService } from './php-fpm.service';
 
 /**
  * Owns the file-truth side of the websites module.
@@ -36,18 +37,23 @@ import { NginxCommandError, NginxService } from './nginx.service';
  */
 @Injectable()
 export class SitesService {
-  private readonly phpFpmSocketPath: string;
+  private readonly hostNginxConfdDir: string;
+  private readonly websitesRoot: string;
+  private readonly websitesIncludePath: string;
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     @Inject(ConfigService)
     config: ConfigService<{ app: AppConfig }>,
     private readonly nginx: NginxService,
+    private readonly phpFpm: PhpFpmService,
     private readonly logger: Logger,
   ) {
     const app = config.get<AppConfig>('app', { infer: true });
     if (!app) throw new Error('App config missing');
-    this.phpFpmSocketPath = app.env.PHP_FPM_SOCKET_PATH;
+    this.hostNginxConfdDir = app.env.HOST_NGINX_CONFD_DIR;
+    this.websitesRoot = app.env.WEBSITES_ROOT;
+    this.websitesIncludePath = app.env.WEBSITES_NGINX_INCLUDE_PATH;
   }
 
   // -------------------------------------------------------------------
@@ -87,6 +93,19 @@ export class SitesService {
 
   async create(input: SiteCreate): Promise<SiteResponse> {
     await this.ensureNameAvailable(input.name);
+
+    // v0.4: spin up the auto-provisioned php-fpm container BEFORE we
+    // write the conf — nginx -t doesn't need fpm to validate the
+    // conf, but having the upstream healthy on first request avoids
+    // a 502 the first time someone hits the new site. No-op in
+    // external mode.
+    if (input.payload.type === 'php') {
+      try {
+        await this.phpFpm.ensureRunning();
+      } catch (err) {
+        this.logger.warn({ err }, 'sites.create.php_fpm_ensure_failed');
+      }
+    }
 
     const content = this.render({
       name: input.name,
@@ -153,6 +172,7 @@ export class SitesService {
 
   async remove(id: number): Promise<void> {
     const row = await this.findRow(id);
+    const wasPhp = row.type === 'php';
     const path = this.nginx.siteConfPath(row.name);
     try {
       await fs.unlink(path);
@@ -168,6 +188,16 @@ export class SitesService {
       this.logger.warn({ err, id }, 'sites.remove.reload_failed');
     }
     await this.db.delete(sites).where(eq(sites.id, id));
+    // v0.4: if that was the last php site, schedule idle stop of the
+    // auto-provisioned fpm container (no-op in external mode + when
+    // other php sites remain).
+    if (wasPhp) {
+      try {
+        await this.phpFpm.scheduleIdleStop();
+      } catch (err) {
+        this.logger.warn({ err, id }, 'sites.remove.php_fpm_schedule_failed');
+      }
+    }
   }
 
   // -------------------------------------------------------------------
@@ -201,8 +231,12 @@ export class SitesService {
       }
     }
 
-    const rows = await this.db.select().from(sites);
-    for (const row of rows) {
+    const existingRows = await this.db.select().from(sites);
+    for (const row of existingRows) {
+      // Don't toggle orphaned on external rows — their on-disk file is
+      // outside `onDisk` by definition (we tracked only the managed
+      // conf dir). Handle external row freshness below.
+      if (!row.managedByDinopanel) continue;
       const fileMissing = !onDisk.has(row.name);
       if (fileMissing && !row.orphaned) {
         await this.db
@@ -210,8 +244,6 @@ export class SitesService {
           .set({ orphaned: true, updatedAt: Date.now() })
           .where(eq(sites.id, row.id));
       } else if (!fileMissing && row.orphaned) {
-        // File reappeared (e.g. operator restored from backup) — clear
-        // the flag so the UI stops nagging.
         await this.db
           .update(sites)
           .set({ orphaned: false, updatedAt: Date.now() })
@@ -219,20 +251,177 @@ export class SitesService {
       }
     }
 
-    const externalCount = [...onDisk].filter(
-      (name) => !rows.some((r) => r.name === name),
-    ).length;
-    if (externalCount > 0) {
+    // v0.4 carry-over: scan the host nginx conf.d for external confs.
+    const externalScan = await this.scanExternalConfs(existingRows);
+
+    const orphaned = existingRows
+      .filter((r) => r.managedByDinopanel)
+      .filter((r) => !onDisk.has(r.name)).length;
+
+    return {
+      scanned: onDisk.size + externalScan.scannedFiles,
+      imported: externalScan.imported,
+      orphaned,
+      external: externalScan.totalExternal,
+      serverNameConflicts: externalScan.conflicts,
+    };
+  }
+
+  // -------------------------------------------------------------------
+  // External-conf reconcile (v0.4 carry-over from v0.3)
+  // -------------------------------------------------------------------
+
+  private async scanExternalConfs(
+    existingRows: Site[],
+  ): Promise<{
+    scannedFiles: number;
+    imported: number;
+    totalExternal: number;
+    conflicts: string[];
+  }> {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(this.hostNginxConfdDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return { scannedFiles: 0, imported: 0, totalExternal: 0, conflicts: [] };
+      }
+      throw err;
+    }
+
+    const websitesRootResolved = resolvePath(this.websitesRoot);
+    const includePathResolved = resolvePath(this.websitesIncludePath);
+    // Map server_name → list of conf paths (for conflict detection).
+    const serverNameToPaths = new Map<string, string[]>();
+    const seenExternalPaths = new Set<string>();
+    const candidates: Array<{
+      path: string;
+      basename: string;
+      serverName: string;
+    }> = [];
+    let scannedFiles = 0;
+
+    for (const entry of entries) {
+      if (!entry.endsWith('.conf')) continue;
+      const absolute = join(this.hostNginxConfdDir, entry);
+
+      // Skip the v0.3 glue file (not a server block).
+      const resolved = await safeRealpath(absolute);
+      if (resolved === includePathResolved) continue;
+
+      // Skip files whose realpath sits under DinoPanel's managed tree.
+      if (isUnderTree(resolved, websitesRootResolved)) continue;
+
+      scannedFiles += 1;
+      seenExternalPaths.add(absolute);
+      const basename = entry.slice(0, -'.conf'.length);
+
+      let content: string;
+      try {
+        content = await fs.readFile(absolute, 'utf8');
+      } catch (err) {
+        this.logger.warn(
+          { err, path: absolute },
+          'sites.reconcile.external_read_failed',
+        );
+        continue;
+      }
+      const serverName = extractServerName(content) ?? '';
+      candidates.push({ path: absolute, basename, serverName });
+      if (serverName) {
+        const list = serverNameToPaths.get(serverName) ?? [];
+        list.push(absolute);
+        serverNameToPaths.set(serverName, list);
+      }
+    }
+
+    const conflicts: string[] = [];
+    for (const [serverName, paths] of serverNameToPaths) {
+      if (paths.length > 1) conflicts.push(serverName);
+    }
+    if (conflicts.length > 0) {
       this.logger.warn(
-        { count: externalCount },
-        'sites.reconcile.external_confs_seen',
+        { conflicts },
+        'sites.reconcile.external_server_name_conflicts',
       );
     }
 
+    let imported = 0;
+    const now = Date.now();
+    const existingByName = new Map(existingRows.map((r) => [r.name, r]));
+    const existingByPath = new Map(
+      existingRows
+        .filter((r) => r.externalConfPath)
+        .map((r) => [r.externalConfPath as string, r]),
+    );
+
+    for (const cand of candidates) {
+      // Already imported under this exact path → skip (just refresh
+      // server_name if it changed).
+      const byPath = existingByPath.get(cand.path);
+      if (byPath) {
+        if (
+          cand.serverName &&
+          cand.serverName !== byPath.primaryDomain
+        ) {
+          await this.db
+            .update(sites)
+            .set({
+              primaryDomain: cand.serverName,
+              updatedAt: now,
+            })
+            .where(eq(sites.id, byPath.id));
+        }
+        continue;
+      }
+
+      // Name collision with an existing row → can't import. Surface
+      // via log, don't auto-resolve.
+      let rowName = cand.basename;
+      if (existingByName.has(rowName)) {
+        this.logger.warn(
+          { path: cand.path, name: rowName },
+          'sites.reconcile.external_name_collision',
+        );
+        // Try a `-ext` suffix; if that's also taken bail.
+        const alt = `${rowName}-ext`;
+        if (existingByName.has(alt)) continue;
+        rowName = alt;
+      }
+
+      const primaryDomain = cand.serverName || 'external.local';
+      try {
+        await this.db.insert(sites).values({
+          name: rowName,
+          primaryDomain,
+          // Phase 4 stores a placeholder type for external rows; the
+          // UI treats them as read-only and shows `externalConfPath`
+          // alongside.
+          type: 'static',
+          payload: { type: 'static', indexFiles: [] },
+          managedByDinopanel: false,
+          orphaned: false,
+          externalConfPath: cand.path,
+          certPaths: null,
+          certExpiresAt: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+        imported += 1;
+      } catch (err) {
+        this.logger.warn(
+          { err, path: cand.path },
+          'sites.reconcile.external_insert_failed',
+        );
+      }
+    }
+
+    const totalExternal = existingRows.filter((r) => !r.managedByDinopanel).length + imported;
     return {
-      scanned: onDisk.size,
-      imported: 0,
-      orphaned: rows.filter((r) => !onDisk.has(r.name)).length,
+      scannedFiles,
+      imported,
+      totalExternal,
+      conflicts,
     };
   }
 
@@ -306,7 +495,9 @@ export class SitesService {
       siteRoot: this.nginx.siteRoot(args.name),
       acmeRoot: this.nginx.acmeRoot(),
       cert: args.cert,
-      phpFpmSocketPath: this.phpFpmSocketPath,
+      // v0.4 carry-over: PhpFpmService returns the resolved fastcgi_pass
+      // value (external operator's socket OR auto-provisioned TCP).
+      phpFpmUpstream: this.phpFpm.getUpstream(),
     };
     return renderSiteConf(ctx);
   }
@@ -400,3 +591,54 @@ export class SitesService {
     await fs.mkdir(`${root}/public`, { recursive: true, mode: 0o755 });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Helpers for external-conf reconcile (v0.4 carry-over)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve symlinks. Falls back to the original path if realpath fails
+ * (e.g. dangling symlink) so the caller can still decide whether to
+ * skip the entry based on path-text matching.
+ */
+async function safeRealpath(path: string): Promise<string> {
+  try {
+    return await fs.realpath(path);
+  } catch {
+    return resolvePath(path);
+  }
+}
+
+function isUnderTree(child: string, tree: string): boolean {
+  const normalizedTree = tree.endsWith(sep) ? tree : tree + sep;
+  return child === tree || child.startsWith(normalizedTree);
+}
+
+/**
+ * Extract the first `server_name <domain>;` directive from an nginx
+ * conf file. Strips `#` comments per line + matches the directive
+ * anywhere (not just at line start) so inline forms like
+ * `server { listen 80; server_name foo; }` parse. Multi-token names
+ * → returns the first non-wildcard, non-underscore token.
+ *
+ * Deliberately a lightweight regex parse — full nginx conf parsing
+ * lives in `nginx -t` (which DinoPanel doesn't run for external
+ * files in v0.4; reconcile is read-only).
+ */
+function extractServerName(conf: string): string | null {
+  const cleaned = conf
+    .split('\n')
+    .map((l) => l.replace(/#.*$/, ''))
+    .join('\n');
+  const match = /\bserver_name\s+([^;]+);/.exec(cleaned);
+  if (!match) return null;
+  const tokens = match[1]!
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (tokens.length === 0) return null;
+  const concrete = tokens.find((t) => t !== '_' && !t.startsWith('*.'));
+  return concrete ?? tokens[0]!;
+}
+
+export { extractServerName, isUnderTree };

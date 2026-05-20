@@ -19,6 +19,7 @@ import {
   type SiteResponse,
 } from '@dinopanel/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { PhpFpmService, type PhpFpmStatus } from './php-fpm.service';
 import { SitesService } from './sites.service';
 import { WebsitesService } from './websites.service';
 
@@ -31,6 +32,7 @@ export class WebsitesController {
   constructor(
     private readonly websites: WebsitesService,
     private readonly sites: SitesService,
+    private readonly phpFpm: PhpFpmService,
   ) {}
 
   @Get()
@@ -74,5 +76,22 @@ export class WebsitesController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ path: string; content: string }> {
     return this.sites.getConf(id);
+  }
+
+  /**
+   * v0.4 carry-over: status of the auto-provisioned PHP-FPM container.
+   * Returns `{ mode: 'external'|'managed', upstream, containerRunning,
+   * containerName }`. Settings UI uses this to render the badge.
+   */
+  @Get('php-fpm/status')
+  phpFpmStatus(): Promise<PhpFpmStatus> {
+    return this.phpFpm.getStatus();
+  }
+
+  /** Operator-triggered restart of the managed PHP-FPM container. */
+  @Post('php-fpm/restart')
+  @HttpCode(204)
+  async phpFpmRestart(): Promise<void> {
+    await this.phpFpm.restart();
   }
 }

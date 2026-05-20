@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -17,7 +18,7 @@ import type {
 } from '@dinopanel/shared';
 import type { AppConfig } from '../../config/configuration';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
-import { acmeOrders, sites } from '../../database/schema';
+import { acmeOrders, settings, sites } from '../../database/schema';
 import { NginxService } from '../websites/nginx.service';
 import { SitesService } from '../websites/sites.service';
 import { AcmeAccountService } from './acme-account.service';
@@ -51,7 +52,10 @@ interface CertWriteResult {
 @Injectable()
 export class AcmeOrchestratorService {
   private readonly directoryUrl: string;
-  private readonly email: string;
+  // v0.4: ACME_EMAIL moved from constructor-resolved to per-call lookup.
+  // Env wins; settings['acme.email'] is the fallback (decisions Q4
+  // carry-over from v0.3). The old `email` field became state that
+  // wouldn't reflect operator UI changes without a restart.
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
@@ -68,7 +72,33 @@ export class AcmeOrchestratorService {
     const app = config.get<AppConfig>('app', { infer: true });
     if (!app) throw new Error('App config missing');
     this.directoryUrl = app.env.ACME_DIRECTORY_URL;
-    this.email = app.env.ACME_EMAIL;
+    this.envEmail = app.env.ACME_EMAIL;
+  }
+
+  private readonly envEmail: string;
+
+  /**
+   * Resolve the email address for ACME registration. Env wins;
+   * settings['acme.email'] is the fallback (v0.4 carry-over). Throws
+   * `ACME_EMAIL_MISSING` if neither is set so the caller can surface
+   * a clear "configure your email" prompt instead of an opaque ACME
+   * server rejection.
+   */
+  async getEmail(): Promise<string> {
+    const env = this.envEmail.trim();
+    if (env) return env;
+    const row = await this.db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, 'acme.email'))
+      .limit(1);
+    const settingsEmail = row[0]?.value?.trim();
+    if (settingsEmail) return settingsEmail;
+    throw new InternalServerErrorException({
+      code: 'ACME_EMAIL_MISSING',
+      message:
+        'ACME email not configured — set ACME_EMAIL env or write settings.acme.email before issuing certificates',
+    });
   }
 
   async status(siteId: number): Promise<AcmeStatusResponse> {
@@ -165,9 +195,12 @@ export class AcmeOrchestratorService {
     if (orderId === undefined) throw new Error('acme_orders insert failed');
 
     try {
+      // v0.4: resolve email per-call (env wins, settings fallback,
+      // throws ACME_EMAIL_MISSING on neither).
+      const email = await this.getEmail();
       const account = await this.accounts.ensureAccount(
         this.directoryUrl,
-        this.email,
+        email,
       );
       const client = this.clients.createClient(
         this.directoryUrl,
@@ -190,6 +223,7 @@ export class AcmeOrchestratorService {
         csrBuf,
         args.challenge,
         dns01StateByDomain,
+        email,
       );
 
       const written = await this.writeCertFiles(site.id, keyBuf, certPem);
@@ -239,11 +273,12 @@ export class AcmeOrchestratorService {
     csrBuf: Buffer,
     challenge: AcmeChallenge,
     dns01State: Map<string, { recordId: string; zoneId: string }>,
+    email: string,
   ): Promise<string> {
     return client.auto({
       csr: csrBuf,
       challengePriority: [challenge],
-      email: this.email,
+      email,
       termsOfServiceAgreed: true,
       challengeCreateFn: async (authz, ch, keyAuthorization) => {
         const dom = authz.identifier?.value ?? '';

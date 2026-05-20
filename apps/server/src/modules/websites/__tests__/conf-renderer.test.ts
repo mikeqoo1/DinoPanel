@@ -21,7 +21,7 @@ const baseCtx = (overrides: Partial<RenderContext> = {}): RenderContext => ({
     indexFiles: ['index.html', 'index.htm'],
   } satisfies StaticSitePayload,
   cert: null,
-  phpFpmSocketPath: '/run/php-fpm/dinopanel-php-8.3.sock',
+  phpFpmUpstream: 'unix:/run/php-fpm/dinopanel-php-8.3.sock',
   ...overrides,
 });
 
@@ -116,7 +116,7 @@ describe('renderSiteConf — PHP', () => {
           name: 'wp',
           primaryDomain: 'wp.example.com',
           payload: phpPayload,
-          phpFpmSocketPath: undefined,
+          phpFpmUpstream: undefined,
         }),
       ),
     ).toThrow(MissingPhpFpmConfigError);

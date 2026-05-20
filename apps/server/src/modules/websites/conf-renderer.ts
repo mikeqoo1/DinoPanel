@@ -21,8 +21,13 @@ export interface RenderContext {
   acmeRoot: string;
   /** Issued cert paths, when SSL is provisioned. */
   cert?: SiteCertInfo | null;
-  /** PHP-FPM Unix socket path; required when rendering PHP sites. */
-  phpFpmSocketPath?: string;
+  /**
+   * Value to write after `fastcgi_pass` — required for PHP sites.
+   * Either `unix:/path/to/socket` (v0.3 manual mode) or `host:port`
+   * (v0.4 PhpFpmService auto-provision, default `127.0.0.1:9000`).
+   * Resolved by PhpFpmService.getUpstream() at render time.
+   */
+  phpFpmUpstream?: string;
 }
 
 export class NotImplementedYetError extends Error {
@@ -35,7 +40,7 @@ export class NotImplementedYetError extends Error {
 export class MissingPhpFpmConfigError extends Error {
   constructor() {
     super(
-      'PHP site requires phpFpmSocketPath in RenderContext (set PHP_FPM_SOCKET_PATH env)',
+      'PHP site requires phpFpmUpstream in RenderContext (auto-provisioned by PhpFpmService or set via PHP_FPM_SOCKET_PATH env)',
     );
     this.name = 'MissingPhpFpmConfigError';
   }
@@ -116,12 +121,12 @@ function renderStatic(ctx: RenderContext, payload: StaticSitePayload): string {
 }
 
 function renderPhp(ctx: RenderContext, payload: PhpPayload): string {
-  if (!ctx.phpFpmSocketPath) throw new MissingPhpFpmConfigError();
+  if (!ctx.phpFpmUpstream) throw new MissingPhpFpmConfigError();
   const docRoot = join(ctx.siteRoot, 'public');
   const indexDirective = `    index ${payload.documentIndex.join(' ')};`;
   return [
     renderHead(ctx),
-    `# PHP ${payload.phpVersion} via FPM at ${ctx.phpFpmSocketPath}`,
+    `# PHP ${payload.phpVersion} via FPM at ${ctx.phpFpmUpstream}`,
     'server {',
     renderListen(ctx),
     `    server_name ${ctx.primaryDomain};`,
@@ -133,7 +138,7 @@ function renderPhp(ctx: RenderContext, payload: PhpPayload): string {
     '        try_files $uri $uri/ /index.php?$query_string;',
     '    }',
     '    location ~ \\.php$ {',
-    `        fastcgi_pass unix:${ctx.phpFpmSocketPath};`,
+    `        fastcgi_pass ${ctx.phpFpmUpstream};`,
     '        fastcgi_index index.php;',
     '        include fastcgi_params;',
     '        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;',
