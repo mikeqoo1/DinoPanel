@@ -1,0 +1,28 @@
+{
+  "id": "v0.5-databases-backups",
+  "title": "Database backups + restore module (v0.4 carry-over: managed DBs ship without a backup story)",
+  "status": "ready",
+  "createdAt": "2026-05-21",
+  "targetVersion": "v0.5.0",
+  "dependsOn": ["v0.4.3-pmm-inventory-readonly"],
+  "scopeNote": "Closes the most prominent v0.4 gap — operator can create / schedule / restore backups for managed DB instances. Local-only, logical (dump-style), routed through the existing v0.5 scheduler module for cron behaviour.",
+  "estimatedDevDays": "7-10 (1-1.5 weeks)",
+  "phases": [
+    { "id": "phase-1", "name": "Foundation — schema + backups dir + BackupDriver interface", "estimateDays": 1, "status": "pending" },
+    { "id": "phase-2", "name": "Per-engine drivers (mysql / mariadb / postgresql / redis / mongodb) — stdout pipe + gzip", "estimateDays": 2, "status": "pending" },
+    { "id": "phase-3", "name": "BackupsService + REST (create / list / delete / restore) + retention prune", "estimateDays": 1.5, "status": "pending" },
+    { "id": "phase-4", "name": "Scheduler `db_backup` task type + UI hook", "estimateDays": 1, "status": "pending" },
+    { "id": "phase-5", "name": "Frontend /backups route + drawer tab + restore confirmation + i18n", "estimateDays": 1.5, "status": "pending" },
+    { "id": "phase-6", "name": "docs/backups.md + release cut v0.5.0 + Rocky 234 smoke", "estimateDays": 1, "status": "pending" }
+  ],
+  "directionDecisions": {
+    "Q1_backupStyle": "logical (dump-style)",
+    "Q2_storage": "local-only at /opt/dinopanel/backups/<engine>/<instance>/",
+    "Q3_scheduling": "new `db_backup` task type on existing scheduler module",
+    "Q4_restoreScope": "restore-in-place (same container)",
+    "Q5_retention": "keep-last-N (default 7)",
+    "Q6_outputMethod": "docker exec stdout pipe + host gzip"
+  },
+  "supersededDrafts": [],
+  "previousChange": "v0.4.8-version-badge-relocate"
+}
