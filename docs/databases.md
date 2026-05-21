@@ -1,4 +1,4 @@
-# Databases (v0.4 + v0.4.2 / v0.4.3 PMM follow-ups)
+# Databases (v0.4 + v0.4.2 / v0.4.3 / v0.4.4 PMM follow-ups)
 
 The Databases module manages MySQL / MariaDB / PostgreSQL / Redis /
 MongoDB instances running as Docker containers. Sits behind
@@ -338,9 +338,13 @@ fixes that.
 
 **PMM cards always show `—`**: check `monitoring.pmm_url` is set
 (Settings → SSL providers), then check the network reachability
-from the DinoPanel host to PMM (TLS verification on by default;
-flip `monitoring.pmm_tls_skip_verify` or set
-`MONITORING_PMM_TLS_SKIP_VERIFY=true` for self-signed PMM).
+from the DinoPanel host to PMM. Since v0.4.4, TLS verification
+is **off** by default to match the v0.2.1 monitoring probe (PMM
+ships self-signed certs as the norm). Operators with a properly
+issued cert can flip `monitoring.pmm_tls_skip_verify=false` in
+settings or `MONITORING_PMM_TLS_SKIP_VERIFY=false` in env to
+enforce verification.
+
 Service names must match — DinoPanel uses
 `dinopanel-<engine>-<name>` as the `service_name` filter; if you
 registered the instance in PMM under a different name the queries

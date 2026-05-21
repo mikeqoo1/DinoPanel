@@ -99,6 +99,7 @@ maintainer can actually own.
 | v0.4.1  | Smoke patches — install.sh upgrade-mode (×2), PostgreSQL 18 PGDATA layout, dockerode `ensureImage`, clipboard fallback for non-HTTPS contexts | ✅ shipped |
 | v0.4.2  | Drawer PMM cards conditional render — distinguish "not registered" from "exporter unhealthy" via existing `pmmRegistered` flag (no PMM Management API client added) | ✅ shipped |
 | v0.4.3  | Read-only PMM inventory section in `/databases` — surface externally-PMM-monitored DBs as a stacked panel below the managed table, with Open-in-PMM deep links (Option B of multi-host PMM inventory; full union deferred) | ✅ shipped |
+| v0.4.4  | Align PMM clients with v0.2.1 monitoring TLS posture — flip `MONITORING_PMM_TLS_SKIP_VERIFY` default `false` → `true` so self-signed PMM certs no longer fail `/databases` external panel while `/monitoring` health-ping happily works | ✅ shipped |
 | v0.6    | Toolbox (Fail2Ban / Supervisor / Swap / NTP) + MFA + Passkey | planned |
 | v1.0    | Stable release with full i18n | planned |
 
@@ -150,8 +151,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # Copy the tarball to the target host, then on the target:
-tar -xzf dinopanel-0.4.3-prebuild-x64.tar.gz
-cd dinopanel-0.4.3-prebuild-x64
+tar -xzf dinopanel-0.4.4-prebuild-x64.tar.gz
+cd dinopanel-0.4.4-prebuild-x64
 sudo bash install.sh
 ```
 

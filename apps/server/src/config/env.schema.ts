@@ -66,9 +66,15 @@ export const envSchema = z.object({
   // `monitoring.pmm_url` (settings table, not env). Env override path
   // for the API token + TLS skip lives here.
   MONITORING_PMM_API_TOKEN: z.string().default(''),
+  // PMM ships self-signed certs by default; v0.2.1's MonitoringService.probe()
+  // hardcodes rejectUnauthorized:false for /v1/readyz. v0.4.4 aligns the
+  // PromQL + Inventory clients with that posture by flipping the default
+  // here from 'false' (verify) to 'true' (skip). Operators with a properly
+  // issued cert can opt back in via env `MONITORING_PMM_TLS_SKIP_VERIFY=false`
+  // or setting key `monitoring.pmm_tls_skip_verify=false`.
   MONITORING_PMM_TLS_SKIP_VERIFY: z
     .enum(['true', 'false'])
-    .default('false')
+    .default('true')
     .transform((v) => v === 'true'),
 });
 

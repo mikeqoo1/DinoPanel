@@ -1,0 +1,23 @@
+{
+  "id": "v0.4.4-pmm-tls-default",
+  "title": "Align PMM PromQL/Inventory clients with v0.2.1 monitoring probe — skip TLS verify by default",
+  "status": "completed",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "targetVersion": "v0.4.4",
+  "dependsOn": ["v0.4.3-pmm-inventory-readonly"],
+  "originDiscussion": "Rocky 234 deploy of v0.4.3 — /databases external PMM panel showed 'unreachable' while /monitoring showed 'PMM 連線正常' against the same https://192.168.199.234:18443 URL",
+  "scope": {
+    "fix": "Flip default for MONITORING_PMM_TLS_SKIP_VERIFY env var from 'false' → 'true' so PromQL + Inventory clients skip TLS verification by default (matches v0.2.1 monitoring.service probe).",
+    "resolveConfigRewrite": "Switch from OR semantics to settings-then-env cascade so an explicit setting key 'monitoring.pmm_tls_skip_verify=false' still wins over the new env default.",
+    "noUiChange": "Existing setting key + env var remain operator-tunable. Anyone with a real LE/internal-CA cert can flip back to verify-on explicitly."
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass — existing tests still pass (they pass tlsSkipVerify explicitly so default flip doesn't affect them)",
+    "build": "pass"
+  },
+  "rocky234SymptomBeforeFix": "/databases external panel banner: 'PMM 無法連線，請確認 URL 及網路狀態。' (error.reason='unreachable'). /monitoring page: 'PMM 連線正常, latency 10ms'. Drawer 4-card PMM summary similarly broken (same PromQL client TLS posture).",
+  "rocky234ExpectedAfterFix": "External panel populates with PMM-monitored DBs (or shows empty/auth banner if API token missing). Drawer 4-card summary renders real values (or 'not registered' hint if the instance was never pmm-admin add'd)."
+}

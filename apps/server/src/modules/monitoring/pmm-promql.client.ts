@@ -57,14 +57,23 @@ export class PmmPromqlClient {
     const tlsFromSettings = await this.readSetting(PMM_TLS_SKIP_VERIFY_KEY);
     const app = this.config.get<AppConfig>('app', { infer: true });
     if (!app) throw new Error('App config missing');
+    // Cascade rather than OR so flipping the env default (v0.4.4: 'true')
+    // doesn't override an explicit settings='false'. Settings take
+    // precedence when present; otherwise env (which itself defaults to
+    // true — PMM self-signed is the norm).
+    const tlsExplicit =
+      tlsFromSettings === 'true'
+        ? true
+        : tlsFromSettings === 'false'
+          ? false
+          : null;
     return {
       url: url?.trim().replace(/\/$/, '') ?? null,
       apiToken:
         tokenFromSettings?.trim() ||
         app.env.MONITORING_PMM_API_TOKEN.trim() ||
         null,
-      tlsSkipVerify:
-        tlsFromSettings === 'true' || app.env.MONITORING_PMM_TLS_SKIP_VERIFY,
+      tlsSkipVerify: tlsExplicit ?? app.env.MONITORING_PMM_TLS_SKIP_VERIFY,
     };
   }
 
