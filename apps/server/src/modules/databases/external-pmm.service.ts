@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type {
   PmmExternalErrorReason,
   PmmExternalService,
@@ -12,6 +12,7 @@ import {
   type PmmService,
   type PmmServiceEngine,
 } from '../monitoring/pmm-inventory.client';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { PmmPromqlClient } from '../monitoring/pmm-promql.client';
 
 const CACHE_TTL_MS = 30_000;
@@ -39,14 +40,23 @@ interface CacheEntry {
  *    copy per failure mode without a try/catch in the controller.
  */
 @Injectable()
-export class ExternalPmmService {
+export class ExternalPmmService implements OnModuleInit {
   private readonly cache = new Map<string, CacheEntry>();
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     private readonly inventory: PmmInventoryClient,
     private readonly promql: PmmPromqlClient,
+    private readonly monitoring: MonitoringService,
   ) {}
+
+  onModuleInit(): void {
+    // Flush inventory cache when PMM URL / token / TLS posture change.
+    // Cache key includes the URL so URL flips are covered by the
+    // natural key miss, but token/TLS aren't in the key — observer
+    // catches those.
+    this.monitoring.onCredentialsChange(() => this.invalidateAll());
+  }
 
   async list(
     opts: { refresh?: boolean } = {},

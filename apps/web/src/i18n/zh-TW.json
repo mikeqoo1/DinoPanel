@@ -456,7 +456,20 @@
       "section_desc": "整合已存在的 PMM 服務作為資料庫監控入口。留空可清除設定。",
       "url_label": "PMM URL",
       "url_placeholder": "https://pmm.example.tld",
-      "saved": "PMM 設定已儲存"
+      "saved": "PMM 設定已儲存",
+      "token_label": "PMM API token",
+      "token_placeholder": "貼入 Grafana service account token（glsa_...）",
+      "token_set_placeholder": "已設定（輸入新值以替換）",
+      "token_hint": "PMM Inventory API 需 bearer token，可於 PMM Administration → Users and access → Service accounts 建立。Token 值不會回傳完整字串到 UI。",
+      "token_saved": "PMM token 已儲存",
+      "token_cleared": "PMM token 已清除",
+      "token_clear": "清除 token",
+      "tls_label": "TLS 憑證驗證",
+      "tls_default": "預設（環境變數決定，目前 PMM 多為自簽 → 不驗證）",
+      "tls_skip": "強制不驗證（self-signed PMM）",
+      "tls_enforce": "強制驗證（有正式憑證才選）",
+      "tls_hint": "PMM 預設出貨即為自簽憑證；除非你已為 PMM 配置正式 CA 簽發憑證，否則維持「預設」即可。",
+      "tls_saved": "TLS 設定已儲存"
     },
     "ssl": {
       "section_title": "SSL 提供者",

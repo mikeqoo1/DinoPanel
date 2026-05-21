@@ -7,6 +7,6 @@ import { PmmPromqlClient } from './pmm-promql.client';
 @Module({
   controllers: [MonitoringController],
   providers: [MonitoringService, PmmPromqlClient, PmmInventoryClient],
-  exports: [PmmPromqlClient, PmmInventoryClient],
+  exports: [MonitoringService, PmmPromqlClient, PmmInventoryClient],
 })
 export class MonitoringModule {}

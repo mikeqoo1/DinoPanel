@@ -13,7 +13,13 @@ import {
 } from './pmm-promql.client';
 
 const QUERY_TIMEOUT_MS = 5_000;
-const INVENTORY_PATH = '/v1/inventory/Services/List';
+// PMM 3.x inventory API — GET /v1/inventory/services returns the same
+// per-engine bucketed shape that PMM 2.x's POST /v1/inventory/Services/List
+// did. The original v0.4.3 implementation targeted the 2.x path; surfaced
+// as 404 → 'unreachable' on Rocky 234 (PMM 3.5.0). PMM 2.x deployments are
+// in long-tail by now (PMM 3 GA was Q1 2025) — supporting both would need
+// a /v1/server/version probe + branching; keep simple and require 3.x.
+const INVENTORY_PATH = '/v1/inventory/services';
 
 export type PmmServiceEngine =
   | 'mysql'
@@ -77,17 +83,14 @@ export function executeInventoryList(
       : isHttps
         ? 443
         : 80;
-    const body = '{}';
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'Content-Length': String(Buffer.byteLength(body)),
     };
     if (config.apiToken) {
       headers.Authorization = `Bearer ${config.apiToken}`;
     }
     const opts: HttpsRequestOptions & HttpRequestOptions = {
-      method: 'POST',
+      method: 'GET',
       hostname: target.hostname,
       port,
       path: target.pathname,
@@ -120,7 +123,6 @@ export function executeInventoryList(
       req.destroy();
       resolve({ ok: false, reason: 'unreachable' });
     });
-    req.write(body);
     req.end();
   });
 }

@@ -450,7 +450,20 @@
       "section_desc": "Integrate an existing PMM instance as the entry point for database monitoring. Leave empty to clear.",
       "url_label": "PMM URL",
       "url_placeholder": "https://pmm.example.tld",
-      "saved": "PMM settings saved"
+      "saved": "PMM settings saved",
+      "token_label": "PMM API token",
+      "token_placeholder": "Paste Grafana service account token (glsa_...)",
+      "token_set_placeholder": "Stored (enter a new value to replace)",
+      "token_hint": "PMM Inventory API needs a bearer token. Create one at PMM Administration → Users and access → Service accounts. The token value is never echoed back to the UI.",
+      "token_saved": "PMM token saved",
+      "token_cleared": "PMM token cleared",
+      "token_clear": "Clear token",
+      "tls_label": "TLS certificate verification",
+      "tls_default": "Default (env-driven; currently skips verify since PMM ships self-signed)",
+      "tls_skip": "Force skip (self-signed PMM)",
+      "tls_enforce": "Force verify (only if PMM has a proper cert)",
+      "tls_hint": "PMM ships with self-signed certs by default; unless you have configured a CA-issued cert for PMM, keep this on Default.",
+      "tls_saved": "TLS setting saved"
     },
     "audit": {
       "section_title": "Operation log retention",

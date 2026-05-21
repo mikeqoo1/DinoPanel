@@ -1,8 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import type { DbMetricsSummary } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { dbInstances, type DbInstance } from '../../database/schema';
+import { MonitoringService } from '../monitoring/monitoring.service';
 import { PmmPromqlClient, type PromqlResult } from '../monitoring/pmm-promql.client';
 import { DbEngineRegistry } from './db-engine.registry';
 
@@ -29,14 +30,22 @@ interface CacheEntry {
  * `{ refresh: true }`.
  */
 @Injectable()
-export class DbMetricsService {
+export class DbMetricsService implements OnModuleInit {
   private readonly cache = new Map<number, CacheEntry>();
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     private readonly pmm: PmmPromqlClient,
     private readonly registry: DbEngineRegistry,
+    private readonly monitoring: MonitoringService,
   ) {}
+
+  onModuleInit(): void {
+    // Flush per-instance metric cache whenever PMM URL / token / TLS
+    // posture changes — stale entries would otherwise survive a settings
+    // update until the natural 30 s TTL expires.
+    this.monitoring.onCredentialsChange(() => this.invalidateAll());
+  }
 
   async summaryFor(
     instanceId: number,

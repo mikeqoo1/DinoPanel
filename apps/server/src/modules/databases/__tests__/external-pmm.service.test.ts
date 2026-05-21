@@ -8,6 +8,7 @@ import type {
   InventoryResult,
   PmmInventoryClient,
 } from '../../monitoring/pmm-inventory.client';
+import type { MonitoringService } from '../../monitoring/monitoring.service';
 import type { PmmPromqlClient } from '../../monitoring/pmm-promql.client';
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -49,6 +50,15 @@ function makeMockPromql(url: string | null): PmmPromqlClient {
       tlsSkipVerify: false,
     })),
   } as unknown as PmmPromqlClient;
+}
+
+// Minimal stub — ExternalPmmService.onModuleInit registers a listener
+// for cache invalidation; tests don't trigger credential changes so
+// the listener never fires.
+function makeMockMonitoring(): MonitoringService {
+  return {
+    onCredentialsChange: vi.fn(),
+  } as unknown as MonitoringService;
 }
 
 async function insertManaged(
@@ -104,7 +114,7 @@ describe('ExternalPmmService', () => {
       ],
     });
     const promql = makeMockPromql('http://pmm.test');
-    const svc = new ExternalPmmService(db, inventory, promql);
+    const svc = new ExternalPmmService(db, inventory, promql, makeMockMonitoring());
 
     const result = await svc.list();
     expect(result.error).toBeNull();
@@ -133,6 +143,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const result = await svc.list();
     expect(result.error).toBeNull();
@@ -145,6 +156,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const result = await svc.list();
     expect(result.services).toEqual([]);
@@ -156,7 +168,7 @@ describe('ExternalPmmService', () => {
       ok: false,
       reason: 'not_configured',
     });
-    const svc = new ExternalPmmService(db, inventory, makeMockPromql(null));
+    const svc = new ExternalPmmService(db, inventory, makeMockPromql(null), makeMockMonitoring());
     const result = await svc.list();
     expect(result.services).toEqual([]);
     expect(result.error).toEqual({ reason: 'not_configured' });
@@ -168,6 +180,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const result = await svc.list();
     expect(result.services).toEqual([]);
@@ -180,6 +193,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const result = await svc.list();
     expect(result.services).toEqual([]);
@@ -195,6 +209,7 @@ describe('ExternalPmmService', () => {
       db,
       failingInventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const first = await svc.list();
     expect(first.error).toEqual({ reason: 'unreachable' });
@@ -238,6 +253,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
 
     const first = await svc.list();
@@ -267,6 +283,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
 
     await svc.list();
@@ -313,6 +330,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     const result = await svc.list();
     expect(result.services.map((s) => s.engine)).toEqual([
@@ -331,6 +349,7 @@ describe('ExternalPmmService', () => {
       db,
       inventory,
       makeMockPromql('http://pmm.test'),
+      makeMockMonitoring(),
     );
     await svc.list();
     await svc.list(); // cached

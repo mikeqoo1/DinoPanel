@@ -42,6 +42,7 @@ Status values in `meta.json`:
 | `v0.4.2-pmm-cards-conditional`              | completed  | v0.4.2  | Drawer PMM cards conditional rendering — distinguish 'not registered' from 'exporter unhealthy' via existing pmmRegistered flag |
 | `v0.4.3-pmm-inventory-readonly`             | completed  | v0.4.3  | Read-only PMM inventory section in /databases (Option B scope of archived v0.X draft). Renamed from v0.5 — PMM work is v0.4 lineage |
 | `v0.4.4-pmm-tls-default`                    | completed  | v0.4.4  | Align PMM PromQL/Inventory clients with v0.2.1 monitoring probe — default TLS skip-verify ON to match self-signed PMM norm |
+| `v0.4.5-pmm-credentials-ui-and-pmm3`        | completed  | v0.4.5  | Two Rocky 234 bugs: (1) `/settings` had no UI for PMM token / TLS — add it; (2) inventory client was PMM 2.x, real PMM is 3.x — switch to `GET /v1/inventory/services` |
 | `archived-v0.X-multihost-pmm-inventory`     | archived   | —       | Superseded by v0.4.3-pmm-inventory-readonly. Original 3-option draft (A full union / B limited / C decline); operator picked B |
 
 Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5

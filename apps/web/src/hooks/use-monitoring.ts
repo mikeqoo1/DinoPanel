@@ -1,4 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  PmmCredentialsUpdate,
+  PmmCredentialsView,
+} from '@dinopanel/shared';
 import { api } from '@/lib/api';
 
 export interface PmmConfig {
@@ -14,7 +18,35 @@ export interface PmmStatus {
 const keys = {
   config: ['monitoring', 'pmm', 'config'] as const,
   status: ['monitoring', 'pmm', 'status'] as const,
+  credentials: ['monitoring', 'pmm', 'credentials'] as const,
 };
+
+export function usePmmCredentials() {
+  return useQuery<PmmCredentialsView>({
+    queryKey: keys.credentials,
+    queryFn: async () =>
+      (await api.get<PmmCredentialsView>('/monitoring/pmm/credentials')).data,
+  });
+}
+
+export function useSetPmmCredentials() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: PmmCredentialsUpdate) => {
+      const res = await api.put<PmmCredentialsView>(
+        '/monitoring/pmm/credentials',
+        body,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.credentials });
+      // Token / TLS posture change affects PMM-keyed read queries.
+      void qc.invalidateQueries({ queryKey: keys.status });
+      void qc.invalidateQueries({ queryKey: ['databases'] });
+    },
+  });
+}
 
 export function usePmmConfig() {
   return useQuery<PmmConfig>({

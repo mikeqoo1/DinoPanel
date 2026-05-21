@@ -10,6 +10,7 @@ import { MongoDriver } from '../engines/mongo.driver';
 import { MysqlDriver } from '../engines/mysql.driver';
 import { PostgresDriver } from '../engines/postgres.driver';
 import { RedisDriver } from '../engines/redis.driver';
+import type { MonitoringService } from '../../monitoring/monitoring.service';
 import type { PmmPromqlClient, PromqlResult } from '../../monitoring/pmm-promql.client';
 
 type Db = BetterSQLite3Database<typeof schema>;
@@ -35,6 +36,12 @@ function setupDb(): Db {
     );
   `);
   return drizzle(sqlite, { schema });
+}
+
+function makeMockMonitoring(): MonitoringService {
+  return {
+    onCredentialsChange: vi.fn(),
+  } as unknown as MonitoringService;
 }
 
 function makeRegistry(): DbEngineRegistry {
@@ -95,7 +102,7 @@ describe('DbMetricsService.summaryFor', () => {
 
   it('returns pmmConfigured=false when monitoring.pmm_url is unset', async () => {
     const pmm = makeMockPmm({ configured: false });
-    const svc = new DbMetricsService(db, pmm, makeRegistry());
+    const svc = new DbMetricsService(db, pmm, makeRegistry(), makeMockMonitoring());
     const id = await insertInstance(db, 'shop', 'mysql');
     const res = await svc.summaryFor(id);
     expect(res.pmmConfigured).toBe(false);
@@ -112,7 +119,7 @@ describe('DbMetricsService.summaryFor', () => {
         return { ok: true, value: 42, timestamp: 1 };
       },
     });
-    const svc = new DbMetricsService(db, pmm, makeRegistry());
+    const svc = new DbMetricsService(db, pmm, makeRegistry(), makeMockMonitoring());
     const id = await insertInstance(db, 'shop', 'mysql');
     await svc.summaryFor(id);
     expect(invocations).toBe(4); // 4 PromQL queries
@@ -128,7 +135,7 @@ describe('DbMetricsService.summaryFor', () => {
         return { ok: true, value: 1, timestamp: 0 };
       },
     });
-    const svc = new DbMetricsService(db, pmm, makeRegistry());
+    const svc = new DbMetricsService(db, pmm, makeRegistry(), makeMockMonitoring());
     const id = await insertInstance(db, 'shop', 'mysql');
     await svc.summaryFor(id);
     expect(invocations).toBe(4);
@@ -147,7 +154,7 @@ describe('DbMetricsService.summaryFor', () => {
         return { ok: true, value: callIdx, timestamp: 0 };
       },
     });
-    const svc = new DbMetricsService(db, pmm, makeRegistry());
+    const svc = new DbMetricsService(db, pmm, makeRegistry(), makeMockMonitoring());
     const id = await insertInstance(db, 'cache', 'redis');
     const res = await svc.summaryFor(id);
     expect(res.replicationLagSeconds).toBeNull();
@@ -165,7 +172,7 @@ describe('DbMetricsService.summaryFor', () => {
         return { ok: true, value: 1, timestamp: 0 };
       },
     });
-    const svc = new DbMetricsService(db, pmm, makeRegistry());
+    const svc = new DbMetricsService(db, pmm, makeRegistry(), makeMockMonitoring());
     const id = await insertInstance(db, 'shop', 'mysql');
     await svc.summaryFor(id);
     svc.invalidate(id);

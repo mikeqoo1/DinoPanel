@@ -224,7 +224,7 @@ describe('PmmInventoryClient (executeInventoryList)', () => {
     expect(res).toEqual({ ok: false, reason: 'not_configured' });
   });
 
-  it('sends POST {} with Bearer token and JSON content-type', async () => {
+  it('sends GET with Bearer token to PMM 3.x inventory path', async () => {
     const captured: Array<{
       method?: string;
       path?: string;
@@ -238,10 +238,9 @@ describe('PmmInventoryClient (executeInventoryList)', () => {
     close = c;
     await executeInventoryList(config);
     expect(captured).toHaveLength(1);
-    expect(captured[0]!.method).toBe('POST');
-    expect(captured[0]!.path).toBe('/v1/inventory/Services/List');
+    expect(captured[0]!.method).toBe('GET');
+    expect(captured[0]!.path).toBe('/v1/inventory/services');
     expect(captured[0]!.auth).toBe('Bearer test-token');
-    expect(captured[0]!.contentType).toBe('application/json');
-    expect(captured[0]!.body).toBe('{}');
+    expect(captured[0]!.body).toBe('');
   });
 });

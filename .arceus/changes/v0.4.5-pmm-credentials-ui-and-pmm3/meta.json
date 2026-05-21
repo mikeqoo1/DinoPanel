@@ -1,0 +1,29 @@
+{
+  "id": "v0.4.5-pmm-credentials-ui-and-pmm3",
+  "title": "PMM 3.x API path + Settings UI for PMM token/TLS (two bugs from v0.4.4 Rocky 234 deploy)",
+  "status": "completed",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "targetVersion": "v0.4.5",
+  "dependsOn": ["v0.4.4-pmm-tls-default"],
+  "originDiscussion": "v0.4.4 deploy to Rocky 234 — operator reported (1) /settings has no UI for PMM API token / TLS skip flag, .env is the only path; (2) after adding MONITORING_PMM_API_TOKEN to .env and restarting, the external panel banner still shows 'PMM 無法連線'.",
+  "rootCause": {
+    "bug1_no_ui": "MonitoringController only exposed PUT /pmm/config (url). settings keys monitoring.pmm_api_token + monitoring.pmm_tls_skip_verify were only writable via DB direct or .env / env var.",
+    "bug2_404": "Rocky 234 runs PMM 3.5.0. PmmInventoryClient was written against PMM 2.x API (POST /v1/inventory/Services/List with body {}). PMM 3 renamed it to GET /v1/inventory/services. Mapping: PMM returned 404 → my client mapped any non-2xx + non-401/403 to 'unreachable' → operator-visible 'PMM 無法連線' banner."
+  },
+  "scope": {
+    "backend": "Extend MonitoringService with getCredentialsView() + setCredentials(); add GET/PUT /monitoring/pmm/credentials. Observer pattern for cache invalidation (MonitoringService.onCredentialsChange) — avoids MonitoringModule → DatabasesModule circular import that direct service injection would create. DbMetricsService + ExternalPmmService subscribe at onModuleInit.",
+    "pmmInventoryClient": "GET /v1/inventory/services (PMM 3.x). Response shape is identical to PMM 2.x (per-engine bucketed object); only path + method + body change.",
+    "frontend": "Settings page external_monitoring section gains: PMM API token input (write-only, mirrors Cloudflare token UX), TLS verify select (default / skip / enforce). usePmmCredentials + useSetPmmCredentials hooks."
+  },
+  "verifiedAgainstRealPmm": "Probed live PMM 3.5.0 at https://192.168.199.234:18443 — GET /v1/inventory/services with operator-supplied glsa_... token returned valid {mysql: [...]} response with 'mike-mariadb' and 'mariadb-234' services. Token was rotated by operator post-experiment.",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass (250+ tests, existing test ctor signatures updated for new MonitoringService dependency)",
+    "build": "pass"
+  },
+  "deferred": [
+    "PMM 2.x backward compat — supporting both via /v1/server/version probe + path branching is feasible but PMM 3 GA was Q1 2025; tail of operators on PMM 2 is shrinking. Re-evaluate if a real operator surfaces a 2.x deployment."
+  ]
+}

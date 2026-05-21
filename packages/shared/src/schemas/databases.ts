@@ -153,6 +153,28 @@ export type PmmExternalErrorReason = z.infer<
   typeof pmmExternalErrorReasonSchema
 >;
 
+// PMM API credentials surface for /settings. v0.4.5 adds the missing
+// UI for monitoring.pmm_api_token + monitoring.pmm_tls_skip_verify
+// (previously only settable via .env, surfaced as a usability bug
+// during v0.4.4 Rocky 234 troubleshooting).
+export const pmmCredentialsViewSchema = z.object({
+  // Whether a token is stored in settings. The token value itself is
+  // never returned to the UI (parity with Cloudflare token handling).
+  tokenSet: z.boolean(),
+  // null = no override stored, fall back to env default;
+  // true / false = explicit override
+  tlsSkipVerify: z.boolean().nullable(),
+});
+export type PmmCredentialsView = z.infer<typeof pmmCredentialsViewSchema>;
+
+export const pmmCredentialsUpdateSchema = z.object({
+  // null = no change to stored token; '' = clear; non-empty = replace
+  apiToken: z.string().nullable(),
+  // null = clear setting (fall back to env default); explicit override
+  tlsSkipVerify: z.boolean().nullable(),
+});
+export type PmmCredentialsUpdate = z.infer<typeof pmmCredentialsUpdateSchema>;
+
 export const pmmExternalServicesResponseSchema = z.object({
   services: z.array(pmmExternalServiceSchema),
   error: z

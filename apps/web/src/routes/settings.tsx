@@ -15,7 +15,12 @@ import { useTheme } from '@/components/theme-provider';
 import { useAuthStore } from '@/stores/auth';
 import { useSystemInfo } from '@/hooks/use-system';
 import { api, extractErrorMessage } from '@/lib/api';
-import { usePmmConfig, useSetPmmConfig } from '@/hooks/use-monitoring';
+import {
+  usePmmConfig,
+  usePmmCredentials,
+  useSetPmmConfig,
+  useSetPmmCredentials,
+} from '@/hooks/use-monitoring';
 import { useAuditRetention, useSetAuditRetention } from '@/hooks/use-audit';
 import {
   useAcmeConfig,
@@ -41,6 +46,21 @@ export function SettingsPage() {
   const setPmm = useSetPmmConfig();
   const [pmmUrlInput, setPmmUrlInput] = useState<string | null>(null);
   const effectivePmmUrl = pmmUrlInput ?? pmmConfig.data?.url ?? '';
+
+  const pmmCredentials = usePmmCredentials();
+  const setPmmCredentials = useSetPmmCredentials();
+  const [pmmTokenInput, setPmmTokenInput] = useState('');
+  const [showPmmToken, setShowPmmToken] = useState(false);
+  // tlsSkipVerify UI: 'default' | 'skip' | 'enforce' — maps to null /
+  // true / false on the wire.
+  type TlsChoice = 'default' | 'skip' | 'enforce';
+  const tlsChoiceFromValue = (v: boolean | null | undefined): TlsChoice =>
+    v === null || v === undefined ? 'default' : v ? 'skip' : 'enforce';
+  const [pmmTlsChoiceInput, setPmmTlsChoiceInput] = useState<TlsChoice | null>(
+    null,
+  );
+  const effectivePmmTlsChoice: TlsChoice =
+    pmmTlsChoiceInput ?? tlsChoiceFromValue(pmmCredentials.data?.tlsSkipVerify);
 
   const retention = useAuditRetention();
   const setRetention = useSetAuditRetention();
@@ -103,6 +123,48 @@ export function SettingsPage() {
       await setPmm.mutateAsync(trimmed === '' ? null : trimmed);
       setPmmUrlInput(null);
       toast.success(t('settings.external_monitoring.saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const tlsChoiceToValue = (c: TlsChoice): boolean | null =>
+    c === 'default' ? null : c === 'skip';
+
+  const onSavePmmToken = async () => {
+    try {
+      await setPmmCredentials.mutateAsync({
+        apiToken: pmmTokenInput,
+        tlsSkipVerify: tlsChoiceToValue(effectivePmmTlsChoice),
+      });
+      setPmmTokenInput('');
+      toast.success(t('settings.external_monitoring.token_saved'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const onClearPmmToken = async () => {
+    try {
+      await setPmmCredentials.mutateAsync({
+        apiToken: '',
+        tlsSkipVerify: tlsChoiceToValue(effectivePmmTlsChoice),
+      });
+      setPmmTokenInput('');
+      toast.success(t('settings.external_monitoring.token_cleared'));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  const onSavePmmTls = async () => {
+    try {
+      await setPmmCredentials.mutateAsync({
+        apiToken: null,
+        tlsSkipVerify: tlsChoiceToValue(effectivePmmTlsChoice),
+      });
+      setPmmTlsChoiceInput(null);
+      toast.success(t('settings.external_monitoring.tls_saved'));
     } catch (err) {
       toast.error(extractErrorMessage(err));
     }
@@ -233,7 +295,7 @@ export function SettingsPage() {
           <CardDescription>{t('settings.external_monitoring.section_desc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex max-w-md flex-col gap-3">
+          <div className="flex max-w-md flex-col gap-6">
             <div className="space-y-2">
               <Label htmlFor="pmm-url">{t('settings.external_monitoring.url_label')}</Label>
               <Input
@@ -244,11 +306,110 @@ export function SettingsPage() {
                 onChange={(e) => setPmmUrlInput(e.target.value)}
                 disabled={pmmConfig.isPending}
               />
+              <Button onClick={onSavePmm} disabled={setPmm.isPending} className="w-fit">
+                {setPmm.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t('settings.save_changes')}
+              </Button>
             </div>
-            <Button onClick={onSavePmm} disabled={setPmm.isPending} className="w-fit">
-              {setPmm.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t('settings.save_changes')}
-            </Button>
+
+            {/* v0.4.5 — PMM API token (write-only; tokenSet flag tells UI whether one is stored). */}
+            <div className="space-y-2">
+              <Label htmlFor="pmm-token">
+                {t('settings.external_monitoring.token_label')}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="pmm-token"
+                  type={showPmmToken ? 'text' : 'password'}
+                  placeholder={
+                    pmmCredentials.data?.tokenSet
+                      ? t('settings.external_monitoring.token_set_placeholder')
+                      : t('settings.external_monitoring.token_placeholder')
+                  }
+                  value={pmmTokenInput}
+                  onChange={(e) => setPmmTokenInput(e.target.value)}
+                  disabled={pmmCredentials.isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPmmToken((v) => !v)}
+                  className="shrink-0"
+                >
+                  {showPmmToken
+                    ? t('settings.ssl.hide')
+                    : t('settings.ssl.show')}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.external_monitoring.token_hint')}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={onSavePmmToken}
+                  disabled={
+                    setPmmCredentials.isPending || pmmTokenInput.trim() === ''
+                  }
+                  className="w-fit"
+                >
+                  {setPmmCredentials.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {t('settings.save_changes')}
+                </Button>
+                {pmmCredentials.data?.tokenSet && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClearPmmToken}
+                    disabled={setPmmCredentials.isPending}
+                    className="w-fit"
+                  >
+                    {t('settings.external_monitoring.token_clear')}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* v0.4.5 — TLS skip-verify explicit override. */}
+            <div className="space-y-2">
+              <Label htmlFor="pmm-tls">
+                {t('settings.external_monitoring.tls_label')}
+              </Label>
+              <select
+                id="pmm-tls"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                value={effectivePmmTlsChoice}
+                onChange={(e) =>
+                  setPmmTlsChoiceInput(e.target.value as TlsChoice)
+                }
+                disabled={pmmCredentials.isPending}
+              >
+                <option value="default">
+                  {t('settings.external_monitoring.tls_default')}
+                </option>
+                <option value="skip">
+                  {t('settings.external_monitoring.tls_skip')}
+                </option>
+                <option value="enforce">
+                  {t('settings.external_monitoring.tls_enforce')}
+                </option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.external_monitoring.tls_hint')}
+              </p>
+              <Button
+                onClick={onSavePmmTls}
+                disabled={setPmmCredentials.isPending}
+                className="w-fit"
+              >
+                {setPmmCredentials.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                {t('settings.save_changes')}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
