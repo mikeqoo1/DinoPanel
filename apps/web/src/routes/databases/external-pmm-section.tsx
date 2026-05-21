@@ -102,6 +102,26 @@ function Body({
   );
 }
 
+/**
+ * Per-engine Grafana dashboard UIDs in PMM 3.x. Confirmed by hitting
+ * /graph/api/search?query=<engine>+instance+summary against PMM 3.5.0:
+ * each shipped dashboard accepts a Grafana `var-service_name` query
+ * param to filter to a single service. mariadb piggybacks on the
+ * mysql dashboard since PMM uses mysqld_exporter for both.
+ *
+ * For engines without a per-instance summary dashboard (redis/mssql
+ * via external services, plus our 'unknown' bucket), we fall back to
+ * PMM's Inventory landing page at /graph/a/pmm-app/inventory.
+ */
+const PMM_DASHBOARD_BY_ENGINE: Partial<
+  Record<PmmExternalService['engine'], string>
+> = {
+  mysql: 'mysql-instance-summary',
+  mariadb: 'mysql-instance-summary',
+  postgresql: 'postgresql-instance-summary',
+  mongodb: 'mongodb-instance-summary',
+};
+
 function ServiceRow({
   service,
   pmmUrl,
@@ -137,7 +157,7 @@ function ServiceRow({
         <span className="text-xs text-muted-foreground">{hostPort}</span>
       </div>
       <a
-        href={pmmInventoryHref(pmmUrl, service.serviceId)}
+        href={pmmDeepLink(pmmUrl, service)}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
@@ -176,9 +196,20 @@ function LastRefreshed({ fetchedAt }: { fetchedAt: number }) {
   );
 }
 
-function pmmInventoryHref(pmmUrl: string, serviceId: string): string {
-  // PMM 3.x SPA route — `/inventory/services/<id>`. NOT under `/graph`
-  // (that's Grafana's prefix; PMM owns `/inventory` separately).
+function pmmDeepLink(pmmUrl: string, service: PmmExternalService): string {
   const base = pmmUrl.replace(/\/$/, '');
-  return `${base}/inventory/services/${encodeURIComponent(serviceId)}`;
+  const dashboardUid = PMM_DASHBOARD_BY_ENGINE[service.engine];
+  if (dashboardUid) {
+    // Grafana per-engine Instance Summary dashboard — pre-filtered to
+    // the service via the var-service_name query param. Lands the
+    // operator on real metrics rather than an inventory list item.
+    const params = new URLSearchParams({
+      'var-service_name': service.serviceName,
+    });
+    return `${base}/graph/d/${dashboardUid}/${dashboardUid}?${params.toString()}`;
+  }
+  // Fallback for engines without a shipped per-instance dashboard
+  // (redis exporters / mssql / unknown). Operator lands on PMM's
+  // Inventory page and finds the service themselves.
+  return `${base}/graph/a/pmm-app/inventory`;
 }

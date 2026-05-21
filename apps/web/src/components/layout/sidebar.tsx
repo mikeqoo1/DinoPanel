@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LayoutDashboard, Terminal, FolderOpen, Settings, Settings2, ChevronLeft, Container, Layers, Network, HardDrive, Workflow, Activity, Globe, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { APP_VERSION } from '@/lib/version';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { UserMenu } from './user-menu';
@@ -42,7 +43,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {!collapsed && (
           <div className="flex flex-col leading-tight">
             <span className="font-semibold">DinoPanel</span>
-            <span className="text-[10px] text-muted-foreground">v0.4.6</span>
+            <span className="text-[10px] text-muted-foreground">v{APP_VERSION}</span>
           </div>
         )}
       </div>

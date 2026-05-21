@@ -1,0 +1,22 @@
+{
+  "id": "v0.4.7-pmm-deeplink-dashboard-and-version-badge",
+  "title": "PMM deep-link → per-engine Instance Summary dashboards + floating version badge",
+  "status": "completed",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "targetVersion": "v0.4.7",
+  "dependsOn": ["v0.4.6-pmm-deeplink-pmm3"],
+  "originDiscussion": "v0.4.6's /inventory/services/<id> deep link returned nginx 404 in the browser — PMM 3 has no per-service-id SPA route. Operator also asked for a more visible version indicator beyond the small sidebar text.",
+  "rootCause": "v0.4.6 fix dropped /graph prefix based on curl 401 vs 404 evidence, but PMM 3.x simply has no per-service-id UI URL at all. The actual deep target for 'see this service in PMM' is the per-engine Grafana Instance Summary dashboard, filtered via ?var-service_name=<name>.",
+  "scope": {
+    "deepLinkRewrite": "PMM_DASHBOARD_BY_ENGINE map: mysql/mariadb → mysql-instance-summary, postgresql → postgresql-instance-summary, mongodb → mongodb-instance-summary. Dashboard UIDs confirmed live against PMM 3.5.0 (/graph/api/search). For redis/mssql/unknown — engines without a shipped per-instance dashboard — fall back to PMM's Inventory landing page at /graph/a/pmm-app/inventory.",
+    "versionBadge": "Floating top-right badge in AppShell — absolute-positioned, pointer-events-none, mono small, survives sidebar collapse, present on every route. Source: Vite-injected __APP_VERSION__ from apps/web/package.json (single source of truth, replaces the hardcoded string in sidebar.tsx that needed bumping every release)."
+  },
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass (276/276)",
+    "build": "pass"
+  },
+  "futureReleaseProcessChange": "From v0.4.7 onwards, releases bump 4 package.json files only. The web sidebar + floating badge both read APP_VERSION from @/lib/version (Vite-injected at build time). No more separate sidebar.tsx string to keep in sync."
+}
