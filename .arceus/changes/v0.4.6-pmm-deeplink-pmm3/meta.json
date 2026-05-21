@@ -1,0 +1,18 @@
+{
+  "id": "v0.4.6-pmm-deeplink-pmm3",
+  "title": "Fix Open-in-PMM deep link for PMM 3.x (was PMM 2.x guess)",
+  "status": "completed",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "targetVersion": "v0.4.6",
+  "dependsOn": ["v0.4.5-pmm-credentials-ui-and-pmm3"],
+  "originDiscussion": "v0.4.5 deploy to Rocky 234 — external PMM panel populated with 13+ services (PMM 3 API path fix from v0.4.5 worked), but clicking the per-row 'Open in PMM' link landed on PMM's Page Not Found.",
+  "rootCause": "pmmInventoryHref() was hardcoded to /graph/inventory/services/<id> (a guess at the PMM 2.x URL pattern). PMM 3.x uses /inventory/services/<id> — its SPA route is mounted directly under the PMM origin, NOT under Grafana's /graph prefix. curl probe confirmed: /graph/inventory/services/<id> returns 404 (Grafana doesn't know it), /inventory/services/<id> returns 401 (PMM route exists, needs browser cookie session — which it has in the operator's tab).",
+  "fix": "One-line change in apps/web/src/routes/databases/external-pmm-section.tsx — pmmInventoryHref() now generates ${pmmUrl}/inventory/services/<id>.",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass (276/276)",
+    "build": "pass"
+  }
+}

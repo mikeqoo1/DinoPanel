@@ -177,7 +177,8 @@ function LastRefreshed({ fetchedAt }: { fetchedAt: number }) {
 }
 
 function pmmInventoryHref(pmmUrl: string, serviceId: string): string {
-  // PMM 2.x deep-link to the inventory service page.
+  // PMM 3.x SPA route — `/inventory/services/<id>`. NOT under `/graph`
+  // (that's Grafana's prefix; PMM owns `/inventory` separately).
   const base = pmmUrl.replace(/\/$/, '');
-  return `${base}/graph/inventory/services/${encodeURIComponent(serviceId)}`;
+  return `${base}/inventory/services/${encodeURIComponent(serviceId)}`;
 }
