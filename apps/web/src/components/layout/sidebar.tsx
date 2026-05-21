@@ -40,12 +40,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       <div className="flex h-14 items-center gap-2 px-3">
         <img src="/logo.png" alt="DinoPanel" className="h-8 w-8 rounded-md object-cover" />
-        {!collapsed && (
-          <div className="flex flex-col leading-tight">
-            <span className="font-semibold">DinoPanel</span>
-            <span className="text-[10px] text-muted-foreground">v{APP_VERSION}</span>
-          </div>
-        )}
+        {!collapsed && <span className="font-semibold">DinoPanel</span>}
       </div>
       <Separator />
       <nav className="flex-1 space-y-1 p-2">
@@ -70,8 +65,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         ))}
       </nav>
       <Separator />
-      <div className="p-2">
+      <div className="space-y-1 p-2">
         <UserMenu collapsed={collapsed} />
+        {!collapsed && (
+          <div className="px-2 pt-1 text-sm text-muted-foreground">
+            DinoPanel v{APP_VERSION}
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-end p-2">
         <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-label="Toggle sidebar">

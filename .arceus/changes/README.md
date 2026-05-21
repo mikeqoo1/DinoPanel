@@ -45,6 +45,7 @@ Status values in `meta.json`:
 | `v0.4.5-pmm-credentials-ui-and-pmm3`        | completed  | v0.4.5  | Two Rocky 234 bugs: (1) `/settings` had no UI for PMM token / TLS — add it; (2) inventory client was PMM 2.x, real PMM is 3.x — switch to `GET /v1/inventory/services` |
 | `v0.4.6-pmm-deeplink-pmm3`                  | completed  | v0.4.6  | Open-in-PMM deep link was `/graph/inventory/services/<id>` (PMM 2.x guess); PMM 3.x route is `/inventory/services/<id>` (no /graph prefix) |
 | `v0.4.7-pmm-deeplink-dashboard-and-version-badge` | completed | v0.4.7 | v0.4.6 path also 404'd — PMM 3 has no per-service-id UI route. Rewrite to per-engine Instance Summary dashboard `/graph/d/<uid>?var-service_name=<name>`. Also floating version badge top-right + Vite-injected version (single source) |
+| `v0.4.8-version-badge-relocate`             | completed  | v0.4.8  | v0.4.7's floating top-right badge overlapped page action buttons. Move into sidebar bottom under user menu, `text-sm` bigger font |
 | `archived-v0.X-multihost-pmm-inventory`     | archived   | —       | Superseded by v0.4.3-pmm-inventory-readonly. Original 3-option draft (A full union / B limited / C decline); operator picked B |
 
 Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5

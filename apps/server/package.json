@@ -1,6 +1,6 @@
 {
   "name": "@dinopanel/server",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "private": true,
   "description": "DinoPanel backend (NestJS + Fastify + SQLite)",
   "license": "Apache-2.0",

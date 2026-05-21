@@ -103,6 +103,7 @@ maintainer can actually own.
 | v0.4.5  | PMM 3.x API path + Settings UI for PMM token/TLS — switch inventory client from PMM 2.x `POST /v1/inventory/Services/List` to PMM 3.x `GET /v1/inventory/services`; add missing Settings UI for `monitoring.pmm_api_token` + `monitoring.pmm_tls_skip_verify` so operators no longer have to edit `.env` | ✅ shipped |
 | v0.4.6  | Fix "Open in PMM" deep link for PMM 3.x — was `/graph/inventory/services/<id>` (PMM 2.x guess), correct PMM 3.x route is `/inventory/services/<id>` (not under Grafana's `/graph` prefix) | ✅ shipped |
 | v0.4.7  | "Open in PMM" deep-link rewrite to per-engine Instance Summary dashboards (v0.4.6's `/inventory/services/<id>` also 404'd — PMM 3 has no per-service-id UI route); floating version badge top-right of every page; Vite injects version from package.json so future releases bump one place | ✅ shipped |
+| v0.4.8  | Reposition version badge — v0.4.7's floating top-right badge overlapped page action buttons; move to sidebar bottom under user menu, `text-sm` (was `text-[10px]` at sidebar top in earlier versions), single instance | ✅ shipped |
 | v0.6    | Toolbox (Fail2Ban / Supervisor / Swap / NTP) + MFA + Passkey | planned |
 | v1.0    | Stable release with full i18n | planned |
 
@@ -154,8 +155,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # Copy the tarball to the target host, then on the target:
-tar -xzf dinopanel-0.4.7-prebuild-x64.tar.gz
-cd dinopanel-0.4.7-prebuild-x64
+tar -xzf dinopanel-0.4.8-prebuild-x64.tar.gz
+cd dinopanel-0.4.8-prebuild-x64
 sudo bash install.sh
 ```
 

@@ -1,0 +1,22 @@
+{
+  "id": "v0.4.8-version-badge-relocate",
+  "title": "Move version badge off top-right (overlapped page actions) into sidebar bottom, bigger font",
+  "status": "completed",
+  "createdAt": "2026-05-21",
+  "completedAt": "2026-05-21",
+  "targetVersion": "v0.4.8",
+  "dependsOn": ["v0.4.7-pmm-deeplink-dashboard-and-version-badge"],
+  "originDiscussion": "v0.4.7 added a floating top-right badge; operator screenshot showed it overlapping the `/databases` page's '新增資料庫' button (visually distracting + click-blocking concern). Operator asked to relocate to the sidebar user-menu area at bottom-left and bump the font size.",
+  "changes": [
+    "Removed: floating absolute-positioned badge from AppShell",
+    "Removed: previous tiny 10px version line at sidebar top (under DinoPanel logo)",
+    "Added: version line just below UserMenu at sidebar bottom — text-sm muted-foreground, only when sidebar is expanded",
+    "Same single source: still reads APP_VERSION from @/lib/version (Vite-injected from package.json)"
+  ],
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass",
+    "test": "pass (276/276)",
+    "build": "pass"
+  }
+}
