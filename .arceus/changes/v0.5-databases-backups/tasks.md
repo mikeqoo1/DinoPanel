@@ -5,14 +5,14 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 1 — Foundation
 
-- [ ] Add `backups` table to `apps/server/src/database/schema.ts`
-- [ ] Migration runs idempotently on existing DB (`CREATE TABLE IF NOT EXISTS`)
-- [ ] Bootstrap `/opt/dinopanel/backups/` (mode 0700 root) in BackupsModule init
-- [ ] `BackupDriver` interface in `apps/server/src/modules/backups/backup-driver.ts`
-- [ ] `BackupDriverRegistry` provider (mirror `DbEngineRegistry` pattern)
-- [ ] `BackupsModule` skeleton — controller stub returning `[]`
-- [ ] Wire into `AppModule` root
-- [ ] Phase 1 commit: `feat(backups): foundation (phase 1 of v0.5)`
+- [x] Add `backups` table to `apps/server/src/database/schema.ts`
+- [x] Migration runs idempotently on existing DB (drizzle-kit `0005_giant_gargoyle.sql`, drizzle migrator checkpoints via `__drizzle_migrations`)
+- [x] Bootstrap `/opt/dinopanel/backups/` (mode 0700 root) in BackupsModule init (`BackupsService.onModuleInit`)
+- [x] `BackupDriver` interface in `apps/server/src/modules/backups/backup-driver.ts`
+- [x] `BackupDriverRegistry` provider (mirror `DbEngineRegistry` pattern)
+- [x] `BackupsModule` skeleton — controller stub returning `[]`
+- [x] Wire into `AppModule` root
+- [x] Phase 1 commit: `feat(backups): foundation (phase 1 of v0.5)`
 
 ## Phase 2 — Per-engine drivers
 

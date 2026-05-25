@@ -62,6 +62,12 @@ export const envSchema = z.object({
   // `/opt/dinopanel/databases` per decisions.md Q2.
   DATABASES_ROOT: z.string().default('/opt/dinopanel/databases'),
 
+  // v0.5 backups — local dump-style backup files
+  // (`<BACKUPS_ROOT>/<engine>/<instance>/<ts>-<source>.<ext>.gz`).
+  // Defaults under `/opt/dinopanel/backups` per v0.5 decisions.md D2.
+  // Module bootstrap creates this dir mode 0700.
+  BACKUPS_ROOT: z.string().default('/opt/dinopanel/backups'),
+
   // v0.4 PMM PromQL client. URL reuses v0.2.1 setting
   // `monitoring.pmm_url` (settings table, not env). Env override path
   // for the API token + TLS skip lives here.

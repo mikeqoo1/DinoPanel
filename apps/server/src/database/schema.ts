@@ -235,6 +235,42 @@ export const dbInstances = sqliteTable(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// v0.5 — database backups (logical dump-style, local storage)
+// ---------------------------------------------------------------------------
+
+export const backups = sqliteTable(
+  'backups',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    instanceId: integer('instance_id')
+      .notNull()
+      .references(() => dbInstances.id, { onDelete: 'cascade' }),
+    filePath: text('file_path').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    source: text('source', { enum: ['manual', 'scheduled'] }).notNull(),
+    retentionGroup: text('retention_group'),
+    keepLastN: integer('keep_last_n'),
+    status: text('status', { enum: ['success', 'failed'] }).notNull(),
+    error: text('error'),
+    createdAt: integer('created_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    updatedAt: integer('updated_at')
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => ({
+    instanceIdx: index('backups_instance_idx').on(t.instanceId),
+    retentionIdx: index('backups_retention_idx').on(
+      t.instanceId,
+      t.retentionGroup,
+      t.createdAt,
+    ),
+  }),
+);
+
 export const acmeOrders = sqliteTable(
   'acme_orders',
   {
@@ -281,3 +317,5 @@ export type AcmeOrder = typeof acmeOrders.$inferSelect;
 export type NewAcmeOrder = typeof acmeOrders.$inferInsert;
 export type DbInstance = typeof dbInstances.$inferSelect;
 export type NewDbInstance = typeof dbInstances.$inferInsert;
+export type Backup = typeof backups.$inferSelect;
+export type NewBackup = typeof backups.$inferInsert;

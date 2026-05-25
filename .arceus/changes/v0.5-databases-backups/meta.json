@@ -1,14 +1,14 @@
 {
   "id": "v0.5-databases-backups",
   "title": "Database backups + restore module (v0.4 carry-over: managed DBs ship without a backup story)",
-  "status": "ready",
+  "status": "active",
   "createdAt": "2026-05-21",
   "targetVersion": "v0.5.0",
   "dependsOn": ["v0.4.3-pmm-inventory-readonly"],
   "scopeNote": "Closes the most prominent v0.4 gap — operator can create / schedule / restore backups for managed DB instances. Local-only, logical (dump-style), routed through the existing v0.5 scheduler module for cron behaviour.",
   "estimatedDevDays": "7-10 (1-1.5 weeks)",
   "phases": [
-    { "id": "phase-1", "name": "Foundation — schema + backups dir + BackupDriver interface", "estimateDays": 1, "status": "pending" },
+    { "id": "phase-1", "name": "Foundation — schema + backups dir + BackupDriver interface", "estimateDays": 1, "status": "completed" },
     { "id": "phase-2", "name": "Per-engine drivers (mysql / mariadb / postgresql / redis / mongodb) — stdout pipe + gzip", "estimateDays": 2, "status": "pending" },
     { "id": "phase-3", "name": "BackupsService + REST (create / list / delete / restore) + retention prune", "estimateDays": 1.5, "status": "pending" },
     { "id": "phase-4", "name": "Scheduler `db_backup` task type + UI hook", "estimateDays": 1, "status": "pending" },
