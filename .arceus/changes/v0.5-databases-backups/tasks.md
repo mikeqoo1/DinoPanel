@@ -16,14 +16,15 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 2 — Per-engine drivers
 
-- [ ] `apps/server/src/modules/backups/drivers/mysql.backup-driver.ts`
-- [ ] `apps/server/src/modules/backups/drivers/mariadb.backup-driver.ts` (shim over mysql impl)
-- [ ] `apps/server/src/modules/backups/drivers/postgresql.backup-driver.ts`
-- [ ] `apps/server/src/modules/backups/drivers/redis.backup-driver.ts` (BGSAVE + RDB copy + restart-on-restore)
-- [ ] `apps/server/src/modules/backups/drivers/mongodb.backup-driver.ts` (`alreadyGzipped: true`)
-- [ ] `BackupDriverRegistry` resolves all 5
-- [ ] Driver-level unit tests against fake dockerode container — ≥ 3 cases per driver (dump success / dump-cmd failure / restore round-trip)
-- [ ] Phase 2 commit: `feat(backups): per-engine drivers (phase 2 of v0.5)`
+- [x] `apps/server/src/modules/backups/drivers/mysql.backup-driver.ts`
+- [x] `apps/server/src/modules/backups/drivers/mariadb.backup-driver.ts` (shim over mysql impl via `mysql-family.ts`)
+- [x] `apps/server/src/modules/backups/drivers/postgresql.backup-driver.ts`
+- [x] `apps/server/src/modules/backups/drivers/redis.backup-driver.ts` (BGSAVE + LASTSAVE poll + RDB copy + container stop/start on restore)
+- [x] `apps/server/src/modules/backups/drivers/mongodb.backup-driver.ts` (`alreadyGzipped: true`)
+- [x] `BackupDriverRegistry` resolves all 5 (Phase 1)
+- [x] Shared `exec-stream.ts` helper (demuxed dump stream / stdin restore pipe / buffering exec for redis-cli LASTSAVE)
+- [x] Driver-level unit tests against fake dockerode container — 23 tests total (exec-stream 8, mysql/mariadb 4, postgresql 3, redis 4, mongodb 4)
+- [x] Phase 2 commit: `feat(backups): per-engine drivers (phase 2 of v0.5)`
 
 ## Phase 3 — Service + REST
 

@@ -1,20 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import type Dockerode from 'dockerode';
 import type { DbInstance } from '../../../database/schema';
-import {
-  BACKUP_DRIVER_PHASE2_ERROR,
-  type BackupDriver,
-} from '../backup-driver';
+import type { BackupDriver } from '../backup-driver';
+import { streamingDumpExec, streamingRestoreExec } from '../exec-stream';
 
 /**
- * MongoDB backup driver — the one exception to the "stdout pipe + host
- * gzip" rule (decisions.md D6). `mongodump --archive --gzip` produces
- * a gzipped archive natively, so:
- *   - `alreadyGzipped: true` tells the service to write dump() output
- *     straight to disk without a `zlib.createGzip()` wrap.
- *   - `extension: 'archive'` makes the file `<ts>-<source>.archive.gz`.
- *   - Restore reverses: file → `docker exec -i` stdin →
- *     `mongorestore --archive --gzip --drop`.
+ * MongoDB backup driver — the one engine where dump() already
+ * produces gzipped bytes (decisions.md D6 exception).
+ *
+ * Dump: `mongodump --archive --gzip --username … --password … --authenticationDatabase admin`.
+ *   - Output is a binary "archive" format that bundles every DB into
+ *     a single stream — what we want.
+ *   - `--gzip` makes mongodump compress on the way out, so the
+ *     service layer writes the stream straight to disk without an
+ *     extra `zlib.gzip` step (`alreadyGzipped: true`).
+ *   - File extension is `archive` so the final filename is
+ *     `<ts>-<source>.archive.gz`.
+ *
+ * Restore: `mongorestore --archive --gzip --drop --username … …`.
+ *   - `--drop` drops each collection before restoring it (matches the
+ *     restore-in-place posture from D4 — recover, not merge).
+ *   - Caller pipes the on-disk `.archive.gz` straight to stdin
+ *     (no host gunzip — mongorestore handles `--gzip`).
+ *
+ * Cmdline caveat: mongodump / mongorestore both lack a
+ * password-via-env path. The password ends up in container-internal
+ * `ps`, which is acceptable under v0.4's single-tenant container
+ * posture (root inside == root outside; same trust boundary).
  */
 @Injectable()
 export class MongodbBackupDriver implements BackupDriver {
@@ -22,18 +34,46 @@ export class MongodbBackupDriver implements BackupDriver {
   readonly alreadyGzipped = true;
   readonly extension = 'archive';
 
-  async dump(_args: {
+  dump(args: {
     container: Dockerode.Container;
     instance: DbInstance;
   }): Promise<NodeJS.ReadableStream> {
-    throw new Error(BACKUP_DRIVER_PHASE2_ERROR);
+    return streamingDumpExec({
+      container: args.container,
+      cmd: [
+        'mongodump',
+        '--archive',
+        '--gzip',
+        '--username',
+        args.instance.username,
+        '--password',
+        args.instance.password,
+        '--authenticationDatabase',
+        'admin',
+      ],
+    });
   }
 
-  async restore(_args: {
+  restore(args: {
     container: Dockerode.Container;
     instance: DbInstance;
     stream: NodeJS.ReadableStream;
   }): Promise<void> {
-    throw new Error(BACKUP_DRIVER_PHASE2_ERROR);
+    return streamingRestoreExec({
+      container: args.container,
+      cmd: [
+        'mongorestore',
+        '--archive',
+        '--gzip',
+        '--drop',
+        '--username',
+        args.instance.username,
+        '--password',
+        args.instance.password,
+        '--authenticationDatabase',
+        'admin',
+      ],
+      input: args.stream,
+    });
   }
 }

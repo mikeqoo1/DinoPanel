@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import type Dockerode from 'dockerode';
 import type { DbInstance } from '../../../database/schema';
-import {
-  BACKUP_DRIVER_PHASE2_ERROR,
-  type BackupDriver,
-} from '../backup-driver';
+import type { BackupDriver } from '../backup-driver';
+import { mysqlFamilyDump, mysqlFamilyRestore } from './mysql-family';
 
 /**
- * MySQL backup driver. Phase 2 will run
- * `mysqldump -uroot -p$PASSWORD --all-databases --single-transaction --quick`
- * via `docker exec` and stream stdout. Restore runs `mysql -uroot -p$PASSWORD`
- * with the gunzipped dump piped to stdin.
+ * MySQL backup driver. Dump:
+ *   `mysqldump -u<user> --all-databases --single-transaction --quick --routines --events`
+ * with `MYSQL_PWD` in the exec env (spec WARN-1: no password on cmdline).
+ *
+ * Restore: `mysql -u<user>` with `MYSQL_PWD`, gunzipped SQL piped to stdin.
+ *
+ * The actual work is shared with the mariadb driver (same flags, same
+ * client binary), so both delegate to `mysql-family.ts`.
  */
 @Injectable()
 export class MysqlBackupDriver implements BackupDriver {
@@ -18,18 +20,18 @@ export class MysqlBackupDriver implements BackupDriver {
   readonly alreadyGzipped = false;
   readonly extension = 'sql';
 
-  async dump(_args: {
+  dump(args: {
     container: Dockerode.Container;
     instance: DbInstance;
   }): Promise<NodeJS.ReadableStream> {
-    throw new Error(BACKUP_DRIVER_PHASE2_ERROR);
+    return mysqlFamilyDump(args);
   }
 
-  async restore(_args: {
+  restore(args: {
     container: Dockerode.Container;
     instance: DbInstance;
     stream: NodeJS.ReadableStream;
   }): Promise<void> {
-    throw new Error(BACKUP_DRIVER_PHASE2_ERROR);
+    return mysqlFamilyRestore(args);
   }
 }

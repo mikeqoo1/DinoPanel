@@ -9,7 +9,7 @@
   "estimatedDevDays": "7-10 (1-1.5 weeks)",
   "phases": [
     { "id": "phase-1", "name": "Foundation — schema + backups dir + BackupDriver interface", "estimateDays": 1, "status": "completed" },
-    { "id": "phase-2", "name": "Per-engine drivers (mysql / mariadb / postgresql / redis / mongodb) — stdout pipe + gzip", "estimateDays": 2, "status": "pending" },
+    { "id": "phase-2", "name": "Per-engine drivers (mysql / mariadb / postgresql / redis / mongodb) — stdout pipe + gzip", "estimateDays": 2, "status": "completed" },
     { "id": "phase-3", "name": "BackupsService + REST (create / list / delete / restore) + retention prune", "estimateDays": 1.5, "status": "pending" },
     { "id": "phase-4", "name": "Scheduler `db_backup` task type + UI hook", "estimateDays": 1, "status": "pending" },
     { "id": "phase-5", "name": "Frontend /backups route + drawer tab + restore confirmation + i18n", "estimateDays": 1.5, "status": "pending" },
