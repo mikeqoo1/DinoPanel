@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createWriteStream } from 'node:fs';
-import { chmod } from 'node:fs/promises';
+import { chmod, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type Dockerode from 'dockerode';
@@ -14,9 +14,11 @@ import {
 
 const LASTSAVE_POLL_INTERVAL_MS = 500;
 const LASTSAVE_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const LASTSAVE_POLL_TIMEOUT_HUMAN = '5 minutes';
 
 const RDB_CONTAINER_PATH = '/data/dump.rdb';
 const RDB_HOST_FILENAME = 'dump.rdb';
+const RDB_HOST_TMP_SUFFIX = '.restore-tmp';
 
 /**
  * Redis backup driver — the only engine without a streaming dump.
@@ -33,9 +35,15 @@ const RDB_HOST_FILENAME = 'dump.rdb';
  * that needs a brief downtime — the v0.5 UI surfaces this in the
  * confirm modal):
  *   1. `container.stop()`
- *   2. write the (already-gunzipped) RDB stream to
- *      `<instance.dataDir>/dump.rdb` on the host bind-mount, mode 0600
- *   3. `container.start()` — redis loads dump.rdb at startup
+ *   2. write the (already-gunzipped) RDB stream to a `.restore-tmp`
+ *      file on the bind-mount, mode 0600
+ *   3. `rename()` the tmp file to `dump.rdb` — atomic on the same fs,
+ *      so a partial-write failure never replaces the existing rdb
+ *   4. `container.start()` — redis loads dump.rdb at startup
+ *
+ * The whole sequence runs inside `try/finally` so a write or rename
+ * failure still restarts the container. The original `dump.rdb`
+ * survives any partial-write failure thanks to the rename step.
  *
  * Auth: container baked `REDISCLI_AUTH` env at create-time (v0.4
  * RedisDriver), so every redis-cli exec inherits it.
@@ -70,18 +78,61 @@ export class RedisBackupDriver implements BackupDriver {
     try {
       await args.container.stop({ t: 10 });
     } catch (err) {
-      // Container already stopped is fine — only re-throw on a hard
-      // dockerode failure. dockerode surfaces 304 for "already stopped".
+      // dockerode surfaces 304 when the container is already stopped.
+      // That is a benign "nothing to do" — every other code path is a
+      // genuine failure and bubbles up.
       const status = (err as { statusCode?: number } | null)?.statusCode;
       if (status !== 304) throw err;
     }
 
     const hostFile = join(args.instance.dataDir, RDB_HOST_FILENAME);
-    const sink = createWriteStream(hostFile, { mode: 0o600 });
-    await pipeline(args.stream, sink);
-    await chmod(hostFile, 0o600);
+    const tmpFile = `${hostFile}${RDB_HOST_TMP_SUFFIX}`;
+    let writeError: unknown = null;
+    try {
+      // createWriteStream `mode` honours the host umask; the explicit
+      // chmod after is authoritative. Belt-and-suspenders on purpose
+      // — we never want the tmp file to be world-readable, even for
+      // the brief moment between open and the chmod call.
+      const sink = createWriteStream(tmpFile, { mode: 0o600 });
+      await pipeline(args.stream, sink);
+      await chmod(tmpFile, 0o600);
+      // Atomic on the same fs — replaces the existing dump.rdb only
+      // after the new one is fully on disk.
+      await rename(tmpFile, hostFile);
+    } catch (err) {
+      writeError = err;
+      // Best-effort cleanup of the partial tmp file; tolerate ENOENT
+      // (rename already consumed it) and any other error since the
+      // primary failure is what we want to surface.
+      await unlink(tmpFile).catch(() => undefined);
+    }
 
-    await args.container.start();
+    // Always restart — leaving the container stopped after a failed
+    // restore would take the redis instance offline indefinitely
+    // with no UI surface. On the success path this is the normal
+    // post-restore restart; on the failure path the operator gets a
+    // running container with the original (untouched) dump.rdb.
+    let startError: unknown = null;
+    try {
+      await args.container.start();
+    } catch (err) {
+      startError = err;
+    }
+
+    if (writeError) {
+      if (startError) {
+        // Surface the start failure in logs but keep the write error
+        // as the thrown one — the write failure is the root cause.
+        this.logger.warn(
+          `redis restore: container.start() failed after write error: ${
+            startError instanceof Error ? startError.message : String(startError)
+          }`,
+        );
+      }
+      throw writeError;
+    }
+    if (startError) throw startError;
+
     this.logger.log(
       `redis restore: wrote ${hostFile} and restarted ${args.instance.containerName}`,
     );
@@ -112,7 +163,7 @@ export class RedisBackupDriver implements BackupDriver {
       await sleep(LASTSAVE_POLL_INTERVAL_MS);
     }
     throw new Error(
-      `redis BGSAVE did not finish within ${LASTSAVE_POLL_TIMEOUT_MS}ms`,
+      `redis BGSAVE did not finish within ${LASTSAVE_POLL_TIMEOUT_HUMAN}`,
     );
   }
 

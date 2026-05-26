@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -131,5 +131,39 @@ describe('RedisBackupDriver.restore', () => {
       stream: Readable.from([Buffer.from('payload')]),
     });
     expect(fake.start).toHaveBeenCalled();
+  });
+
+  it('rethrows write failure but still restarts container, leaves original dump.rdb intact', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'redis-restore-fail-'));
+    // Pre-seed an existing dump.rdb so we can verify the rename-based
+    // atomic write never replaced it on partial failure.
+    const original = Buffer.from('ORIGINAL-RDB');
+    writeFileSync(join(dir, 'dump.rdb'), original);
+
+    const fake = makeFakeContainer({ scripts: [] });
+    const driver = new RedisBackupDriver();
+
+    // A Readable that immediately errors out — simulates disk full /
+    // upstream gunzip stream error / etc.
+    const failingStream = new Readable({
+      read() {
+        this.destroy(new Error('upstream stream failed'));
+      },
+    });
+
+    await expect(
+      driver.restore({
+        container: asContainer(fake),
+        instance: makeInstance(dir),
+        stream: failingStream,
+      }),
+    ).rejects.toThrow(/upstream stream failed/);
+
+    // Container must still be restarted (the try/finally guarantee).
+    expect(fake.start).toHaveBeenCalled();
+    // Original dump.rdb is untouched (atomic rename never happened).
+    expect(readFileSync(join(dir, 'dump.rdb')).equals(original)).toBe(true);
+    // Tmp file is cleaned up.
+    expect(existsSync(join(dir, 'dump.rdb.restore-tmp'))).toBe(false);
   });
 });

@@ -9,7 +9,7 @@ import type Dockerode from 'dockerode';
  *   bytes 4-7 = uint32 BE payload length
  *   bytes 8+  = payload
  *
- * Used by both helpers below to split stdout from stderr when the exec
+ * Used by all helpers below to split stdout from stderr when the exec
  * was started without `Tty: true`.
  */
 const FRAME_HEADER_BYTES = 8;
@@ -21,11 +21,49 @@ export interface ExecError extends Error {
 }
 
 /**
+ * Parse as many complete docker multiplex frames as `buffer` contains
+ * and dispatch their payloads. Returns the unconsumed tail (bytes of
+ * a partially-arrived next frame). Used by all three exec helpers so
+ * the demux logic only lives in one place.
+ */
+function consumeFrames(
+  buffer: Buffer,
+  onStdout: (payload: Buffer) => void,
+  onStderr: (text: string) => void,
+): Buffer {
+  let rest = buffer;
+  while (rest.length >= FRAME_HEADER_BYTES) {
+    const streamType = rest[0];
+    const length = rest.readUInt32BE(4);
+    if (rest.length < FRAME_HEADER_BYTES + length) break;
+    const payload = rest.subarray(FRAME_HEADER_BYTES, FRAME_HEADER_BYTES + length);
+    if (streamType === STDERR_STREAM_TYPE) {
+      onStderr(payload.toString('utf8'));
+    } else {
+      onStdout(payload);
+    }
+    rest = rest.subarray(FRAME_HEADER_BYTES + length);
+  }
+  return rest;
+}
+
+function makeExecError(exitCode: number | null, stderr: string): ExecError {
+  return Object.assign(
+    new Error(
+      `exec failed: exit=${exitCode}${stderr ? ` stderr=${stderr.trim()}` : ''}`,
+    ),
+    { exitCode, stderr },
+  );
+}
+
+/**
  * Run a command inside the container and return a Readable that
  * yields the demuxed stdout bytes. The returned Readable emits
- * `'error'` (an `ExecError`) instead of `'end'` if the exec exits
- * non-zero OR if stderr is non-empty alongside a zero exit (callers
- * who want lenient handling can ignore the error event explicitly).
+ * `'error'` (an `ExecError`) instead of `'end'` when the exec exits
+ * with a non-zero status — stderr (if any) is attached to the error
+ * for log surfacing. A zero exit always resolves with `'end'` even if
+ * the command wrote informational output to stderr (mysqldump,
+ * mongodump and friends routinely log progress notes there).
  *
  * The function awaits the `exec.start()` handshake before resolving so
  * the caller can attach `.pipe()` synchronously after `await`. The
@@ -49,25 +87,17 @@ export async function streamingDumpExec(args: {
 
   const stdout = new PassThrough();
   let stderr = '';
-  let buffer = Buffer.alloc(0);
+  let buffer: Buffer = Buffer.alloc(0);
 
   stream.on('data', (chunk: Buffer) => {
     buffer = Buffer.concat([buffer, chunk]);
-    while (buffer.length >= FRAME_HEADER_BYTES) {
-      const streamType = buffer[0];
-      const length = buffer.readUInt32BE(4);
-      if (buffer.length < FRAME_HEADER_BYTES + length) break;
-      const payload = buffer.subarray(
-        FRAME_HEADER_BYTES,
-        FRAME_HEADER_BYTES + length,
-      );
-      if (streamType === STDERR_STREAM_TYPE) {
-        stderr += payload.toString('utf8');
-      } else {
-        stdout.write(payload);
-      }
-      buffer = buffer.subarray(FRAME_HEADER_BYTES + length);
-    }
+    buffer = consumeFrames(
+      buffer,
+      (payload) => stdout.write(payload),
+      (text) => {
+        stderr += text;
+      },
+    );
   });
 
   stream.on('error', (err: Error) => stdout.destroy(err));
@@ -77,13 +107,7 @@ export async function streamingDumpExec(args: {
       const info = await exec.inspect();
       const exitCode = info.ExitCode ?? null;
       if (exitCode !== 0) {
-        const err: ExecError = Object.assign(
-          new Error(
-            `exec failed: exit=${exitCode}${stderr ? ` stderr=${stderr.trim()}` : ''}`,
-          ),
-          { exitCode, stderr },
-        );
-        stdout.destroy(err);
+        stdout.destroy(makeExecError(exitCode, stderr));
         return;
       }
       stdout.end();
@@ -122,24 +146,18 @@ export async function streamingRestoreExec(args: {
   })) as NodeJS.ReadWriteStream;
 
   let stderr = '';
-  let buffer = Buffer.alloc(0);
+  let buffer: Buffer = Buffer.alloc(0);
 
   const drained = new Promise<void>((resolve, reject) => {
     duplex.on('data', (chunk: Buffer) => {
       buffer = Buffer.concat([buffer, chunk]);
-      while (buffer.length >= FRAME_HEADER_BYTES) {
-        const streamType = buffer[0];
-        const length = buffer.readUInt32BE(4);
-        if (buffer.length < FRAME_HEADER_BYTES + length) break;
-        const payload = buffer.subarray(
-          FRAME_HEADER_BYTES,
-          FRAME_HEADER_BYTES + length,
-        );
-        if (streamType === STDERR_STREAM_TYPE) {
-          stderr += payload.toString('utf8');
-        }
-        buffer = buffer.subarray(FRAME_HEADER_BYTES + length);
-      }
+      buffer = consumeFrames(
+        buffer,
+        () => undefined,
+        (text) => {
+          stderr += text;
+        },
+      );
     });
     duplex.on('end', resolve);
     duplex.on('error', reject);
@@ -154,15 +172,7 @@ export async function streamingRestoreExec(args: {
 
   const info = await exec.inspect();
   const exitCode = info.ExitCode ?? null;
-  if (exitCode !== 0) {
-    const err: ExecError = Object.assign(
-      new Error(
-        `exec failed: exit=${exitCode}${stderr ? ` stderr=${stderr.trim()}` : ''}`,
-      ),
-      { exitCode, stderr },
-    );
-    throw err;
-  }
+  if (exitCode !== 0) throw makeExecError(exitCode, stderr);
 }
 
 /**
@@ -187,22 +197,20 @@ export async function bufferingExec(args: {
 
   let stdout = '';
   let stderr = '';
-  let buffer = Buffer.alloc(0);
+  let buffer: Buffer = Buffer.alloc(0);
 
   await new Promise<void>((resolve, reject) => {
     stream.on('data', (chunk: Buffer) => {
       buffer = Buffer.concat([buffer, chunk]);
-      while (buffer.length >= FRAME_HEADER_BYTES) {
-        const streamType = buffer[0];
-        const length = buffer.readUInt32BE(4);
-        if (buffer.length < FRAME_HEADER_BYTES + length) break;
-        const payload = buffer
-          .subarray(FRAME_HEADER_BYTES, FRAME_HEADER_BYTES + length)
-          .toString('utf8');
-        if (streamType === STDERR_STREAM_TYPE) stderr += payload;
-        else stdout += payload;
-        buffer = buffer.subarray(FRAME_HEADER_BYTES + length);
-      }
+      buffer = consumeFrames(
+        buffer,
+        (payload) => {
+          stdout += payload.toString('utf8');
+        },
+        (text) => {
+          stderr += text;
+        },
+      );
     });
     stream.on('end', resolve);
     stream.on('error', reject);
@@ -210,14 +218,6 @@ export async function bufferingExec(args: {
 
   const info = await exec.inspect();
   const exitCode = info.ExitCode ?? null;
-  if (exitCode !== 0) {
-    const err: ExecError = Object.assign(
-      new Error(
-        `exec failed: exit=${exitCode}${stderr ? ` stderr=${stderr.trim()}` : ''}`,
-      ),
-      { exitCode, stderr },
-    );
-    throw err;
-  }
+  if (exitCode !== 0) throw makeExecError(exitCode, stderr);
   return { stdout, stderr };
 }

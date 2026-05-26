@@ -18,8 +18,12 @@ import { streamingDumpExec, streamingRestoreExec } from '../exec-stream';
  *     `<ts>-<source>.archive.gz`.
  *
  * Restore: `mongorestore --archive --gzip --drop --username … …`.
- *   - `--drop` drops each collection before restoring it (matches the
- *     restore-in-place posture from D4 — recover, not merge).
+ *   - `--drop` is collection-scoped: every collection present in the
+ *     archive is dropped and recreated, but any collection (or
+ *     database) only in the live server is left untouched. For a
+ *     single-tenant DinoPanel container that holds only what
+ *     `mongodump` wrote, the practical effect matches D4's
+ *     restore-in-place posture (no merged residue from before).
  *   - Caller pipes the on-disk `.archive.gz` straight to stdin
  *     (no host gunzip — mongorestore handles `--gzip`).
  *
