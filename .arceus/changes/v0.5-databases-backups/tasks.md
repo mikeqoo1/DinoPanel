@@ -28,17 +28,17 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 3 — Service + REST
 
-- [ ] `BackupsService.create({ instanceId, retentionGroup?, keepLastN?, source })`
-- [ ] `BackupsService.list({ instanceId? })`
-- [ ] `BackupsService.delete(backupId)` — file then row
-- [ ] `BackupsService.restore({ backupId, confirmName })`
-- [ ] `BackupsService.streamFile(backupId)` — for download
-- [ ] Retention prune helper — invoked synchronously after `create` success
-- [ ] Controller endpoints (6 routes per spec.md Phase 3)
-- [ ] Audit interceptor coverage (mutating endpoints)
-- [ ] Shared schemas (`@dinopanel/shared`): `backupResponseSchema`, `createBackupBodySchema`, `restoreBackupBodySchema`
-- [ ] Service-level tests — ≥ 8 cases
-- [ ] Phase 3 commit: `feat(backups): service + REST (phase 3 of v0.5)`
+- [x] `BackupsService.create({ instanceId, retentionGroup?, keepLastN?, source })`
+- [x] `BackupsService.list({ instanceId?, limit, cursor? })`
+- [x] `BackupsService.delete(backupId)` — file then row, tolerates ENOENT
+- [x] `BackupsService.restore({ backupId, confirm })` — typo-guard + gunzip on host (mongo skips)
+- [x] `BackupsService.streamFile(backupId)` — for download (Readable + filename + byteSize)
+- [x] `pruneRetention` helper — invoked synchronously after `create` success; manual rows exempt (retention_group=null)
+- [x] Controller endpoints — split into `BackupsController` (/api/backups) + `BackupsByDatabaseController` (/api/databases/:id/backups)
+- [x] Audit interceptor coverage — global APP_INTERCEPTOR auto-covers; bodies carry no sensitive fields (createBody=retentionGroup/keepLastN, restoreBody=confirm)
+- [x] Shared schemas (`@dinopanel/shared/schemas/backups`): `backupResponseSchema`, `createBackupBodySchema` (retentionGroup+keepLastN must be paired), `restoreBackupBodySchema`, `listBackupsQuerySchema`
+- [x] Service-level tests — 13 cases (create×5, list×1, delete×2, restore×3, streamFile×2)
+- [x] Phase 3 commit: `feat(backups): service + REST (phase 3 of v0.5)`
 
 ## Phase 4 — Scheduler integration
 

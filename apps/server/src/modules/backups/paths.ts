@@ -15,11 +15,17 @@ export interface BackupsPaths {
   engineDir: (engine: DbEngine) => string;
   /** Per-instance dir (`<root>/<engine>/<instance>/`). */
   instanceDir: (engine: DbEngine, name: DbInstanceName) => string;
-  /** Absolute file path for one backup artefact. */
+  /**
+   * Absolute file path for one backup artefact. `timestamp` is a
+   * Unix-epoch number — milliseconds preferred (Date.now()) so that
+   * two backups taken within the same second don't collide. The
+   * filename works fine with seconds too if a future caller needs
+   * shorter names.
+   */
   file: (args: {
     engine: DbEngine;
     instanceName: DbInstanceName;
-    timestampSeconds: number;
+    timestamp: number;
     source: 'manual' | 'scheduled';
     extension: string;
   }) => string;
@@ -30,12 +36,12 @@ export function resolveBackupsPaths(root: string): BackupsPaths {
     root,
     engineDir: (engine) => join(root, engine),
     instanceDir: (engine, name) => join(root, engine, name),
-    file: ({ engine, instanceName, timestampSeconds, source, extension }) =>
+    file: ({ engine, instanceName, timestamp, source, extension }) =>
       join(
         root,
         engine,
         instanceName,
-        `${timestampSeconds}-${source}.${extension}.gz`,
+        `${timestamp}-${source}.${extension}.gz`,
       ),
   };
 }

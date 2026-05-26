@@ -1,5 +1,10 @@
 import { Module } from '@nestjs/common';
-import { BackupsController } from './backups.controller';
+import { DatabaseModule } from '../../database/db.module';
+import { ContainersModule } from '../containers/containers.module';
+import {
+  BackupsByDatabaseController,
+  BackupsController,
+} from './backups.controller';
 import { BackupsService } from './backups.service';
 import { BackupDriverRegistry } from './backup-driver.registry';
 import { MariadbBackupDriver } from './drivers/mariadb.backup-driver';
@@ -9,14 +14,15 @@ import { PostgresqlBackupDriver } from './drivers/postgresql.backup-driver';
 import { RedisBackupDriver } from './drivers/redis.backup-driver';
 
 /**
- * v0.5 backups module — Phase 1 skeleton.
+ * v0.5 backups module.
  *
- * Phase 3+ will pull in DatabaseModule (drizzle handle) and
- * ContainersModule (dockerode DOCKER token) — left out of Phase 1
- * to keep the boot graph minimal until those services exist.
+ * Pulls in `DatabaseModule` for the drizzle handle and `ContainersModule`
+ * for the dockerode DOCKER token. Both are re-exported `@Global`-style
+ * by their owners so the imports here are purely for the boot graph.
  */
 @Module({
-  controllers: [BackupsController],
+  imports: [DatabaseModule, ContainersModule],
+  controllers: [BackupsController, BackupsByDatabaseController],
   providers: [
     BackupsService,
     BackupDriverRegistry,
