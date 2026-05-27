@@ -24,5 +24,6 @@
     "Q6_outputMethod": "docker exec stdout pipe + host gzip"
   },
   "supersededDrafts": [],
-  "previousChange": "v0.4.8-version-badge-relocate"
+  "previousChange": "v0.4.8-version-badge-relocate",
+  "notes": "First change to be audited by the check-spec GitHub Action (installed 2026-05-27)."
 }
