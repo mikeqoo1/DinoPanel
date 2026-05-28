@@ -1,8 +1,21 @@
 {
   "id": "v0.5.2-files-read-symlink-protection",
   "title": "Add read-side symlink-deny check — close /etc/shadow read via symlink",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-27",
+  "completedAt": "2026-05-28",
+  "verification": {
+    "typecheck": "pass (server + shared)",
+    "lint": "pass (max-warnings 0)",
+    "build": "pass (nest build)",
+    "test": "345/345 workspace vitest (+9: R1-R7 baseline + R8/R9 archive paths added post-review)"
+  },
+  "teamFlow": {
+    "coder": "arceus:coder — assertReadable + resolveAndAssertReadable + readText/createDownloadStream switch + R1-R7 tests",
+    "tester": "arceus:tester — 5 gates green (343/343 at coder output)",
+    "reviewer": "arceus:reviewer — REQUEST_CHANGES; 1 BLOCK (createArchiveStream+compressToDisk also read paths) + 2 WARN (stale class comment, TOCTOU note) + 4 SUGGEST; all BLOCK/WARN fixed + 3/4 SUGGESTs applied (the 4th — R7 cast cleanup — done by switching R7 to indirect readText test)",
+    "checkSpec": "Victini (check-spec) — re-run against this commit"
+  },
   "targetVersion": "v0.5.2",
   "priority": "P0 — security blocker",
   "dependsOn": [],

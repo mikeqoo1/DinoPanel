@@ -112,20 +112,52 @@ const DANGEROUS_WRITE_PATHS: readonly string[] = [
 ];
 
 /**
- * Mutating-method invariant: every method that writes, creates, renames,
- * removes, or changes metadata on a path MUST call `assertWritable(p)`
- * immediately after `resolvePath(input)` on the resolved target. Read
- * operations call only `resolvePath()`.
+ * Paths that must never be read, regardless of how the caller spelled the
+ * request (including via symlinks — see resolveAndAssertReadable).
  *
- * Audit (kept in sync with v0.5.2-files-upload-write-guard):
- *   write / mkdir / chmod / chown / remove  — assertWritable on target
- *   rename / copyTo                          — assertWritable on destination
- *                                              (and source for rename, since
- *                                              the source is unlinked)
- *   saveUpload                               — assertWritable on directory
+ * This list is TIGHTER than DANGEROUS_WRITE_PATHS: /etc as a whole is NOT
+ * blocked for reads (operators legitimately read nginx/php/systemd configs),
+ * but specific high-value credential subtrees under /etc are blocked.
  *
- * If you add a new mutating method, extend this list and call
- * `assertWritable()` on every path you will touch.
+ * Matched as an exact path OR as a prefix followed by '/'.
+ *
+ * Known limitation: the panel's own SQLite DB (DATA_DIR/dinopanel.db) is not
+ * listed here because DATA_DIR is configurable and injecting it without a
+ * config dependency would require hardcoding — deferred as a follow-up.
+ */
+const DANGEROUS_READ_PATHS: readonly string[] = [
+  '/etc/shadow',
+  '/etc/gshadow',
+  '/etc/sudoers',
+  '/etc/sudoers.d',
+  '/etc/ssh',      // whole dir — sshd_config, ssh_host_*_key
+  '/root',         // entire homedir (.ssh, .bash_history, .docker, ...)
+  '/proc',         // entire tree — /proc/<pid>/environ, /proc/<pid>/mem, etc.
+  '/sys',
+  '/dev/mem',
+  '/dev/kmem',
+  '/dev/port',
+];
+
+/**
+ * Path-handling invariants kept in sync with the v0.5.2 security fixes:
+ *
+ * Mutating methods (write, mkdir, rename, copyTo, remove, chmod, chown,
+ * saveUpload) MUST call `assertWritable(p)` immediately after
+ * `resolvePath(input)` on the resolved target. rename/copyTo guard the
+ * destination (and rename also guards the source since it's unlinked);
+ * saveUpload guards the directory.
+ *
+ * Read methods that return or stream file CONTENT MUST call
+ * `resolveAndAssertReadable(input)` instead of `resolvePath(input)`
+ * directly. Currently:
+ *   readText / createDownloadStream / createArchiveStream / compressToDisk
+ *   sources — all use resolveAndAssertReadable.
+ *   list — exempt: returns metadata only (via lstat); symlinks appear in
+ *   listings but cannot be traversed through for content.
+ *
+ * If you add a new method that writes, extend the mutating list above.
+ * If you add a new method that reads file content, extend the read list.
  */
 @Injectable()
 export class FilesService {
@@ -167,6 +199,42 @@ export class FilesService {
         });
       }
     }
+  }
+
+  /**
+   * Guard for read operations. Throws ForbiddenException if the already-resolved
+   * (real) path equals or is a descendant of any entry in DANGEROUS_READ_PATHS.
+   * Must be called with the output of fs.realpath, not the raw user input.
+   */
+  private assertReadable(realPath: string): void {
+    for (const prefix of DANGEROUS_READ_PATHS) {
+      if (realPath === prefix || realPath.startsWith(prefix + '/')) {
+        throw new ForbiddenException({
+          code: 'FILE_FORBIDDEN_READ',
+          message: 'Refusing to read sensitive system path',
+        });
+      }
+    }
+  }
+
+  /**
+   * Security-critical read helper: resolves the user-supplied path to its
+   * canonical real path (following all symlink hops), then asserts the target
+   * is not in the read deny-list before returning it.
+   *
+   * This is the only safe entry-point for read operations because it prevents
+   * the symlink-to-sensitive-file exploit: a user can create a symlink in any
+   * writable directory pointing at /etc/shadow; without realpath resolution the
+   * deny-list check would never see the true target.
+   *
+   * On ENOENT (broken symlink or missing file) the error is forwarded through
+   * mapFsError so callers see the standard FILE_NOT_FOUND / 404.
+   */
+  private async resolveAndAssertReadable(input: string): Promise<string> {
+    const resolved = this.resolvePath(input);
+    const real = await fs.realpath(resolved).catch((err): never => mapFsError(err, resolved));
+    this.assertReadable(real);
+    return real;
   }
 
   async list(rawPath: string, showHidden: boolean): Promise<{ path: string; entries: FileEntry[] }> {
@@ -226,7 +294,7 @@ export class FilesService {
   }
 
   async readText(rawPath: string): Promise<{ content: string; size: number }> {
-    const path = this.resolvePath(rawPath);
+    const path = await this.resolveAndAssertReadable(rawPath);
     const stat = await fs.stat(path).catch(() => null);
     if (!stat) throw new NotFoundException({ code: 'FILE_NOT_FOUND', message: path });
     if (!stat.isFile()) {
@@ -336,11 +404,24 @@ export class FilesService {
     return fullPath;
   }
 
-  createDownloadStream(rawPath: string): { stream: NodeJS.ReadableStream; size: number; filename: string } {
-    const path = this.resolvePath(rawPath);
+  async createDownloadStream(rawPath: string): Promise<{ stream: NodeJS.ReadableStream; size: number; filename: string }> {
+    const path = await this.resolveAndAssertReadable(rawPath);
+    const stat = await fs.stat(path).catch((err) => mapFsError(err, path));
+    if (!stat.isFile()) {
+      throw new BadRequestException({
+        code: 'FILE_NOT_REGULAR_FILE',
+        message: 'Not a regular file',
+      });
+    }
+    // TOCTOU window: between resolveAndAssertReadable's realpath check and
+    // the createReadStream call, a concurrent writer could rename the
+    // target into a symlink to a sensitive path. Accepted per
+    // decisions.md D6 — the panel's threat model is authenticated operator,
+    // not multi-tenant root-equal; closing this with O_NOFOLLOW would
+    // require dropping the Node createReadStream abstraction.
     return {
       stream: createReadStream(path),
-      size: 0,
+      size: stat.size,
       filename: basename(path),
     };
   }
@@ -349,7 +430,10 @@ export class FilesService {
     paths: string[],
     format: 'zip' | 'tar.gz',
   ): Promise<{ stream: NodeJS.ReadableStream; filename: string }> {
-    const resolved = paths.map((p) => this.resolvePath(p));
+    // Each source path is a read; route through resolveAndAssertReadable
+    // so the archive endpoint cannot ship sensitive system files through
+    // a user-created symlink (parity with createDownloadStream).
+    const resolved = await Promise.all(paths.map((p) => this.resolveAndAssertReadable(p)));
     const archive =
       format === 'zip'
         ? archiver('zip', { zlib: { level: 6 } })
@@ -386,7 +470,12 @@ export class FilesService {
       });
     }
 
-    const resolvedSources = paths.map((p) => this.resolvePath(p));
+    // Source paths are reads — route through the symlink-safe helper so
+    // a malicious symlink in the source list cannot smuggle /etc/shadow
+    // into an on-disk archive that the operator can then download.
+    const resolvedSources = await Promise.all(
+      paths.map((p) => this.resolveAndAssertReadable(p)),
+    );
     const destPath = this.resolvePath(rawDest);
     this.assertWritable(destPath);
 

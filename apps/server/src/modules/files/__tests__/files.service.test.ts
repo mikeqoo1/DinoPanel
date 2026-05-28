@@ -20,6 +20,7 @@ const fsMock = vi.hoisted(() => ({
   chown: vi.fn(),
   readlink: vi.fn(),
   writeFile: vi.fn(),
+  realpath: vi.fn(),
 }));
 
 const streamsMock = vi.hoisted(() => ({
@@ -119,6 +120,8 @@ describe('FilesService.readText', () => {
   beforeEach(() => {
     svc = makeService();
     vi.clearAllMocks();
+    // Default: realpath passes through the input unchanged (non-symlink normal file)
+    fsMock.realpath.mockImplementation((p: string) => Promise.resolve(p));
   });
 
   afterEach(() => {
@@ -422,6 +425,124 @@ describe('fs errno mapping via mapFsError', () => {
     await expect(svc.list('/tmp/missing', false)).rejects.toThrow(NotFoundException);
     await expect(svc.list('/tmp/missing', false)).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'FILE_NOT_FOUND' }),
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FilesService.read-side symlink protection (cases R1-R7)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.read-side symlink protection', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // R1 — symlink in tmpdir resolving to /etc/shadow: readText must reject
+  it('R1: readText() via symlink to /etc/shadow rejects with FILE_FORBIDDEN_READ', async () => {
+    fsMock.realpath.mockResolvedValue('/etc/shadow');
+    await expect(svc.readText('/tmp/uploads/shadow')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_FORBIDDEN_READ' }),
+    });
+  });
+
+  // R2 — symlink resolving to /etc/ssh/ssh_host_rsa_key: createDownloadStream must reject
+  it('R2: createDownloadStream() via symlink to /etc/ssh/ssh_host_rsa_key rejects with FILE_FORBIDDEN_READ', async () => {
+    fsMock.realpath.mockResolvedValue('/etc/ssh/ssh_host_rsa_key');
+    await expect(svc.createDownloadStream('/tmp/uploads/sshkey')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_FORBIDDEN_READ' }),
+    });
+  });
+
+  // R3 — legitimate read of a regular file under /home/user: must succeed
+  it('R3: readText() on a normal /home/user/note.txt succeeds', async () => {
+    const content = 'hello world';
+    const buf = Buffer.from(content, 'utf-8');
+    fsMock.realpath.mockResolvedValue('/home/user/note.txt');
+    fsMock.stat.mockResolvedValue(makeFileStat(buf.length));
+    fsMock.open.mockResolvedValue(makeFd(buf));
+    fsMock.readFile.mockResolvedValue(content);
+
+    const result = await svc.readText('/home/user/note.txt');
+    expect(result.content).toBe(content);
+  });
+
+  // R4 — chained symlink /tmp/a → /tmp/b → /etc/shadow: realpath returns the final target
+  it('R4: readText() via nested symlink chain to /etc/shadow rejects with FILE_FORBIDDEN_READ', async () => {
+    fsMock.realpath.mockResolvedValue('/etc/shadow');
+    await expect(svc.readText('/tmp/a')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_FORBIDDEN_READ' }),
+    });
+  });
+
+  // R5 — broken symlink: realpath rejects with ENOENT → must surface as FILE_NOT_FOUND, not a security error
+  it('R5: broken symlink causes readText() to throw NotFoundException FILE_NOT_FOUND', async () => {
+    fsMock.realpath.mockRejectedValue(makeErrno('ENOENT'));
+    await expect(svc.readText('/tmp/broken-link')).rejects.toThrow(NotFoundException);
+    await expect(svc.readText('/tmp/broken-link')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_NOT_FOUND' }),
+    });
+  });
+
+  // R6 — FIFO / non-regular file via download: stat.isFile() returns false → FILE_NOT_REGULAR_FILE
+  it('R6: createDownloadStream() on a FIFO rejects with FILE_NOT_REGULAR_FILE', async () => {
+    fsMock.realpath.mockResolvedValue('/home/user/mypipe');
+    fsMock.stat.mockResolvedValue({ isFile: () => false, isDirectory: () => false, size: 0 });
+    await expect(svc.createDownloadStream('/home/user/mypipe')).rejects.toThrow(BadRequestException);
+    await expect(svc.createDownloadStream('/home/user/mypipe')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_NOT_REGULAR_FILE' }),
+    });
+  });
+
+  // R7 — regression guard: a read on a safe path under /home/user is not blocked.
+  // Tested indirectly through readText (which calls assertReadable internally)
+  // so we exercise the full helper chain rather than a private-method cast.
+  it('R7: readText() on a safe path under /home/user is not blocked by the deny-list', async () => {
+    const content = 'safe contents';
+    const buf = Buffer.from(content, 'utf-8');
+    fsMock.realpath.mockResolvedValue('/home/user/notes.txt');
+    fsMock.stat.mockResolvedValue(makeFileStat(buf.length));
+    fsMock.open.mockResolvedValue(makeFd(buf));
+    fsMock.readFile.mockResolvedValue(content);
+
+    const result = await svc.readText('/home/user/notes.txt');
+    expect(result.content).toBe(content);
+  });
+
+  // R8 — archive download path is a parallel read path; symlink-to-shadow must
+  // be rejected before the archive engine reads file content.
+  it('R8: createArchiveStream() rejects when any source resolves into the deny-list', async () => {
+    fsMock.realpath.mockImplementation((p: string) =>
+      p === '/tmp/uploads/shadow-link' ? Promise.resolve('/etc/shadow') : Promise.resolve(p),
+    );
+    await expect(
+      svc.createArchiveStream(['/home/user/safe.txt', '/tmp/uploads/shadow-link'], 'zip'),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_FORBIDDEN_READ' }),
+    });
+  });
+
+  // R9 — compressToDisk source paths are reads too: a symlink to /etc/shadow
+  // in the source list cannot smuggle the file into an on-disk archive.
+  it('R9: compressToDisk() rejects when any source resolves into the deny-list', async () => {
+    fsMock.realpath.mockImplementation((p: string) =>
+      p === '/tmp/uploads/shadow-link' ? Promise.resolve('/etc/shadow') : Promise.resolve(p),
+    );
+    await expect(
+      svc.compressToDisk(
+        ['/home/user/safe.txt', '/tmp/uploads/shadow-link'],
+        '/tmp/out.zip',
+        'zip',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'FILE_FORBIDDEN_READ' }),
     });
   });
 });

@@ -123,7 +123,7 @@ export class FilesController {
   @Get('download')
   async download(@Query('path') path: string, @Res({ passthrough: false }) res: FastifyReply) {
     pathOnlySchema.parse({ path });
-    const { stream, filename } = this.files.createDownloadStream(path);
+    const { stream, filename } = await this.files.createDownloadStream(path);
     res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
     res.header('Content-Type', 'application/octet-stream');
     return res.send(stream);
