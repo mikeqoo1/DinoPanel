@@ -1,8 +1,21 @@
 {
   "id": "v0.5.2-db-instance-password-redact",
   "title": "Redact dbInstance.password from API responses — close N×password leak via GET /databases",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-27",
+  "completedAt": "2026-05-28",
+  "verification": {
+    "typecheck": "pass (server + shared + web)",
+    "lint": "pass (max-warnings 0 — server + web)",
+    "build": "pass (nest build + vite build)",
+    "test": "350/350 workspace vitest (+5: 4 reveal cases + 1 post-review instance-not-found side-channel guard)"
+  },
+  "teamFlow": {
+    "coder": "arceus:coder — 4 phases (shared schema split + backend redact + reveal endpoint + frontend modal + i18n + tests)",
+    "tester": "arceus:tester — 7 gates green incl. vite build (349/349 at coder output)",
+    "reviewer": "arceus:reviewer — REQUEST_CHANGES; 2 BLOCK (RQ cache gcTime + missing instance-not-found test) + 3 WARN + 4 SUGGEST; both BLOCKs fixed + 4/7 follow-ups applied (decorator order, trim on schema, REVEAL_WINDOW_MS constant, fetchRow-before-verify side-channel; remaining 3 are style-only)",
+    "checkSpec": "Victini (check-spec) — to be run on this commit"
+  },
   "targetVersion": "v0.5.2",
   "priority": "P0 — security blocker",
   "dependsOn": [],

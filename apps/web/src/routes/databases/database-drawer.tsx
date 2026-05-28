@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Copy, ExternalLink, KeyRound, Play, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, Eye, KeyRound, Play, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-react';
 import type { DbInstanceResponse } from '@dinopanel/shared';
 import {
   Sheet,
@@ -26,6 +26,7 @@ import { ENGINE_META } from './engine-meta';
 import { MetricCard, fmtDuration } from './metric-card';
 import { pmmCardState } from './pmm-card-state';
 import { RotatePasswordDialog } from './rotate-password-dialog';
+import { RevealPasswordDialog } from './reveal-password-dialog';
 
 interface Props {
   instance: DbInstanceResponse | null;
@@ -36,6 +37,7 @@ interface Props {
 export function DatabaseDrawer({ instance, onOpenChange, pmmUrl }: Props) {
   const { t } = useTranslation();
   const [rotateOpen, setRotateOpen] = useState(false);
+  const [revealOpen, setRevealOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
@@ -51,6 +53,7 @@ export function DatabaseDrawer({ instance, onOpenChange, pmmUrl }: Props) {
             instance={instance}
             pmmUrl={pmmUrl}
             onRotate={() => setRotateOpen(true)}
+            onReveal={() => setRevealOpen(true)}
             confirmDelete={confirmDelete}
             setConfirmDelete={setConfirmDelete}
             onDeleted={() => onOpenChange(false)}
@@ -64,6 +67,13 @@ export function DatabaseDrawer({ instance, onOpenChange, pmmUrl }: Props) {
             instanceName={instance.name}
           />
         )}
+        {instance && (
+          <RevealPasswordDialog
+            open={revealOpen}
+            onOpenChange={setRevealOpen}
+            instanceId={instance.id}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
@@ -73,6 +83,7 @@ interface BodyProps {
   instance: DbInstanceResponse;
   pmmUrl: string | null;
   onRotate: () => void;
+  onReveal: () => void;
   confirmDelete: boolean;
   setConfirmDelete: (v: boolean) => void;
   onDeleted: () => void;
@@ -82,6 +93,7 @@ function DrawerBody({
   instance,
   pmmUrl,
   onRotate,
+  onReveal,
   confirmDelete,
   setConfirmDelete,
   onDeleted,
@@ -138,21 +150,26 @@ function DrawerBody({
           value={instance.username}
           onCopy={copyText}
         />
-        <Field
-          label={t('databases.drawer.password')}
-          value={instance.password}
-          onCopy={copyText}
-          mono
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full"
-          onClick={onRotate}
-        >
-          <KeyRound className="mr-1 h-4 w-4" />
-          {t('databases.drawer.rotate_password')}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={onReveal}
+          >
+            <Eye className="mr-1 h-4 w-4" />
+            {t('databases.reveal_password.button')}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={onRotate}
+          >
+            <KeyRound className="mr-1 h-4 w-4" />
+            {t('databases.drawer.rotate_password')}
+          </Button>
+        </div>
       </section>
 
       {/* PMM summary */}

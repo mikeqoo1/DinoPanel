@@ -67,6 +67,8 @@ export const removeDbInstanceSchema = z.object({
 });
 export type RemoveDbInstance = z.infer<typeof removeDbInstanceSchema>;
 
+// Password is NOT included. Use the /reveal-password endpoint to
+// obtain the credential behind a re-auth gate (v0.5.2).
 export const dbInstanceSchema = z.object({
   id: z.number().int(),
   name: dbInstanceNameSchema,
@@ -74,9 +76,6 @@ export const dbInstanceSchema = z.object({
   imageTag: z.string(),
   port: z.number().int(),
   username: z.string(),
-  // Plaintext per Q3. Audit/log redaction policy lives server-side
-  // (spec.md §Audit + log redaction policy).
-  password: z.string(),
   dataDir: z.string(),
   containerName: z.string(),
   status: dbInstanceStatusSchema,
@@ -86,6 +85,23 @@ export const dbInstanceSchema = z.object({
   updatedAt: z.number().int(),
 });
 export type DbInstanceResponse = z.infer<typeof dbInstanceSchema>;
+
+// Returned only by POST /databases/:id/reveal-password after re-auth.
+export const dbInstanceRevealResponseSchema = z.object({
+  id: z.number().int(),
+  password: z.string(),
+  revealedAt: z.number().int(),
+  expiresAt: z.number().int(),
+});
+export type DbInstanceRevealResponse = z.infer<typeof dbInstanceRevealResponseSchema>;
+
+export const revealDbPasswordBodySchema = z.object({
+  // .trim() lets a single whitespace surface as "empty field" at the API
+  // boundary instead of failing bcrypt compare with a misleading
+  // re-verify error.
+  currentPassword: z.string().trim().min(1),
+});
+export type RevealDbPassword = z.infer<typeof revealDbPasswordBodySchema>;
 
 export const dbHealthSchema = z.object({
   ok: z.boolean(),

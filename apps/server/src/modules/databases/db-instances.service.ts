@@ -7,6 +7,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
@@ -16,10 +17,12 @@ import type {
   CreateDbInstance,
   DbEngine,
   DbInstanceResponse,
+  DbInstanceRevealResponse,
   DbReconcileResponse,
   PatchDbInstance,
   RemoveDbInstance,
 } from '@dinopanel/shared';
+import { UsersService } from '../users/users.service';
 import type { AppConfig } from '../../config/configuration';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { dbInstances, type DbInstance } from '../../database/schema';
@@ -33,6 +36,12 @@ import {
   type DatabasesPaths,
 } from './paths';
 import { relabelPath } from './selinux.util';
+
+// How long a revealed password is considered valid by the client (the
+// dialog auto-hides after this). Server returns `expiresAt = now + this`;
+// the frontend uses the server's expiresAt for the countdown, so this
+// constant only controls the wall-clock window the reveal endpoint promises.
+const REVEAL_WINDOW_MS = 30_000;
 
 /**
  * v0.4 Phase 2 — full lifecycle for DB instances.
@@ -50,6 +59,7 @@ export class DbInstancesService {
     private readonly config: ConfigService<{ app: AppConfig }>,
     private readonly registry: DbEngineRegistry,
     private readonly metrics: DbMetricsService,
+    private readonly usersService: UsersService,
     private readonly logger: Logger,
   ) {
     const app = this.config.get<AppConfig>('app', { infer: true });
@@ -328,6 +338,40 @@ export class DbInstancesService {
     return this.get(id);
   }
 
+  async revealPassword(
+    instanceId: number,
+    requesterUserId: number,
+    currentPassword: string,
+  ): Promise<DbInstanceRevealResponse> {
+    // Resolve the instance BEFORE re-auth so a 404 surfaces without first
+    // exposing "your password is correct" as a side-channel — an attacker
+    // probing random instanceIds with a known-valid password would
+    // otherwise learn auth status before the lookup ran. Both checks
+    // are still required; the order matters for the side-channel only.
+    const row = await this.fetchRow(instanceId);
+    const user = await this.usersService.findById(requesterUserId);
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'AUTH_RE_VERIFY_FAILED',
+        message: 'Re-verification failed',
+      });
+    }
+    const ok = await this.usersService.verifyPassword(user, currentPassword);
+    if (!ok) {
+      throw new UnauthorizedException({
+        code: 'AUTH_RE_VERIFY_FAILED',
+        message: 'Re-verification failed',
+      });
+    }
+    const now = Date.now();
+    return {
+      id: row.id,
+      password: row.password,
+      revealedAt: now,
+      expiresAt: now + REVEAL_WINDOW_MS,
+    };
+  }
+
   // -------------------------------------------------------------------
   // Reconcile — boot + manual endpoint
   // -------------------------------------------------------------------
@@ -523,7 +567,6 @@ export class DbInstancesService {
       imageTag: row.imageTag,
       port: row.port,
       username: row.username,
-      password: row.password,
       dataDir: row.dataDir,
       containerName: row.containerName,
       status: row.status,

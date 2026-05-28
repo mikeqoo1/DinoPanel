@@ -11,6 +11,7 @@ export const SENSITIVE_BODY_FIELDS = [
   'password',
   'oldPassword',
   'newPassword',
+  'currentPassword',
   'refreshToken',
 ] as const;
 

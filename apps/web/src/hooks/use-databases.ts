@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateDbInstance,
   DbInstanceResponse,
+  DbInstanceRevealResponse,
   DbMetricsSummary,
   DbReconcileResponse,
   PatchDbInstance,
   PmmExternalServicesResponse,
   RemoveDbInstance,
+  RevealDbPassword,
 } from '@dinopanel/shared';
 import { api } from '@/lib/api';
 
@@ -119,6 +121,23 @@ export function useRotatePassword() {
       qc.invalidateQueries({ queryKey: databaseKeys.list() });
       qc.invalidateQueries({ queryKey: databaseKeys.metrics(id) });
     },
+  });
+}
+
+export function useRevealPassword() {
+  return useMutation({
+    mutationFn: async (args: { id: number; body: RevealDbPassword }) =>
+      (
+        await api.post<DbInstanceRevealResponse>(
+          `/databases/${args.id}/reveal-password`,
+          args.body,
+        )
+      ).data,
+    // gcTime=0 evicts the mutation's data from the React Query cache the
+    // moment the dialog unmounts, so the plaintext password never
+    // outlives the 30s reveal window in devtools / future code that
+    // happens to inspect `mutation.data`.
+    gcTime: 0,
   });
 }
 

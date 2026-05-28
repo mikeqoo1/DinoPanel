@@ -761,7 +761,18 @@
       "app_configs_bullet": "force you to update every app that connects with the old password.",
       "irreversible_bullet": "be irreversible — the previous password is overwritten.",
       "confirm": "Yes, rotate",
-      "done": "Rotated {{name}} (new password: {{password}})"
+      "done": "Password rotated. Use the reveal action in the drawer to see the new value."
+    },
+    "reveal_password": {
+      "button": "Reveal password",
+      "modal_title": "Reveal database password",
+      "current_password_label": "Your current panel password",
+      "current_password_placeholder": "Enter your password to confirm",
+      "submit": "Reveal",
+      "error_re_verify": "Re-verification failed — check your password and try again.",
+      "error_generic": "Failed to reveal password.",
+      "field_label": "Password",
+      "countdown": "Hides in {{seconds}}s"
     }
   }
 }

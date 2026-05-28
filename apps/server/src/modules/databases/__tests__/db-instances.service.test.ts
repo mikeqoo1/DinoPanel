@@ -12,6 +12,7 @@ import { dbInstances } from '../../../database/schema';
 import { DbInstancesService } from '../db-instances.service';
 import { DbEngineRegistry } from '../db-engine.registry';
 import type { DbMetricsService } from '../db-metrics.service';
+import type { UsersService } from '../../users/users.service';
 import { MariadbDriver } from '../engines/mariadb.driver';
 import { MongoDriver } from '../engines/mongo.driver';
 import { MysqlDriver } from '../engines/mysql.driver';
@@ -122,10 +123,19 @@ function makeRegistry(): DbEngineRegistry {
   );
 }
 
+function makeUsersService(overrides: Partial<UsersService> = {}): UsersService {
+  return {
+    findById: vi.fn(async () => undefined),
+    verifyPassword: vi.fn(async () => false),
+    ...overrides,
+  } as unknown as UsersService;
+}
+
 function makeService(
   db: Db,
   docker: Dockerode,
   databasesRoot: string,
+  usersService?: UsersService,
 ): DbInstancesService {
   const config = {
     get: () => ({ env: { DATABASES_ROOT: databasesRoot } }),
@@ -139,13 +149,14 @@ function makeService(
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-  } as unknown as ConstructorParameters<typeof DbInstancesService>[5];
+  } as unknown as ConstructorParameters<typeof DbInstancesService>[6];
   return new DbInstancesService(
     db,
     docker,
     config,
     makeRegistry(),
     metrics,
+    usersService ?? makeUsersService(),
     logger,
   );
 }
@@ -171,7 +182,8 @@ describe('DbInstancesService.create', () => {
     });
     expect(res.containerName).toBe('dinopanel-mysql-shop');
     expect(res.status).toBe('running');
-    expect(res.password.length).toBeGreaterThanOrEqual(32);
+    // password is not in the response (v0.5.2 redact)
+    expect(res).not.toHaveProperty('password');
     expect(createCalls).toHaveLength(1);
     expect(createCalls[0]!.name).toBe('dinopanel-mysql-shop');
     expect(containers.get('dinopanel-mysql-shop')!.start).toHaveBeenCalledTimes(1);
@@ -283,12 +295,13 @@ describe('DbInstancesService.rotatePassword', () => {
     const { docker, createCalls } = makeMockDocker();
     const svc = makeService(db, docker, dataRoot);
     const inst = await svc.create({ name: 'shop', engine: 'mysql', port: 49_009 });
-    const before = inst.password;
-    const after = await svc.rotatePassword(inst.id);
-    expect(after.password).not.toBe(before);
-    expect(after.password.length).toBeGreaterThanOrEqual(32);
+    await svc.rotatePassword(inst.id);
     // createContainer called twice — once for create, once for rotate.
     expect(createCalls).toHaveLength(2);
+    // password is not in the response shape (v0.5.2 redact);
+    // verify the DB row actually has a fresh password
+    const rows = await db.select().from(dbInstances).all();
+    expect(rows[0]!.password.length).toBeGreaterThanOrEqual(32);
   });
 });
 
@@ -363,5 +376,82 @@ describe('DbInstancesService.reconcile', () => {
     const res = await svc.reconcile();
     expect(res.orphanContainer).toBe(1);
     expect(res.scanned).toBe(0); // no rows in DB
+  });
+});
+
+describe('DbInstancesService.revealPassword', () => {
+  let db: Db;
+  let dataRoot: string;
+
+  beforeEach(() => {
+    db = setupDb();
+    dataRoot = mkdtempSync(join(tmpdir(), 'dinopanel-db-test-'));
+  });
+
+  it('toResponse does not include password field', async () => {
+    const { docker } = makeMockDocker();
+    const svc = makeService(db, docker, dataRoot);
+    const inst = await svc.create({ name: 'shop', engine: 'mysql', port: 49_012 });
+    expect(inst).not.toHaveProperty('password');
+  });
+
+  it('happy path returns password + freshness timestamps', async () => {
+    const { docker } = makeMockDocker();
+    const fakeUser = { id: 1, username: 'admin', passwordHash: 'hash' };
+    const usersService = makeUsersService({
+      findById: vi.fn(async () => fakeUser as unknown as Awaited<ReturnType<UsersService['findById']>>),
+      verifyPassword: vi.fn(async () => true),
+    });
+    const svc = makeService(db, docker, dataRoot, usersService);
+    const inst = await svc.create({ name: 'shop2', engine: 'mysql', port: 49_013 });
+    const before = Date.now();
+    const reveal = await svc.revealPassword(inst.id, 1, 'correct-pass');
+    expect(reveal.id).toBe(inst.id);
+    expect(typeof reveal.password).toBe('string');
+    expect(reveal.password.length).toBeGreaterThanOrEqual(32);
+    expect(reveal.revealedAt).toBeGreaterThanOrEqual(before);
+    expect(reveal.expiresAt).toBe(reveal.revealedAt + 30_000);
+  });
+
+  it('wrong password throws UnauthorizedException with AUTH_RE_VERIFY_FAILED', async () => {
+    const { docker } = makeMockDocker();
+    const fakeUser = { id: 1, username: 'admin', passwordHash: 'hash' };
+    const usersService = makeUsersService({
+      findById: vi.fn(async () => fakeUser as unknown as Awaited<ReturnType<UsersService['findById']>>),
+      verifyPassword: vi.fn(async () => false),
+    });
+    const svc = makeService(db, docker, dataRoot, usersService);
+    const inst = await svc.create({ name: 'shop3', engine: 'mysql', port: 49_014 });
+    await expect(svc.revealPassword(inst.id, 1, 'wrong-pass')).rejects.toMatchObject({
+      response: { code: 'AUTH_RE_VERIFY_FAILED' },
+    });
+  });
+
+  it('unknown user throws UnauthorizedException', async () => {
+    const { docker } = makeMockDocker();
+    const usersService = makeUsersService({
+      findById: vi.fn(async () => undefined),
+    });
+    const svc = makeService(db, docker, dataRoot, usersService);
+    const inst = await svc.create({ name: 'shop4', engine: 'mysql', port: 49_015 });
+    await expect(svc.revealPassword(inst.id, 99, 'any-pass')).rejects.toMatchObject({
+      response: { code: 'AUTH_RE_VERIFY_FAILED' },
+    });
+  });
+
+  // Post-review (reviewer BLOCK 2): a request for a non-existent instance
+  // surfaces NotFoundException before any auth side-channel leaks the
+  // requester's password validity. Side-channel hardening from
+  // db-instances.service.ts revealPassword ordering comment.
+  it('unknown instance throws NotFoundException (before any auth side-channel)', async () => {
+    const { docker } = makeMockDocker();
+    const verifyPassword = vi.fn(async () => true);
+    const usersService = makeUsersService({ verifyPassword });
+    const svc = makeService(db, docker, dataRoot, usersService);
+    await expect(svc.revealPassword(99_999, 1, 'correct-pass')).rejects.toMatchObject({
+      response: { code: 'DB_INSTANCE_NOT_FOUND' },
+    });
+    // verifyPassword must NOT have been called — fetchRow runs first.
+    expect(verifyPassword).not.toHaveBeenCalled();
   });
 });

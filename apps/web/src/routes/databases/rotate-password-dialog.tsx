@@ -35,15 +35,8 @@ export function RotatePasswordDialog({
 
   const submit = async () => {
     try {
-      const result = await rotate.mutateAsync(instanceId);
-      toast.success(
-        t('databases.rotate.done', {
-          name: instanceName,
-          // Truncate the new password in the toast — full value lives
-          // in the drawer's connection card.
-          password: result.password.slice(0, 8) + '…',
-        }),
-      );
+      await rotate.mutateAsync(instanceId);
+      toast.success(t('databases.rotate.done', { name: instanceName }));
       onOpenChange(false);
     } catch (err) {
       toast.error(extractErrorMessage(err));

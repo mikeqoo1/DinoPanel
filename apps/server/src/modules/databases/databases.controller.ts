@@ -10,18 +10,23 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   createDbInstanceSchema,
   patchDbInstanceSchema,
   removeDbInstanceSchema,
+  revealDbPasswordBodySchema,
   type CreateDbInstance,
   type DbInstanceResponse,
+  type DbInstanceRevealResponse,
   type DbMetricsSummary,
   type DbReconcileResponse,
   type PatchDbInstance,
   type PmmExternalServicesResponse,
   type RemoveDbInstance,
+  type RevealDbPassword,
 } from '@dinopanel/shared';
+import { CurrentUser, type AuthUserContext } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { DatabasesService } from './databases.service';
 import { DbInstancesService } from './db-instances.service';
@@ -113,6 +118,17 @@ export class DatabasesController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DbInstanceResponse> {
     return this.instances.rotatePassword(id);
+  }
+
+  // TODO: switch to user-keyed throttle once a custom tracker exists (D3).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post(':id/reveal-password')
+  revealPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodValidationPipe(revealDbPasswordBodySchema)) body: RevealDbPassword,
+    @CurrentUser() user: AuthUserContext,
+  ): Promise<DbInstanceRevealResponse> {
+    return this.instances.revealPassword(id, user.id, body.currentPassword);
   }
 
   @Post('reconcile')

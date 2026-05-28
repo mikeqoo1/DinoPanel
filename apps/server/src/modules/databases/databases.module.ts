@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ContainersModule } from '../containers/containers.module';
 import { MonitoringModule } from '../monitoring/monitoring.module';
+import { UsersModule } from '../users/users.module';
 import { DatabasesController } from './databases.controller';
 import { DatabasesService } from './databases.service';
 import { DbEngineRegistry } from './db-engine.registry';
@@ -17,7 +18,8 @@ import { RedisDriver } from './engines/redis.driver';
   // ContainersModule re-exports the DOCKER dockerode injection token
   // — DbInstancesService injects it for container lifecycle.
   // MonitoringModule exports PmmPromqlClient for DbMetricsService.
-  imports: [ContainersModule, MonitoringModule],
+  // UsersModule exports UsersService for revealPassword re-auth.
+  imports: [ContainersModule, MonitoringModule, UsersModule],
   controllers: [DatabasesController],
   providers: [
     DatabasesService,

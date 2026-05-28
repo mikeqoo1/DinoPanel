@@ -761,7 +761,18 @@
       "app_configs_bullet": "讓所有用舊密碼的應用程式必須改用新密碼。",
       "irreversible_bullet": "不可逆 — 舊密碼會被覆寫。",
       "confirm": "確認輪換",
-      "done": "{{name}} 已輪換（新密碼：{{password}}）"
+      "done": "密碼已輪換。請至抽屜使用顯示密碼動作查看新值。"
+    },
+    "reveal_password": {
+      "button": "顯示密碼",
+      "modal_title": "顯示資料庫密碼",
+      "current_password_label": "您的面板登入密碼",
+      "current_password_placeholder": "輸入您的密碼以確認",
+      "submit": "顯示",
+      "error_re_verify": "二次驗證失敗 — 請確認密碼後重試。",
+      "error_generic": "顯示密碼失敗。",
+      "field_label": "密碼",
+      "countdown": "{{seconds}} 秒後隱藏"
     }
   }
 }
