@@ -22,15 +22,21 @@ const fsMock = vi.hoisted(() => ({
   writeFile: vi.fn(),
 }));
 
-vi.mock('node:fs', () => ({
-  promises: fsMock,
-  constants: { R_OK: 4 },
+const streamsMock = vi.hoisted(() => ({
   createReadStream: vi.fn(),
   createWriteStream: vi.fn(),
 }));
 
+vi.mock('node:fs', () => ({
+  promises: fsMock,
+  constants: { R_OK: 4 },
+  createReadStream: streamsMock.createReadStream,
+  createWriteStream: streamsMock.createWriteStream,
+}));
+
 vi.mock('archiver', () => ({ default: vi.fn() }));
 
+import { PassThrough, Readable } from 'node:stream';
 import { FilesService } from '../files.service';
 
 // ---------------------------------------------------------------------------
@@ -265,6 +271,59 @@ describe('FilesService.assertWritable', () => {
   it('A8: write() to /home/admin/notes.txt succeeds (not in deny-list)', async () => {
     await svc.write('/home/admin/notes.txt', 'hello');
     expect(fsMock.writeFile).toHaveBeenCalledWith('/home/admin/notes.txt', 'hello', 'utf-8');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// saveUpload — v0.5.2-files-upload-write-guard regression suite (cases U1-U3)
+// ---------------------------------------------------------------------------
+
+describe('FilesService.saveUpload', () => {
+  let svc: FilesService;
+
+  beforeEach(() => {
+    svc = makeService();
+    vi.clearAllMocks();
+    fsMock.mkdir.mockResolvedValue(undefined);
+  });
+
+  // case U1 — direct write into a deny-listed prefix is rejected with
+  // ForbiddenException before any fs side-effect runs.
+  it('U1: saveUpload targeting /etc/ssh throws ForbiddenException; no mkdir / no sink open', async () => {
+    const stream = Readable.from(['authorized_keys content']);
+    await expect(
+      svc.saveUpload('/etc/ssh', 'authorized_keys', stream),
+    ).rejects.toThrow(ForbiddenException);
+    expect(fsMock.mkdir).not.toHaveBeenCalled();
+    expect(streamsMock.createWriteStream).not.toHaveBeenCalled();
+  });
+
+  // case U2 — absolute path with ".." segments that resolves back into
+  // a deny-listed prefix is canonicalised by resolvePath, then caught
+  // by assertWritable. (Bare-relative input like '../../etc/ssh' is
+  // rejected one step earlier at resolvePath; this test covers the
+  // exploit-relevant absolute-with-traversal vector.)
+  it('U2: saveUpload with ../traversal resolving to /etc throws ForbiddenException', async () => {
+    const stream = Readable.from(['x']);
+    await expect(
+      svc.saveUpload('/home/user/../../../etc/ssh', 'authorized_keys', stream),
+    ).rejects.toThrow(ForbiddenException);
+    expect(fsMock.mkdir).not.toHaveBeenCalled();
+    expect(streamsMock.createWriteStream).not.toHaveBeenCalled();
+  });
+
+  // case U3 — happy-path regression: uploads to a non-deny-listed
+  // directory still proceed and return the resolved absolute path.
+  it('U3: saveUpload to /home/admin/uploads writes file and returns resolved path', async () => {
+    streamsMock.createWriteStream.mockImplementation(() => new PassThrough());
+    const result = await svc.saveUpload(
+      '/home/admin/uploads',
+      'note.txt',
+      Readable.from(['payload']),
+    );
+    expect(result).toBe('/home/admin/uploads/note.txt');
+    expect(fsMock.mkdir).toHaveBeenCalledWith('/home/admin/uploads', { recursive: true });
+    expect(streamsMock.createWriteStream).toHaveBeenCalledWith('/home/admin/uploads/note.txt');
   });
 });
 

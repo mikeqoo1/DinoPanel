@@ -111,6 +111,22 @@ const DANGEROUS_WRITE_PATHS: readonly string[] = [
   '/dev',
 ];
 
+/**
+ * Mutating-method invariant: every method that writes, creates, renames,
+ * removes, or changes metadata on a path MUST call `assertWritable(p)`
+ * immediately after `resolvePath(input)` on the resolved target. Read
+ * operations call only `resolvePath()`.
+ *
+ * Audit (kept in sync with v0.5.2-files-upload-write-guard):
+ *   write / mkdir / chmod / chown / remove  — assertWritable on target
+ *   rename / copyTo                          — assertWritable on destination
+ *                                              (and source for rename, since
+ *                                              the source is unlinked)
+ *   saveUpload                               — assertWritable on directory
+ *
+ * If you add a new mutating method, extend this list and call
+ * `assertWritable()` on every path you will touch.
+ */
 @Injectable()
 export class FilesService {
   /**
@@ -304,6 +320,11 @@ export class FilesService {
 
   async saveUpload(targetDir: string, filename: string, source: NodeJS.ReadableStream): Promise<string> {
     const dir = this.resolvePath(targetDir);
+    // v0.5.2-files-upload-write-guard: saveUpload was the one mutating
+    // method that missed the deny-list check, letting any authenticated
+    // panel user upload into /etc/ssh, /root/.ssh, etc. Reject before
+    // fs.mkdir so no empty directory is created on rejection (D2).
+    this.assertWritable(dir);
     const safeName = basename(filename).replace(/\0/g, '');
     if (!safeName || safeName === '.' || safeName === '..') {
       throw new BadRequestException({ code: 'FILE_FORBIDDEN_PATH', message: 'Invalid filename' });

@@ -1,8 +1,15 @@
 {
   "id": "v0.5.2-files-upload-write-guard",
   "title": "Apply assertWritable() to file-upload endpoint — closes /etc write bypass",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-27",
+  "completedAt": "2026-05-28",
+  "verification": {
+    "typecheck": "pass",
+    "lint": "pass (max-warnings 0)",
+    "build": "pass (nest build)",
+    "test": "316/316 workspace vitest (+3 new: U1 deny-list, U2 traversal, U3 happy-path)"
+  },
   "targetVersion": "v0.5.2",
   "priority": "P0 — security blocker",
   "dependsOn": [],
