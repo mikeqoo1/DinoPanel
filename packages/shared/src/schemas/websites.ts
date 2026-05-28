@@ -32,12 +32,30 @@ export type SiteName = z.infer<typeof siteNameSchema>;
 export const siteTypeSchema = z.enum(['static', 'reverse_proxy', 'php']);
 export type SiteType = z.infer<typeof siteTypeSchema>;
 
+// Safe filename: letters, digits, dot, underscore, hyphen only.
+// Excludes whitespace, semicolons, slashes, and other nginx-sensitive chars
+// so items can be interpolated raw into `index` directives.
+//
+// The refine() rejects strings that consist of only dots (`.`, `..`,
+// `...`). nginx treats them as literal filenames in an `index` lookup
+// (not as path-traversal), so they aren't directly exploitable, but
+// they're never legitimate either — refusing them keeps the safety
+// claim in decisions.md D1 unambiguous.
+export const safeFilenameSchema = z
+  .string()
+  .regex(/^[a-zA-Z0-9._-]+$/)
+  .max(64)
+  .refine((s) => !/^\.+$/.test(s), {
+    message: 'filename cannot consist only of dots',
+  });
+export type SafeFilename = z.infer<typeof safeFilenameSchema>;
+
 // Type-specific payloads. Discriminated union → backend renders the right
 // nginx template based on the discriminator.
 
 export const staticSitePayloadSchema = z.object({
   type: z.literal('static'),
-  indexFiles: z.array(z.string()).default(['index.html', 'index.htm']),
+  indexFiles: z.array(safeFilenameSchema).min(1).max(8).default(['index.html', 'index.htm']),
 });
 export type StaticSitePayload = z.infer<typeof staticSitePayloadSchema>;
 
@@ -53,7 +71,7 @@ export const phpPayloadSchema = z.object({
   // Phase 3 fills in fpm_socket / php_version etc. — declared here so the
   // schema surface is stable from Phase 1.
   phpVersion: z.enum(['8.3']).default('8.3'),
-  documentIndex: z.array(z.string()).default(['index.php', 'index.html']),
+  documentIndex: z.array(safeFilenameSchema).min(1).max(8).default(['index.php', 'index.html']),
 });
 export type PhpPayload = z.infer<typeof phpPayloadSchema>;
 

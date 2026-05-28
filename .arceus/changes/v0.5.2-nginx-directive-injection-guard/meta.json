@@ -1,8 +1,21 @@
 {
   "id": "v0.5.2-nginx-directive-injection-guard",
   "title": "Constrain indexFiles / documentIndex to safe filename charset — close nginx directive injection",
-  "status": "draft",
+  "status": "completed",
   "createdAt": "2026-05-27",
+  "completedAt": "2026-05-28",
+  "verification": {
+    "typecheck": "pass (server + shared)",
+    "lint": "pass (max-warnings 0)",
+    "build": "pass (nest build + shared tsc)",
+    "test": "336/336 workspace vitest (+20 new: 16 schema-base + 4 post-review for empty-string & dots-only edge cases)"
+  },
+  "teamFlow": {
+    "coder": "arceus:coder — schema + comment + audit + tests",
+    "tester": "arceus:tester — gates all green",
+    "reviewer": "arceus:reviewer — 1 BLOCK (..dots-only) + 2 WARN + 3 SUGGEST; fixed before commit",
+    "checkSpec": "Victini (check-spec) — re-run against the commit; see commit message for verdict"
+  },
   "targetVersion": "v0.5.2",
   "priority": "P0 — security blocker",
   "dependsOn": [],

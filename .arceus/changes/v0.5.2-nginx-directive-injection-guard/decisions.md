@@ -21,6 +21,19 @@ Excluded:
 The charset is the standard "safe filename" pattern used by many
 file-handling libraries. It is intentionally narrow.
 
+### D1 footnote — strings consisting only of dots
+
+The regex `^[a-zA-Z0-9._-]+$` matches `.`, `..`, `...` etc. — strings
+of only dots. In an nginx `index` directive these are treated as
+literal filename lookups (not directory ascent — the `/` rule above
+already blocks traversal), so they are not directly exploitable.
+However, no legitimate index filename consists of only dots; allowing
+them would weaken the safety claim ("nginx-safe filename charset")
+without buying anything. The schema therefore adds a `.refine()` that
+rejects dots-only strings explicitly. This keeps the deny surface
+narrower than the underlying regex permits, and the post-review
+schema test exercises `.` / `..` / `...` to lock the behaviour in.
+
 ## D2: Length cap at 64 chars per item
 
 No legitimate filename in a website index list exceeds 64
@@ -63,9 +76,10 @@ Per the L2D reviewer, also enumerate every `${...}` in
 | `payload.indexFiles` | unconstrained → tightened in this change | fixed |
 | `payload.documentIndex` | unconstrained → tightened in this change | fixed |
 | `payload.upstream` | `z.string().url()` | ACCEPTED (operator can legitimately proxy to any URL; the SSRF concern is documented in PMM proposal, similar treatment applies here) |
-| `site.serverName` / `domain` | (verify during impl) | TBD |
-| `payload.rootDir` / `documentRoot` | (verify during impl) | TBD |
-| `payload.fastcgiPass` (php upstream) | (verify during impl) | TBD |
+| `ctx.primaryDomain` (`server_name`) | `domainSchema` — RFC-1035 regex, forbids `;`, `{`, `}`, spaces | PASS |
+| `docRoot` (`root`) | derived from `ctx.siteRoot` + `join(…, 'public')`; `siteRoot` is built from `siteNameSchema`-validated name (`^[a-z0-9][a-z0-9_-]*$`), not raw user input | PASS |
+| `ctx.phpFpmUpstream` (`fastcgi_pass`) | set by `PhpFpmService.getUpstream()` from env var `PHP_FPM_SOCKET_PATH` (`z.string()`, no regex); operator-controlled deploy-time config, not a request-time user field — WARN: if an operator can manipulate this env var they could inject; acceptable for single-operator threat model, but document | WARN — follow-up change required (tighten `PHP_FPM_SOCKET_PATH` env schema or validate in `normalizeExternalUpstream`) |
+| `cert.fullchainPath` / `cert.privkeyPath` (`ssl_certificate`) | `siteCertInfoSchema` uses plain `z.string()`, no path constraint; values come from ACME/certbot output written by the server itself, not from user request payload | PASS (server-generated paths, not user-supplied) |
 
 If any TBD row resolves to "needs tightening," it becomes a
 follow-up change unless the fix is a one-liner that can be

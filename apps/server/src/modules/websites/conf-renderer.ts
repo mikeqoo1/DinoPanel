@@ -50,10 +50,20 @@ export class MissingPhpFpmConfigError extends Error {
  * Render an nginx server block from a typed context.
  *
  * Every input has been Zod-validated before reaching this function.
- * Defense-in-depth: the renderer never interpolates raw user strings
- * outside of values that the schema already constrained. Domain regex
- * forbids `;`, `{`, `}`, etc.; upstream URL is parsed by URL ctor;
- * paths are derived from validated site name.
+ * The renderer assumes its inputs have been validated by the shared Zod
+ * schemas at the controller boundary. Specifically: `indexFiles` and
+ * `documentIndex` items match `^[a-zA-Z0-9._-]+$` and cannot contain
+ * whitespace, semicolons, or directive separators. `primaryDomain` is
+ * constrained by `domainSchema` which forbids `;`, `{`, `}`, etc.
+ * `upstream` is validated by `upstreamUrlSchema`. Paths (`siteRoot`,
+ * `acmeRoot`) are derived from the validated site name, not raw user input.
+ * `phpFpmUpstream` is operator-supplied via env (`PHP_FPM_SOCKET_PATH`)
+ * and routed through `normalizeExternalUpstream()` — a deploy-time
+ * config value, not a request-time field; see v0.5.2-nginx-directive-
+ * injection-guard decisions.md D5 for the follow-up to tighten that
+ * env schema.
+ * Any new field added here must have an equally tight schema or be quoted
+ * before interpolation.
  */
 export function renderSiteConf(ctx: RenderContext): string {
   switch (ctx.payload.type) {
