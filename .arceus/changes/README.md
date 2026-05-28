@@ -47,6 +47,10 @@ Status values in `meta.json`:
 | `v0.4.7-pmm-deeplink-dashboard-and-version-badge` | completed | v0.4.7 | v0.4.6 path also 404'd — PMM 3 has no per-service-id UI route. Rewrite to per-engine Instance Summary dashboard `/graph/d/<uid>?var-service_name=<name>`. Also floating version badge top-right + Vite-injected version (single source) |
 | `v0.4.8-version-badge-relocate`             | completed  | v0.4.8  | v0.4.7's floating top-right badge overlapped page action buttons. Move into sidebar bottom under user menu, `text-sm` bigger font |
 | `v0.5-databases-backups`                    | ready      | v0.5.0  | Database backups + restore module — logical dumps, local storage, scheduler `db_backup` task type, restore-in-place, keep-last-N retention. 6 phases ≈ 7-10 dev-days |
+| `v0.5.2-files-upload-write-guard`           | draft (P0) | v0.5.2  | Security blocker: apply `assertWritable()` to upload endpoint — closes panel-login → host-root escalation via `POST /api/files/upload?path=/etc/ssh` |
+| `v0.5.2-files-read-symlink-protection`      | draft (P0) | v0.5.2  | Security blocker: add read-side symlink-deny check (`assertReadable` + `realpath`) — closes `/etc/shadow` read via user-created symlink |
+| `v0.5.2-db-instance-password-redact`        | draft (P0) | v0.5.2  | Security blocker: strip plaintext DB password from API responses, add `/reveal-password` endpoint with re-auth |
+| `v0.5.2-nginx-directive-injection-guard`    | draft (P0) | v0.5.2  | Security blocker: tighten `indexFiles` / `documentIndex` schemas to safe-filename regex — closes nginx directive injection via site payload |
 | `archived-v0.X-multihost-pmm-inventory`     | archived   | —       | Superseded by v0.4.3-pmm-inventory-readonly. Original 3-option draft (A full union / B limited / C decline); operator picked B |
 
 Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5

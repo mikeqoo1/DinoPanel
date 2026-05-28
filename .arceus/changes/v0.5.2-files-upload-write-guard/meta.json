@@ -1,0 +1,12 @@
+{
+  "id": "v0.5.2-files-upload-write-guard",
+  "title": "Apply assertWritable() to file-upload endpoint — closes /etc write bypass",
+  "status": "draft",
+  "createdAt": "2026-05-27",
+  "targetVersion": "v0.5.2",
+  "priority": "P0 — security blocker",
+  "dependsOn": [],
+  "origin": "check-spec multi-agent review (2026-05-27) — Layer 2 Files/Terminal review flagged saveUpload() as the only mutating FilesService method that does not call assertWritable() after resolvePath().",
+  "rootCause": "FilesService.saveUpload (apps/server/src/modules/files/files.service.ts:305-316) calls resolvePath(targetDir) but skips the assertWritable() deny-list check that every other mutating method (write/mkdir/rename/copyTo/remove/chmod/chown) applies. Result: any authenticated panel user can stream an HTTP upload directly into critical system paths (/etc/sudoers, /etc/ssh/sshd_config, /root/.ssh/authorized_keys) — escalating from panel-login to full host root.",
+  "fixSummary": "One-line guard: call assertWritable(dir) immediately after resolvePath(targetDir), before fs.mkdir/pipeline. Plus a regression test that POSTs to /api/files/upload?path=/etc and asserts 403 FILE_FORBIDDEN_PATH."
+}

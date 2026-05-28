@@ -1,0 +1,12 @@
+{
+  "id": "v0.5.2-nginx-directive-injection-guard",
+  "title": "Constrain indexFiles / documentIndex to safe filename charset — close nginx directive injection",
+  "status": "draft",
+  "createdAt": "2026-05-27",
+  "targetVersion": "v0.5.2",
+  "priority": "P0 — security blocker",
+  "dependsOn": [],
+  "origin": "check-spec multi-agent review (2026-05-27) — Layer 2 Websites/ACME/PMM review flagged that staticSitePayloadSchema and phpPayloadSchema allow unconstrained z.array(z.string()) for indexFiles / documentIndex, which the conf renderer interpolates directly into nginx config.",
+  "rootCause": "packages/shared/src/schemas/websites.ts declares indexFiles and documentIndex as z.array(z.string()) with no per-item character constraint. apps/server/src/modules/websites/conf-renderer.ts writes them directly via 'index ${arr.join(\" \")};' at lines 103 (static) and 126 (php). A site-create / site-update payload that contains an item like 'index.html; include /etc/passwd;' produces an nginx conf that includes a separate directive once it passes 'nginx -t'. The injected directive runs on the next nginx reload, with root context, against the host filesystem.",
+  "fixSummary": "Tighten the schemas: indexFiles and documentIndex array items must match /^[a-zA-Z0-9._-]+$/ — the standard safe-filename charset, which is sufficient for every realistic index filename (index.html, index.htm, index.php, etc.). Also revise the conf-renderer's safety comment to reflect that the schema is now the actual enforcement layer (not just an aspiration)."
+}

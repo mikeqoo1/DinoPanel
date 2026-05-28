@@ -1,0 +1,12 @@
+{
+  "id": "v0.5.2-db-instance-password-redact",
+  "title": "Redact dbInstance.password from API responses — close N×password leak via GET /databases",
+  "status": "draft",
+  "createdAt": "2026-05-27",
+  "targetVersion": "v0.5.2",
+  "priority": "P0 — security blocker",
+  "dependsOn": [],
+  "origin": "check-spec multi-agent review (2026-05-27) — Layer 2 Databases/Backups review flagged that DbInstancesService.toResponse() includes the plaintext password field in the serialized DbInstanceResponse, leaking it through every read endpoint.",
+  "rootCause": "db-instances.service.ts:519-534 toResponse() returns { ..., password: row.password, ... }. Every endpoint that serializes a DbInstance hits this: GET /databases (lists ALL instances with passwords), GET /databases/:id, POST /databases (creation response), PATCH /databases/:id (update response), POST /databases/:id/rotate-password, POST /databases/:id/start|stop|restart (all return the updated instance with password). decisions.md Q3 records that storing password plaintext in SQLite is an acceptable v0.4 simplification under single-tenant posture, but the v0.4 spec never sanctioned returning it in the API response.",
+  "fixSummary": "(a) Split DbInstanceResponse into a redacted public type (no password) and an internal-only type. (b) Strip password from toResponse(). (c) Add an explicit POST /databases/:id/reveal-password endpoint that requires fresh re-auth (re-confirm of current user password) and returns the credential one-shot, mirroring how operator-secret reveal is done elsewhere. (d) Update shared schemas + frontend to fetch via reveal endpoint on demand instead of expecting password on every list/get."
+}

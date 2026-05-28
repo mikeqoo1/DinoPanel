@@ -1,0 +1,12 @@
+{
+  "id": "v0.5.2-files-read-symlink-protection",
+  "title": "Add read-side symlink-deny check — close /etc/shadow read via symlink",
+  "status": "draft",
+  "createdAt": "2026-05-27",
+  "targetVersion": "v0.5.2",
+  "priority": "P0 — security blocker",
+  "dependsOn": [],
+  "origin": "check-spec multi-agent review (2026-05-27) — Layer 2 Files/Terminal review flagged that readText() and createDownloadStream() use fs.stat (follows symlinks) with no read-side deny-list analogous to DANGEROUS_WRITE_PATHS.",
+  "rootCause": "The v0.1.1 security fix (075929b) hardened the WRITE path with assertWritable() over DANGEROUS_WRITE_PATHS, but symmetrical read-side protection was never added. FilesService.readText (apps/server/src/modules/files/files.service.ts:214) and createDownloadStream (files.service.ts:319) use fs.stat / fs.createReadStream which transparently follow symlinks. A user with write access to any path can create a symlink pointing to /etc/shadow, /root/.ssh/id_ed25519, or any other sensitive file, then read it through the panel's read APIs.",
+  "fixSummary": "Introduce assertReadable() with a deny-list of read-sensitive paths (/etc/shadow, /etc/sudoers, /etc/ssh, /root, /home/*/.ssh, /var/lib/sqlite — i.e. tighter than the write deny-list because read leaks are subtler). Switch read-path stat() calls to lstat() + symlink resolution check, and reject if the realpath() target falls under the deny-list."
+}
