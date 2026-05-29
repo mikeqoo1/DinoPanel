@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { extractErrorMessage } from '@/lib/api';
 import { copyToClipboard } from '@/lib/clipboard';
 import {
@@ -27,6 +28,7 @@ import { MetricCard, fmtDuration } from './metric-card';
 import { pmmCardState } from './pmm-card-state';
 import { RotatePasswordDialog } from './rotate-password-dialog';
 import { RevealPasswordDialog } from './reveal-password-dialog';
+import { BackupsTabContent } from './backups-tab-content';
 
 interface Props {
   instance: DbInstanceResponse | null;
@@ -138,220 +140,233 @@ function DrawerBody({
         </SheetDescription>
       </SheetHeader>
 
-      {/* Connection card */}
-      <section className="space-y-2 rounded-md border p-3">
-        <div className="text-xs font-medium text-muted-foreground">
-          {t('databases.drawer.connection')}
-        </div>
-        <Field label="Host" value="127.0.0.1" onCopy={copyText} />
-        <Field label="Port" value={String(instance.port)} onCopy={copyText} />
-        <Field
-          label={t('databases.drawer.username')}
-          value={instance.username}
-          onCopy={copyText}
-        />
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            onClick={onReveal}
-          >
-            <Eye className="mr-1 h-4 w-4" />
-            {t('databases.reveal_password.button')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1"
-            onClick={onRotate}
-          >
-            <KeyRound className="mr-1 h-4 w-4" />
-            {t('databases.drawer.rotate_password')}
-          </Button>
-        </div>
-      </section>
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">{t('backups.tab_overview')}</TabsTrigger>
+          <TabsTrigger value="backups">{t('backups.tab_backups')}</TabsTrigger>
+        </TabsList>
 
-      {/* PMM summary */}
-      {pmmUrl ? (
-        <section className="space-y-2 rounded-md border p-3">
-          <div className="flex items-center justify-between">
+        <TabsContent value="overview" className="space-y-4">
+          {/* Connection card */}
+          <section className="space-y-2 rounded-md border p-3">
             <div className="text-xs font-medium text-muted-foreground">
-              {t('databases.drawer.pmm_summary')}
+              {t('databases.drawer.connection')}
             </div>
-            <a
-              href={pmmUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <ExternalLink className="h-3 w-3" />
-              {t('databases.drawer.open_in_pmm')}
-            </a>
-          </div>
-          {(() => {
-            const state = pmmCardState({
-              isPending: metrics.isPending,
-              data: metrics.data,
-              pmmRegistered: instance.pmmRegistered,
-            });
-            if (state === 'pending') {
-              return <Skeleton className="h-16 w-full" />;
-            }
-            if (state === 'not-configured') {
-              return (
-                <p className="text-xs text-muted-foreground">
-                  {t('databases.drawer.pmm_not_configured')}
-                </p>
-              );
-            }
-            if (state === 'not-registered') {
-              return (
-                <p className="text-xs text-muted-foreground">
-                  {t('databases.drawer.pmm_not_registered')}
-                </p>
-              );
-            }
-            if (state === 'exporter-unhealthy') {
-              return (
-                <p className="text-xs text-muted-foreground">
-                  {t('databases.drawer.pmm_exporter_unhealthy')}
-                </p>
-              );
-            }
-            return (
-              <div className="grid grid-cols-2 gap-2">
-                <MetricCard
-                  label={t('databases.metrics.qps')}
-                  value={metrics.data?.qps}
-                  fmt={(v) => v.toFixed(1)}
-                />
-                <MetricCard
-                  label={t('databases.metrics.connections')}
-                  value={metrics.data?.connections}
-                  fmt={(v) => v.toFixed(0)}
-                />
-                <MetricCard
-                  label={t('databases.metrics.uptime')}
-                  value={metrics.data?.uptimeSeconds}
-                  fmt={fmtDuration}
-                />
-                <MetricCard
-                  label={t('databases.metrics.replication_lag')}
-                  value={metrics.data?.replicationLagSeconds}
-                  fmt={(v) => `${v.toFixed(2)} s`}
-                />
-              </div>
-            );
-          })()}
-        </section>
-      ) : null}
-
-      {/* Lifecycle */}
-      <section className="space-y-2 rounded-md border p-3">
-        <div className="text-xs font-medium text-muted-foreground">
-          {t('databases.drawer.lifecycle')}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={instance.status === 'running' || start.isPending}
-            onClick={() =>
-              start.mutateAsync(instance.id).catch((err) =>
-                toast.error(extractErrorMessage(err)),
-              )
-            }
-          >
-            <Play className="mr-1 h-4 w-4" />
-            {t('common.start')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={instance.status !== 'running' || stop.isPending}
-            onClick={() =>
-              stop.mutateAsync(instance.id).catch((err) =>
-                toast.error(extractErrorMessage(err)),
-              )
-            }
-          >
-            <Square className="mr-1 h-4 w-4" />
-            {t('common.stop')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={restart.isPending}
-            onClick={() =>
-              restart.mutateAsync(instance.id).catch((err) =>
-                toast.error(extractErrorMessage(err)),
-              )
-            }
-          >
-            <RotateCcw className="mr-1 h-4 w-4" />
-            {t('common.restart')}
-          </Button>
-        </div>
-        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs">
-          <p className="mb-2 font-medium text-destructive">
-            {t('databases.drawer.delete_warning_title')}
-          </p>
-          <label className="mb-2 flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={dropData}
-              onChange={(e) => setDropData(e.target.checked)}
-              className="mt-1"
+            <Field label="Host" value="127.0.0.1" onCopy={copyText} />
+            <Field label="Port" value={String(instance.port)} onCopy={copyText} />
+            <Field
+              label={t('databases.drawer.username')}
+              value={instance.username}
+              onCopy={copyText}
             />
-            <span>{t('databases.drawer.drop_data_checkbox')}</span>
-          </label>
-          {confirmDelete ? (
             <div className="flex gap-2">
               <Button
                 size="sm"
-                variant="destructive"
-                disabled={del.isPending}
-                onClick={async () => {
-                  try {
-                    await del.mutateAsync({
-                      id: instance.id,
-                      body: { dropData },
-                    });
-                    toast.success(t('databases.drawer.deleted'));
-                    onDeleted();
-                  } catch (err) {
-                    toast.error(extractErrorMessage(err));
-                  }
-                }}
+                variant="outline"
+                className="flex-1"
+                onClick={onReveal}
               >
-                <Trash2 className="mr-1 h-4 w-4" />
-                {t('databases.drawer.confirm_delete')}
+                <Eye className="mr-1 h-4 w-4" />
+                {t('databases.reveal_password.button')}
               </Button>
               <Button
                 size="sm"
-                variant="ghost"
-                onClick={() => setConfirmDelete(false)}
+                variant="outline"
+                className="flex-1"
+                onClick={onRotate}
               >
-                {t('common.cancel')}
+                <KeyRound className="mr-1 h-4 w-4" />
+                {t('databases.drawer.rotate_password')}
               </Button>
             </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              {t('databases.drawer.delete_instance')}
-            </Button>
-          )}
-        </div>
-      </section>
+          </section>
 
-      <p className="mt-auto text-xs text-muted-foreground">
-        {t('databases.drawer.data_dir', { path: instance.dataDir })}
-      </p>
+          {/* PMM summary */}
+          {pmmUrl ? (
+            <section className="space-y-2 rounded-md border p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-medium text-muted-foreground">
+                  {t('databases.drawer.pmm_summary')}
+                </div>
+                <a
+                  href={pmmUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  {t('databases.drawer.open_in_pmm')}
+                </a>
+              </div>
+              {(() => {
+                const state = pmmCardState({
+                  isPending: metrics.isPending,
+                  data: metrics.data,
+                  pmmRegistered: instance.pmmRegistered,
+                });
+                if (state === 'pending') {
+                  return <Skeleton className="h-16 w-full" />;
+                }
+                if (state === 'not-configured') {
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      {t('databases.drawer.pmm_not_configured')}
+                    </p>
+                  );
+                }
+                if (state === 'not-registered') {
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      {t('databases.drawer.pmm_not_registered')}
+                    </p>
+                  );
+                }
+                if (state === 'exporter-unhealthy') {
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      {t('databases.drawer.pmm_exporter_unhealthy')}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="grid grid-cols-2 gap-2">
+                    <MetricCard
+                      label={t('databases.metrics.qps')}
+                      value={metrics.data?.qps}
+                      fmt={(v) => v.toFixed(1)}
+                    />
+                    <MetricCard
+                      label={t('databases.metrics.connections')}
+                      value={metrics.data?.connections}
+                      fmt={(v) => v.toFixed(0)}
+                    />
+                    <MetricCard
+                      label={t('databases.metrics.uptime')}
+                      value={metrics.data?.uptimeSeconds}
+                      fmt={fmtDuration}
+                    />
+                    <MetricCard
+                      label={t('databases.metrics.replication_lag')}
+                      value={metrics.data?.replicationLagSeconds}
+                      fmt={(v) => `${v.toFixed(2)} s`}
+                    />
+                  </div>
+                );
+              })()}
+            </section>
+          ) : null}
+
+          {/* Lifecycle */}
+          <section className="space-y-2 rounded-md border p-3">
+            <div className="text-xs font-medium text-muted-foreground">
+              {t('databases.drawer.lifecycle')}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={instance.status === 'running' || start.isPending}
+                onClick={() =>
+                  start.mutateAsync(instance.id).catch((err) =>
+                    toast.error(extractErrorMessage(err)),
+                  )
+                }
+              >
+                <Play className="mr-1 h-4 w-4" />
+                {t('common.start')}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={instance.status !== 'running' || stop.isPending}
+                onClick={() =>
+                  stop.mutateAsync(instance.id).catch((err) =>
+                    toast.error(extractErrorMessage(err)),
+                  )
+                }
+              >
+                <Square className="mr-1 h-4 w-4" />
+                {t('common.stop')}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={restart.isPending}
+                onClick={() =>
+                  restart.mutateAsync(instance.id).catch((err) =>
+                    toast.error(extractErrorMessage(err)),
+                  )
+                }
+              >
+                <RotateCcw className="mr-1 h-4 w-4" />
+                {t('common.restart')}
+              </Button>
+            </div>
+            <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs">
+              <p className="mb-2 font-medium text-destructive">
+                {t('databases.drawer.delete_warning_title')}
+              </p>
+              <label className="mb-2 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={dropData}
+                  onChange={(e) => setDropData(e.target.checked)}
+                  className="mt-1"
+                />
+                <span>{t('databases.drawer.drop_data_checkbox')}</span>
+              </label>
+              {confirmDelete ? (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={del.isPending}
+                    onClick={async () => {
+                      try {
+                        await del.mutateAsync({
+                          id: instance.id,
+                          body: { dropData },
+                        });
+                        toast.success(t('databases.drawer.deleted'));
+                        onDeleted();
+                      } catch (err) {
+                        toast.error(extractErrorMessage(err));
+                      }
+                    }}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    {t('databases.drawer.confirm_delete')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  {t('databases.drawer.delete_instance')}
+                </Button>
+              )}
+            </div>
+          </section>
+
+          <p className="mt-auto text-xs text-muted-foreground">
+            {t('databases.drawer.data_dir', { path: instance.dataDir })}
+          </p>
+        </TabsContent>
+
+        <TabsContent value="backups">
+          <BackupsTabContent instance={instance} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

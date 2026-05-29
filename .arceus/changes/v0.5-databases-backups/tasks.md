@@ -57,16 +57,21 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 5 — Frontend
 
-- [ ] `/backups` route — list view
-- [ ] `useBackups({ instanceId? })` + mutation hooks in new `apps/web/src/hooks/use-backups.ts`
-- [ ] DB drawer "Backups" tab (extend `database-drawer.tsx`)
-- [ ] "Create backup now" button + toast
-- [ ] Restore confirmation modal (typo-guard pattern from delete-instance)
-- [ ] Download link per row (`<a download>`)
-- [ ] Schedule UI hook — task-create dialog gets the new task type option
-- [ ] i18n keys `backups.*` (zh-TW + en)
-- [ ] Sidebar adds `/backups` link with icon
-- [ ] Phase 5 commit: `feat(backups): frontend (phase 5 of v0.5)`
+- [x] `/backups` route — flat list view, cursor "Load more"
+- [x] `use-backups.ts` hooks — `useBackupsList` (infinite), `useInstanceBackups`, `useCreateBackup`, `useDeleteBackup`, `useRestoreBackup`, `downloadBackup` (blob, NOT bare `<a href>` — auth header)
+- [x] DB drawer "Backups" tab (`database-drawer.tsx` body → Tabs: Overview + Backups)
+- [x] "Create backup now" button + toast (size + duration)
+- [x] Restore confirmation modal (typo-guard: type instance name; `restore-backup-dialog.tsx`)
+- [x] Download per row — axios blob → object-URL → `<a download>` (bare href would 401)
+- [x] Schedule UI — `db_backup` in `userFacingTaskTypeSchema` + scheduler dialog (instance picker / retentionGroup / keepLastN, JS submit-gating mirrors Zod schema)
+- [x] i18n keys `backups.*` (zh-TW + en, parity verified)
+- [x] Sidebar adds `/backups` link (`Archive` icon)
+- [x] Phase 5 commit: `feat(backups): frontend (phase 5 of v0.5)`
+
+> **Deferred to v0.5.x polish (review-flagged, non-blocking):** show
+> failed-backup `error` reason inline (disabled-button title doesn't render);
+> instance-select loading skeleton in the schedule dialog; minor queryKey
+> invalidation cleanup. Tracked from the Phase 5 review.
 
 ## Phase 6 — Docs + release v0.5.0
 

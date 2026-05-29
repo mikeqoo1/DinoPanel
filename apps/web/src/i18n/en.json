@@ -15,6 +15,7 @@
     "monitoring": "DB Monitoring",
     "websites": "Websites",
     "databases": "Databases",
+    "backups": "Backups",
     "system": "System",
     "settings": "Settings",
     "logout": "Log out"
@@ -84,6 +85,45 @@
       "create": "Create",
       "created": "Created",
       "invalid_input": "Fill in name, domain, and reverse-proxy upstream URL if applicable."
+    }
+  },
+  "backups": {
+    "title": "Backups",
+    "empty": "No backups yet.",
+    "refresh": "Refresh",
+    "load_more": "Load more",
+    "col_instance": "Instance",
+    "col_engine": "Engine",
+    "col_source": "Source",
+    "col_size": "Size",
+    "col_created": "Created",
+    "col_status": "Status",
+    "col_actions": "Actions",
+    "source": {
+      "manual": "Manual",
+      "scheduled": "Scheduled"
+    },
+    "status": {
+      "success": "Success",
+      "failed": "Failed"
+    },
+    "download": "Download",
+    "delete": "Delete",
+    "delete_confirm": "Delete this backup? This cannot be undone.",
+    "deleted": "Backup deleted",
+    "restore_action": "Restore",
+    "create_now": "Create backup now",
+    "create_success": "Backup created — {{size}}, took {{duration}}",
+    "download_failed": "Download failed",
+    "tab_overview": "Overview",
+    "tab_backups": "Backups",
+    "restore": {
+      "title": "Restore database backup",
+      "warning": "This will DROP the target database and replace it with the backup. All data created after this backup was taken will be permanently lost.",
+      "confirm_label": "Type the instance name \"{{name}}\" to confirm:",
+      "confirm_placeholder": "{{name}}",
+      "confirm": "Yes, restore",
+      "done": "Database restored successfully"
     }
   },
   "system": {
@@ -193,7 +233,8 @@
         "clean_logs": "Clean logs",
         "restart_service": "Restart service",
         "http_request": "HTTP request",
-        "purge": "Purge"
+        "purge": "Purge",
+        "db_backup": "Database backup"
       },
       "dialog": {
         "title": "New scheduled task",
@@ -209,7 +250,10 @@
         "restart_unit": "Systemd unit",
         "http_url": "URL",
         "http_method": "Method",
-        "http_body": "Request body (JSON)"
+        "http_body": "Request body (JSON)",
+        "db_instance": "Database instance",
+        "db_retention_group": "Retention group (e.g. nightly)",
+        "db_keep_last_n": "Keep last N backups"
       },
       "cron": {
         "mode_label": "Builder mode",

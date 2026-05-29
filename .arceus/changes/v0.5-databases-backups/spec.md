@@ -135,20 +135,29 @@ export interface BackupDriver {
 
 ### Gates
 
-- [ ] `/backups` route lists all backups with: instance name,
+- [x] `/backups` route lists all backups with: instance name,
   engine badge, source (manual/scheduled), size, created_at,
-  download + delete + restore buttons.
-- [ ] DB drawer (from v0.4) gains a "Backups" tab — per-instance
-  list + "Create backup now" button.
-- [ ] "Create backup now" mutation surfaces toast on completion
+  download + delete + restore buttons. (flat, cursor-paginated via
+  "Load more"; download/restore disabled for failed rows.)
+- [x] DB drawer (from v0.4) gains a "Backups" tab — per-instance
+  list + "Create backup now" button. (drawer body refactored to Tabs:
+  Overview + Backups.)
+- [x] "Create backup now" mutation surfaces toast on completion
   with size + duration.
-- [ ] Restore confirmation modal — type instance name + red
+- [x] Restore confirmation modal — type instance name + red
   warning that the current DB will be dropped.
-- [ ] Download streams the gzip file via `<a download>` link.
-- [ ] Schedule creation lives in `/scheduler` route (reuse existing
-  task-create dialog with the new task type option).
-- [ ] i18n keys under `backups.*` (zh-TW + en) — section title,
-  empty state, button labels, restore-confirm copy.
+- [x] Download the gzip file. NOTE: auth is a Bearer token in
+  localStorage behind a global guard, so a bare `<a download>` href
+  sends no Authorization header and 401s. Implemented as an axios
+  `responseType: 'blob'` fetch → object-URL → programmatic
+  `<a download>` → revoke. (Spec originally said bare `<a download>`;
+  reconciled to the blob approach which actually authenticates.)
+- [x] Schedule creation lives in `/scheduler` route (reuse existing
+  task-create dialog with the new task type option). (`db_backup`
+  added to userFacingTaskTypeSchema + instance picker / retention /
+  keepLastN form with JS submit-gating mirroring the Zod schema.)
+- [x] i18n keys under `backups.*` (zh-TW + en) — section title,
+  empty state, button labels, restore-confirm copy. (parity verified.)
 
 ## Phase 6 — Docs + release
 

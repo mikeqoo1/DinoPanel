@@ -23,6 +23,7 @@ const MonitoringPage = lazy(() => import('@/routes/monitoring').then((m) => ({ d
 const SystemPage = lazy(() => import('@/routes/system').then((m) => ({ default: m.SystemPage })));
 const WebsitesPage = lazy(() => import('@/routes/websites').then((m) => ({ default: m.WebsitesPage })));
 const DatabasesPage = lazy(() => import('@/routes/databases').then((m) => ({ default: m.DatabasesPage })));
+const BackupsPage = lazy(() => import('@/routes/backups').then((m) => ({ default: m.BackupsPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ export default function App() {
                   <Route path="/monitoring" element={<MonitoringPage />} />
                   <Route path="/websites" element={<WebsitesPage />} />
                   <Route path="/databases" element={<DatabasesPage />} />
+                  <Route path="/backups" element={<BackupsPage />} />
                   <Route path="/system/*" element={<SystemPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>

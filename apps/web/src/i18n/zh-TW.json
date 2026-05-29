@@ -15,6 +15,7 @@
     "monitoring": "資料庫監控",
     "websites": "網站",
     "databases": "資料庫",
+    "backups": "備份",
     "system": "系統",
     "settings": "設定",
     "logout": "登出"
@@ -84,6 +85,45 @@
       "create": "建立",
       "created": "建立成功",
       "invalid_input": "請填妥名稱、網域，以及反向代理的上游 URL。"
+    }
+  },
+  "backups": {
+    "title": "備份",
+    "empty": "目前沒有備份。",
+    "refresh": "重新整理",
+    "load_more": "載入更多",
+    "col_instance": "實例",
+    "col_engine": "引擎",
+    "col_source": "來源",
+    "col_size": "大小",
+    "col_created": "建立時間",
+    "col_status": "狀態",
+    "col_actions": "動作",
+    "source": {
+      "manual": "手動",
+      "scheduled": "排程"
+    },
+    "status": {
+      "success": "成功",
+      "failed": "失敗"
+    },
+    "download": "下載",
+    "delete": "刪除",
+    "delete_confirm": "確定刪除此備份？此操作不可復原。",
+    "deleted": "備份已刪除",
+    "restore_action": "還原",
+    "create_now": "立即建立備份",
+    "create_success": "備份已建立 — {{size}}，耗時 {{duration}}",
+    "download_failed": "下載失敗",
+    "tab_overview": "總覽",
+    "tab_backups": "備份",
+    "restore": {
+      "title": "還原資料庫備份",
+      "warning": "此操作將「刪除」目標資料庫並以備份取代。備份後新增的所有資料將永久消失。",
+      "confirm_label": "輸入實例名稱「{{name}}」以確認：",
+      "confirm_placeholder": "{{name}}",
+      "confirm": "確認還原",
+      "done": "資料庫還原成功"
     }
   },
   "system": {
@@ -193,7 +233,8 @@
         "clean_logs": "清理日誌",
         "restart_service": "重啟服務",
         "http_request": "HTTP 請求",
-        "purge": "Purge"
+        "purge": "Purge",
+        "db_backup": "資料庫備份"
       },
       "dialog": {
         "title": "新增排程任務",
@@ -209,7 +250,10 @@
         "restart_unit": "Systemd 單元",
         "http_url": "URL",
         "http_method": "Method",
-        "http_body": "請求 Body（JSON）"
+        "http_body": "請求 Body（JSON）",
+        "db_instance": "資料庫實例",
+        "db_retention_group": "保留群組（如 nightly）",
+        "db_keep_last_n": "保留最近 N 份備份"
       },
       "cron": {
         "mode_label": "建構模式",

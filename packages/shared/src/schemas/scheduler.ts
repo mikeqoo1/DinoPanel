@@ -13,17 +13,13 @@ export const scheduledTaskTypeSchema = z.enum([
 ]);
 export type ScheduledTaskType = z.infer<typeof scheduledTaskTypeSchema>;
 
-// NOTE: 'db_backup' is intentionally NOT user-facing yet. The backend
-// task type, runner, and create-time payload validation land in Phase 4,
-// but exposing it through the create API requires the /scheduler dialog
-// to render its form (instance picker + retention fields) — that's
-// Phase 5. Add 'db_backup' here together with the dialog cases then.
 export const userFacingTaskTypeSchema = z.enum([
   'shell',
   'backup_files',
   'clean_logs',
   'restart_service',
   'http_request',
+  'db_backup',
 ]);
 export type UserFacingTaskType = z.infer<typeof userFacingTaskTypeSchema>;
 

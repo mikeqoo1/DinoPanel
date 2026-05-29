@@ -7,6 +7,7 @@ import type {
   ScheduledTask,
   UserFacingTaskType,
 } from '@dinopanel/shared';
+import { useDatabases } from '@/hooks/use-databases';
 import {
   Dialog,
   DialogContent,
@@ -271,8 +272,36 @@ function AddTaskDialog({
     }
   };
 
+  // Reset on every close (cancel / escape / overlay), not just on a
+  // successful submit — otherwise a failed db_backup submit + cancel leaves
+  // stale type/payload that reappears when the dialog is reopened.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) reset();
+    onOpenChange(next);
+  };
+
+  // db_backup payload is required + constrained (instanceId int, retentionGroup
+  // matches the backend regex/length, keepLastN in [1,365]). The HTML5
+  // pattern/min/max on the inputs are decorative here (Radix dialog + onClick
+  // submit, not a native form), so gate submission in JS to mirror the schema.
+  const dbBackupInvalid =
+    type === 'db_backup' &&
+    (() => {
+      const rg = String(payload.retentionGroup ?? '').trim();
+      const n = payload.keepLastN as number;
+      return (
+        !Number.isInteger(payload.instanceId as number) ||
+        rg.length < 1 ||
+        rg.length > 32 ||
+        !/^[a-z0-9][a-z0-9-]*$/.test(rg) ||
+        !Number.isInteger(n) ||
+        n < 1 ||
+        n > 365
+      );
+    })();
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{t('system.scheduler.dialog.title')}</DialogTitle>
@@ -303,6 +332,7 @@ function AddTaskDialog({
               <option value="http_request">
                 {t('system.scheduler.type.http_request')}
               </option>
+              <option value="db_backup">{t('system.scheduler.type.db_backup')}</option>
             </select>
           </div>
           <PayloadForm type={type} payload={payload} onChange={setPayload} />
@@ -312,12 +342,14 @@ function AddTaskDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!name.trim() || !cron.trim() || create.isPending}
+            disabled={
+              !name.trim() || !cron.trim() || create.isPending || dbBackupInvalid
+            }
           >
             {t('system.scheduler.dialog.submit')}
           </Button>
@@ -343,6 +375,8 @@ function defaultPayloadFor(type: UiType): Record<string, unknown> {
       return { unit: '' };
     case 'http_request':
       return { url: '', method: 'GET' };
+    case 'db_backup':
+      return { instanceId: undefined, retentionGroup: '', keepLastN: 7 };
   }
 }
 
@@ -371,6 +405,13 @@ function normalizePayload(type: UiType, raw: Record<string, unknown>): unknown {
     }
     return { ...raw, body };
   }
+  if (type === 'db_backup') {
+    return {
+      instanceId: Number(raw.instanceId),
+      retentionGroup: String(raw.retentionGroup ?? '').trim(),
+      keepLastN: Number(raw.keepLastN),
+    };
+  }
   return raw;
 }
 
@@ -384,6 +425,7 @@ function PayloadForm({
   onChange: (p: Record<string, unknown>) => void;
 }) {
   const { t } = useTranslation();
+  const databases = useDatabases();
   const set = (k: string, v: unknown) => onChange({ ...payload, [k]: v });
 
   switch (type) {
@@ -484,6 +526,46 @@ function PayloadForm({
               rows={3}
               value={String(payload.body ?? '')}
               onChange={(e) => set('body', e.target.value)}
+            />
+          </div>
+        </>
+      );
+    case 'db_backup':
+      return (
+        <>
+          <div className="space-y-2">
+            <Label>{t('system.scheduler.dialog.db_instance')}</Label>
+            <select
+              className="block w-full rounded-md border bg-background p-2 text-sm"
+              value={payload.instanceId !== undefined ? String(payload.instanceId) : ''}
+              onChange={(e) => set('instanceId', e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">—</option>
+              {(databases.data ?? []).map((db) => (
+                <option key={db.id} value={db.id}>
+                  {db.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('system.scheduler.dialog.db_retention_group')}</Label>
+            <Input
+              value={String(payload.retentionGroup ?? '')}
+              onChange={(e) => set('retentionGroup', e.target.value)}
+              pattern="[a-z0-9][a-z0-9-]*"
+              maxLength={32}
+              placeholder="nightly"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>{t('system.scheduler.dialog.db_keep_last_n')}</Label>
+            <Input
+              type="number"
+              min={1}
+              max={365}
+              value={Number(payload.keepLastN ?? 7)}
+              onChange={(e) => set('keepLastN', Number(e.target.value))}
             />
           </div>
         </>

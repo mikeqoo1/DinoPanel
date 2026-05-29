@@ -12,7 +12,7 @@
     { "id": "phase-2", "name": "Per-engine drivers (mysql / mariadb / postgresql / redis / mongodb) — stdout pipe + gzip", "estimateDays": 2, "status": "completed" },
     { "id": "phase-3", "name": "BackupsService + REST (create / list / delete / restore) + retention prune", "estimateDays": 1.5, "status": "completed" },
     { "id": "phase-4", "name": "Scheduler `db_backup` task type + UI hook", "estimateDays": 1, "status": "completed" },
-    { "id": "phase-5", "name": "Frontend /backups route + drawer tab + restore confirmation + i18n", "estimateDays": 1.5, "status": "pending" },
+    { "id": "phase-5", "name": "Frontend /backups route + drawer tab + restore confirmation + i18n", "estimateDays": 1.5, "status": "completed" },
     { "id": "phase-6", "name": "docs/backups.md + release cut v0.5.0 + Rocky 234 smoke", "estimateDays": 1, "status": "pending" }
   ],
   "directionDecisions": {
