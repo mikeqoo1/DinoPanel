@@ -42,12 +42,18 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 4 — Scheduler integration
 
-- [ ] Register `db_backup` task type in scheduler's task type registry
-- [ ] Task params Zod schema
-- [ ] Task runner — invokes `BackupsService.create({ source: 'scheduled' })`
-- [ ] Cron string validation reuses existing cron-parser path
-- [ ] Scheduler tests for the new task type — ≥ 4 cases
-- [ ] Phase 4 commit: `feat(backups): scheduler db_backup task type (phase 4 of v0.5)`
+- [x] Register `db_backup` task type in scheduler's task type registry (`scheduledTaskTypeSchema` + drizzle `scheduledTasks.type` enum)
+- [x] Task params Zod schema (`dbBackupPayloadSchema` — `{ instanceId, retentionGroup, keepLastN }`; cron lives on the task row, not the payload)
+- [x] Task runner — invokes `BackupsService.create({ source: 'scheduled' })` (`backups/runners/db-backup.runner.ts`, registered at `BackupsModule` bootstrap, mirrors acme_renew)
+- [x] Cron string validation reuses existing cron-parser path (controller `validateCronOrThrow`, type-agnostic)
+- [x] Scheduler tests for the new task type — 6 runner cases + 3 bootstrap-registration cases
+- [x] Phase 4 commit: `feat(backups): scheduler db_backup task type (phase 4 of v0.5)`
+
+> **Phase 5 carry:** `db_backup` is intentionally NOT in `userFacingTaskTypeSchema`
+> yet — exposing it via the create API requires the `/scheduler` dialog to render
+> its form (instance picker + retention fields), which is Phase 5. The controller's
+> `db_backup` validation branch is in place (forward-prep) and becomes reachable
+> once Phase 5 adds the type to `userFacingTaskTypeSchema`.
 
 ## Phase 5 — Frontend
 

@@ -118,12 +118,16 @@ export interface BackupDriver {
 
 - [ ] New task type registered in scheduler's task type registry.
 - [ ] Task params validated via Zod:
-  `{ instanceId: number; retentionGroup: string; keepLastN: number; cron: string }`.
+  `{ instanceId: number; retentionGroup: string; keepLastN: number }`.
+  (`cron` is carried on the task row's own `cron` column — uniform across
+  all task types — not in the payload schema, so it is intentionally not
+  a `dbBackupPayloadSchema` field.)
 - [ ] Task runner invokes `BackupsService.create()` with
   `source: 'scheduled'`. Both success + failure paths produce
   task_log rows.
 - [ ] Cron-string validated at task-create time (reuse existing
-  cron-parser path).
+  cron-parser path — the controller's `validateCronOrThrow` runs for
+  every task type before payload validation).
 - [ ] Existing scheduler tests still pass; new ≥ 4 cases for the
   new task type.
 

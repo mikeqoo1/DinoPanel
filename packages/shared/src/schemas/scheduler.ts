@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { backupKeepLastNSchema, backupRetentionGroupSchema } from './backups.js';
 
 export const scheduledTaskTypeSchema = z.enum([
   'shell',
@@ -8,9 +9,15 @@ export const scheduledTaskTypeSchema = z.enum([
   'http_request',
   'purge',
   'acme_renew',
+  'db_backup',
 ]);
 export type ScheduledTaskType = z.infer<typeof scheduledTaskTypeSchema>;
 
+// NOTE: 'db_backup' is intentionally NOT user-facing yet. The backend
+// task type, runner, and create-time payload validation land in Phase 4,
+// but exposing it through the create API requires the /scheduler dialog
+// to render its form (instance picker + retention fields) — that's
+// Phase 5. Add 'db_backup' here together with the dialog cases then.
 export const userFacingTaskTypeSchema = z.enum([
   'shell',
   'backup_files',
@@ -48,6 +55,19 @@ export const httpRequestPayloadSchema = z.object({
 export const purgePayloadSchema = z.object({
   table: z.literal('operation_log'),
 });
+
+// db_backup task payload. The cron expression is carried on the task
+// row's own `cron` column (validated by the controller), so it is not a
+// payload field. retentionGroup + keepLastN are required: every
+// scheduled backup belongs to a retention bucket so prune always runs
+// (decisions.md D5). Reuses the backups schemas to stay in lockstep with
+// the create-backup body validation.
+export const dbBackupPayloadSchema = z.object({
+  instanceId: z.number().int().positive(),
+  retentionGroup: backupRetentionGroupSchema,
+  keepLastN: backupKeepLastNSchema,
+});
+export type DbBackupPayload = z.infer<typeof dbBackupPayloadSchema>;
 
 export const scheduledTaskSchema = z.object({
   id: z.number().int(),

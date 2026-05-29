@@ -18,6 +18,7 @@ import {
   createScheduledTaskBodySchema,
   updateScheduledTaskBodySchema,
   cleanLogsPayloadSchema,
+  dbBackupPayloadSchema,
   type CreateScheduledTaskBody,
   type UpdateScheduledTaskBody,
   type ScheduledTask,
@@ -208,6 +209,19 @@ export class SchedulerController {
       }
       // Path allowlist enforced at create time so bad tasks never persist.
       this.cleanLogs.assertPathAllowed(parsed.data.path);
+    }
+    // db_backup create-time validation. Reachable once Phase 5 adds
+    // 'db_backup' to userFacingTaskTypeSchema (the body schema gates type
+    // before this runs); landed here in Phase 4 alongside the runner.
+    if (type === 'db_backup') {
+      const parsed = dbBackupPayloadSchema.safeParse(payload);
+      if (!parsed.success) {
+        throw new BadRequestException({
+          code: 'VALIDATION_FAILED',
+          message: 'Invalid db_backup payload',
+          details: parsed.error.issues,
+        });
+      }
     }
   }
 }
