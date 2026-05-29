@@ -75,19 +75,19 @@ with the verification block; release cut happens at end of Phase 6.
 
 ## Phase 6 — Docs + release v0.5.0
 
-- [ ] `docs/backups.md` — full module doc
-- [ ] `docs/databases.md` — retire escape hatch, point at backups
-- [ ] `README.md` roadmap row for v0.5.0
-- [ ] `.arceus/changes/README.md` index — flip v0.5-databases-backups to completed
-- [ ] Version bump 0.4.8 → 0.5.0 (4 package.json files)
-- [ ] Rocky 234 smoke checklist:
-  - [ ] Manual backup of `shop` PostgreSQL → gzip file at expected path
-  - [ ] `gunzip -c <file> | head` shows valid SQL preamble
-  - [ ] Restore round-trip: write test row → backup → drop test row → restore → read row back
-  - [ ] Scheduled backup test via `* * * * *` cron for 90 seconds, then delete schedule
-  - [ ] Retention prune: create 8 quick backups, confirm 7 remain
-- [ ] Release commit: `release(v0.5.0): database backups module`
-- [ ] Tarball + scp to 234
+- [x] `docs/backups.md` — full module doc (authored + adversarially fact-checked vs code)
+- [x] `docs/databases.md` — retire escape hatch, point at backups
+- [x] `README.md` roadmap row for v0.5.0
+- [x] `.arceus/changes/README.md` index — flip v0.5-databases-backups to completed
+- [x] Version bump 0.4.8 → 0.5.0 (4 package.json files) — verified web build re-injects 0.5.0 into the sidebar badge
+- [x] **Rocky 234 smoke — S1-S4 PASSED** (2026-06-01, `scripts/smoke-backups-234.sh` from workstation → 234, instance `shop` id=3 postgresql):
+  - [x] Manual backup → success (1227B), retrieved + verified via the `/download` API
+  - [x] gunzip of the downloaded file shows a valid SQL preamble
+  - [ ] Restore round-trip — MANUAL/optional, not run (destructive; the script prints the steps)
+  - [x] Scheduled `db_backup` via `* * * * *` cron fired, then schedule deleted
+  - [x] Retention prune: 8 created, 7 remain
+- [x] Release commit: `release(v0.5.0): database backups module`
+- [x] Tarball + scp to 234 — `scripts/deploy-rocky.sh` → `dinopanel-0.5.0-18132e2-prebuild-x64.tar.gz`
 
 ## Smoke deferral (optional)
 

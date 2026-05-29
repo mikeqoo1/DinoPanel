@@ -104,6 +104,7 @@ maintainer can actually own.
 | v0.4.6  | Fix "Open in PMM" deep link for PMM 3.x — was `/graph/inventory/services/<id>` (PMM 2.x guess), correct PMM 3.x route is `/inventory/services/<id>` (not under Grafana's `/graph` prefix) | ✅ shipped |
 | v0.4.7  | "Open in PMM" deep-link rewrite to per-engine Instance Summary dashboards (v0.4.6's `/inventory/services/<id>` also 404'd — PMM 3 has no per-service-id UI route); floating version badge top-right of every page; Vite injects version from package.json so future releases bump one place | ✅ shipped |
 | v0.4.8  | Reposition version badge — v0.4.7's floating top-right badge overlapped page action buttons; move to sidebar bottom under user menu, `text-sm` (was `text-[10px]` at sidebar top in earlier versions), single instance | ✅ shipped |
+| v0.5.0  | Database backups + restore — logical dumps (mysql/mariadb/postgresql/redis/mongodb), local storage, on-demand + scheduled (`db_backup` task), keep-last-N retention, restore-in-place | ✅ shipped — Rocky 234 smoke deferred |
 | v0.6    | Toolbox (Fail2Ban / Supervisor / Swap / NTP) + MFA + Passkey | planned |
 | v1.0    | Stable release with full i18n | planned |
 

@@ -350,26 +350,22 @@ Service names must match — DinoPanel uses
 registered the instance in PMM under a different name the queries
 return empty.
 
-## Backup / restore (escape hatch)
+## Backup / restore
 
-v0.4 doesn't ship a backup module. The v0.5 scheduler's
-`backup_files` runner can `tar` the bind-mount path directly:
+As of **v0.5**, DinoPanel ships a first-class backup module — there is
+no longer a manual escape hatch to maintain. Backups are logical
+(dump-style) per-engine snapshots, taken on-demand or on a schedule,
+with keep-last-N retention and restore-in-place.
 
-```cron
-# /etc/cron.d/dinopanel-mysql-shop (or via the scheduler UI)
-0 3 * * *  tar -czf /backups/mysql-shop-$(date +%F).tar.gz /opt/dinopanel/databases/mysql/shop
-```
+- **On-demand:** open a database's drawer → **Backups** tab →
+  *Create backup now*.
+- **Scheduled:** add a `db_backup` task in `/scheduler` (pick the
+  instance, a retention group, and keep-last-N).
+- **Browse / download / restore:** the `/backups` page.
 
-For SQL-level dumps, shell out to the container's native client:
-
-```bash
-docker exec dinopanel-mysql-shop \
-  mysqldump --single-transaction -uroot -p"$(cat /opt/dinopanel/databases/mysql/shop/.dinopanel-password)" \
-  --all-databases > /backups/shop.sql
-```
-
-Restoring is the same in reverse — `docker stop` the instance,
-`tar -xzf` the backup, `docker start`.
+See [`backups.md`](./backups.md) for the full module — storage layout,
+per-engine notes (redis restart caveat, mongo gzipped archive),
+retention semantics, the REST API, and the restore walkthrough.
 
 ## Related files
 
