@@ -100,6 +100,11 @@ export function BackupsTabContent({ instance }: Props) {
                 <div className="text-muted-foreground">
                   {new Date(backup.createdAt).toLocaleString()}
                 </div>
+                {backup.status !== 'success' && backup.error && (
+                  <div className="truncate text-destructive" title={backup.error}>
+                    {backup.error}
+                  </div>
+                )}
               </div>
               <div className="flex gap-1">
                 <Button

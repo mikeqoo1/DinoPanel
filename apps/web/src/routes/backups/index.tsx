@@ -108,6 +108,14 @@ export function BackupsPage() {
                       <Badge variant={backup.status === 'success' ? 'default' : 'destructive'}>
                         {t(`backups.status.${backup.status}`)}
                       </Badge>
+                      {backup.status !== 'success' && backup.error && (
+                        <p
+                          className="mt-1 max-w-xs truncate text-[11px] text-destructive"
+                          title={backup.error}
+                        >
+                          {backup.error}
+                        </p>
+                      )}
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex justify-end gap-1">

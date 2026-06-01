@@ -45,9 +45,10 @@ export function useCreateBackup() {
   return useMutation({
     mutationFn: async ({ id, body }: { id: number; body?: { retentionGroup: string; keepLastN: number } }) =>
       (await api.post<BackupResponse>(`/databases/${id}/backups`, body ?? {})).data,
-    onSuccess: (_data, args) => {
-      qc.invalidateQueries({ queryKey: backupsKeys.byInstance(args.id) });
-      qc.invalidateQueries({ queryKey: backupsKeys.list() });
+    onSuccess: () => {
+      // backupsKeys.all is a prefix of both list(...) and byInstance(id),
+      // so one invalidate covers the /backups page and every drawer tab.
+      qc.invalidateQueries({ queryKey: backupsKeys.all });
     },
   });
 }
@@ -59,7 +60,6 @@ export function useDeleteBackup() {
       await api.delete(`/backups/${backupId}`);
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: backupsKeys.list() });
       qc.invalidateQueries({ queryKey: backupsKeys.all });
     },
   });
@@ -71,7 +71,6 @@ export function useRestoreBackup() {
     mutationFn: async ({ backupId, body }: { backupId: number; body: { confirm: string } }) =>
       (await api.post<BackupResponse>(`/backups/${backupId}/restore`, body)).data,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: backupsKeys.list() });
       qc.invalidateQueries({ queryKey: backupsKeys.all });
     },
   });

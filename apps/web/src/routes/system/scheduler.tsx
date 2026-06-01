@@ -536,11 +536,12 @@ function PayloadForm({
           <div className="space-y-2">
             <Label>{t('system.scheduler.dialog.db_instance')}</Label>
             <select
-              className="block w-full rounded-md border bg-background p-2 text-sm"
+              className="block w-full rounded-md border bg-background p-2 text-sm disabled:opacity-50"
               value={payload.instanceId !== undefined ? String(payload.instanceId) : ''}
               onChange={(e) => set('instanceId', e.target.value ? Number(e.target.value) : undefined)}
+              disabled={databases.isPending}
             >
-              <option value="">—</option>
+              <option value="">{databases.isPending ? t('common.loading') : '—'}</option>
               {(databases.data ?? []).map((db) => (
                 <option key={db.id} value={db.id}>
                   {db.name}
