@@ -11,12 +11,14 @@ web UI. Designed as an independent clean-room reimplementation
 inspired by best-in-class panels, deliberately trimmed to what one
 maintainer can actually own.
 
-> **Status:** Pre-1.0, actively developed. Through v0.4 the panel
+> **Status:** Pre-1.0, actively developed. Through **v0.5** the panel
 > handles containers, websites + ACME SSL, **databases (MySQL /
 > MariaDB / PostgreSQL / Redis / MongoDB) with PMM PromQL summary
-> cards**, firewall, scheduler, and log centre. Validated end-to-end
-> on Rocky Linux 9.4 production-class hardware (Xeon Gold 5218,
-> 600+ days uptime). Next milestone is v0.6 (toolbox).
+> cards**, **logical database backups + restore (on-demand or
+> scheduled, keep-last-N retention, restore-in-place)**, firewall,
+> scheduler, and log centre. Validated end-to-end on Rocky Linux 9.4
+> production-class hardware (Xeon Gold 5218, 600+ days uptime); v0.5.0
+> backups smoke-tested on the same box. Next milestone is v0.6 (toolbox).
 
 ## Features
 
@@ -74,14 +76,27 @@ maintainer can actually own.
   back to the v0.2.1 "Open in PMM" link card when not configured
 - `Sheet` drawer primitive (also retrofitted to `/websites`)
 
+### Database backups (v0.5)
+
+- Logical (dump-style) per-engine backups: `mysqldump` / `pg_dumpall` /
+  `mongodump` / Redis `BGSAVE` + RDB — streamed out and gzipped on the host
+- On-demand from the DB drawer's **Backups** tab, or scheduled via a
+  `db_backup` cron task (reuses the v0.5 scheduler)
+- Keep-last-N retention per `(instance, group)`; manual backups exempt
+- Restore-in-place with a typo-guard confirm (drops + recreates inside
+  the same container); Redis restore briefly restarts the container
+- Local storage under `/opt/dinopanel/backups/<engine>/<instance>/`
+  (0700 tree, 0600 files); authenticated blob download from `/backups`
+- See [`docs/backups.md`](./docs/backups.md)
+
 ### Operations (v0.5)
 
 - **Firewall** — ufw + firewalld driver detection, with a 30-second
   rollback safeguard on every rule change (auto-revert if not
   confirmed)
 - **Scheduled tasks** — cron-driven runner for shell, file backup,
-  log cleanup, service restart, HTTP request, plus a built-in audit
-  log purge
+  log cleanup, service restart, HTTP request, **database backup**
+  (v0.5.0 `db_backup`), plus a built-in audit log purge
 - **Log centre** — system / SSH / operation / login / task / website
   log views with cursor pagination and WebSocket live tail
 - **Audit interceptor** — every mutating API call writes an
@@ -104,7 +119,7 @@ maintainer can actually own.
 | v0.4.6  | Fix "Open in PMM" deep link for PMM 3.x — was `/graph/inventory/services/<id>` (PMM 2.x guess), correct PMM 3.x route is `/inventory/services/<id>` (not under Grafana's `/graph` prefix) | ✅ shipped |
 | v0.4.7  | "Open in PMM" deep-link rewrite to per-engine Instance Summary dashboards (v0.4.6's `/inventory/services/<id>` also 404'd — PMM 3 has no per-service-id UI route); floating version badge top-right of every page; Vite injects version from package.json so future releases bump one place | ✅ shipped |
 | v0.4.8  | Reposition version badge — v0.4.7's floating top-right badge overlapped page action buttons; move to sidebar bottom under user menu, `text-sm` (was `text-[10px]` at sidebar top in earlier versions), single instance | ✅ shipped |
-| v0.5.0  | Database backups + restore — logical dumps (mysql/mariadb/postgresql/redis/mongodb), local storage, on-demand + scheduled (`db_backup` task), keep-last-N retention, restore-in-place | ✅ shipped — Rocky 234 smoke deferred |
+| v0.5.0  | Database backups + restore — logical dumps (mysql/mariadb/postgresql/redis/mongodb), local storage, on-demand + scheduled (`db_backup` task), keep-last-N retention, restore-in-place | ✅ shipped (smoke S1–S4 on Rocky 234) |
 | v0.6    | Toolbox (Fail2Ban / Supervisor / Swap / NTP) + MFA + Passkey | planned |
 | v1.0    | Stable release with full i18n | planned |
 
@@ -141,7 +156,7 @@ pnpm dev
 pnpm typecheck
 pnpm lint
 
-# Run unit tests (currently 169 passing)
+# Run unit tests (server 313 + web 26 + shared suites)
 pnpm test
 
 # Build production bundle
@@ -156,8 +171,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # Copy the tarball to the target host, then on the target:
-tar -xzf dinopanel-0.4.8-prebuild-x64.tar.gz
-cd dinopanel-0.4.8-prebuild-x64
+tar -xzf dinopanel-0.5.0-prebuild-x64.tar.gz
+cd dinopanel-0.5.0-prebuild-x64
 sudo bash install.sh
 ```
 
@@ -184,7 +199,7 @@ packages/
   shared/             # Shared Zod schemas, WS protocol types, error codes
 scripts/              # install.sh (upgrade-safe), build-release.sh
 deploy/               # systemd unit, nginx examples
-docs/                 # Architecture, websites, ACME, firewall, scheduler, logs
+docs/                 # Architecture, websites, ACME, databases, backups, firewall, scheduler, logs
 .arceus/changes/      # Change-management proposals + decisions + tasks per version
 release/              # Built tarballs (gitignored content)
 ```
@@ -194,6 +209,8 @@ release/              # Built tarballs (gitignored content)
 - [Architecture](./docs/architecture.md) — module boundaries, request lifecycle
 - [Websites](./docs/websites.md) — site CRUD, nginx integration, sudoers, SELinux
 - [ACME](./docs/acme.md) — issuance flows, Cloudflare DNS-01 setup, renewal
+- [Databases](./docs/databases.md) — 5-engine container DBs, PMM cards, credentials
+- [Backups](./docs/backups.md) — logical dumps, retention, scheduled + restore-in-place
 - [Firewall](./docs/firewall.md) — ufw / firewalld drivers, rollback safeguard
 - [Scheduler](./docs/scheduler.md) — cron jobs, runners, dogfooded purge
 - [Logs](./docs/logs.md) — five log sources, retention, audit interceptor
