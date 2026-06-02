@@ -861,10 +861,13 @@
     "disk": {
       "not_configured": "本機無法讀取磁碟用量（缺少 df）。",
       "col_source": "檔案系統",
+      "col_fstype": "類型",
       "col_mount": "掛載點",
       "col_used": "已用",
       "col_total": "總計",
       "col_pct": "使用率",
+      "show_system": "顯示系統檔案系統",
+      "system_hidden": "已隱藏 {{count}} 個",
       "breakdown_title": "目錄用量分析",
       "breakdown_pick": "選擇路徑…",
       "breakdown_empty": "此路徑無子目錄資料。",

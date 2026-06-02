@@ -5,11 +5,11 @@ verification block. Release cut at Phase 4. No migration (stateless).
 
 ## Phase 1 — Disk de-noise
 
-- [ ] `disk-driver.ts`: `df -PB1` → `df -PTB1`; `parseDf` reads 7 columns (add `fstype`); header-skip + non-numeric-row reject preserved
-- [ ] `packages/shared/schemas/toolbox.ts`: `diskFilesystemSchema` += `fstype: z.string()`; export `PSEUDO_FSTYPES` + `isRealFilesystem(fstype)`; shared rebuilt
-- [ ] web disk tab: default-filter via `isRealFilesystem`; "show system filesystems" toggle (default off)
-- [ ] tests: `parseDf` golden incl. overlay/tmpfs/cgroup → fstype; `isRealFilesystem` accept/reject set
-- [ ] Verify typecheck · lint · test · build · Phase 1 commit
+- [x] `disk-driver.ts`: `df -PB1` → `df -PTB1`; `parseDf` reads 7 columns (add `fstype`); header-skip + non-numeric-row reject preserved
+- [x] `packages/shared/schemas/toolbox.ts`: `diskFilesystemSchema` += `fstype: z.string()`; export `PSEUDO_FSTYPES` (24) + `isRealFilesystem(fstype)` (rejects pseudo set + `fuse.*`); shared rebuilt
+- [x] web disk tab: fstype column + default-filter via `isRealFilesystem`; "show system filesystems" toggle (default off) + "{n} hidden" hint; i18n keys en+zh-TW (parity green)
+- [x] tests: `parseDf` golden incl. overlay row → fstype; `isRealFilesystem` accept(ext4/xfs/btrfs/…)/reject(overlay/tmpfs/…/`fuse.*`)
+- [x] Verify typecheck ✓ · lint ✓ · test 441 ✓ · build ✓ · Phase 1 commit
 
 ## Phase 2 — Supervisor backend (systemd)
 

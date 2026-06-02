@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { cleanBodySchema, cleanCategorySchema, setTimezoneBodySchema } from '../toolbox';
+import {
+  cleanBodySchema,
+  cleanCategorySchema,
+  setTimezoneBodySchema,
+  isRealFilesystem,
+  PSEUDO_FSTYPES,
+} from '../toolbox';
 
 describe('cleanCategorySchema — closed cleaner enum', () => {
   it('accepts the three curated, tool-owned categories', () => {
@@ -37,5 +43,25 @@ describe('setTimezoneBodySchema — timezone shape guard', () => {
 
   it('rejects an over-long value (bounded length)', () => {
     expect(setTimezoneBodySchema.safeParse({ timezone: 'A'.repeat(65) }).success).toBe(false);
+  });
+});
+
+describe('isRealFilesystem — disk-table de-noise key', () => {
+  it('accepts real storage filesystems', () => {
+    for (const fs of ['ext4', 'ext3', 'xfs', 'btrfs', 'vfat', 'ntfs', 'zfs', 'f2fs', 'exfat']) {
+      expect(isRealFilesystem(fs)).toBe(true);
+    }
+  });
+
+  it('rejects docker-overlay + kernel pseudo filesystems', () => {
+    for (const fs of ['overlay', 'tmpfs', 'devtmpfs', 'proc', 'sysfs', 'cgroup', 'cgroup2', 'squashfs']) {
+      expect(isRealFilesystem(fs)).toBe(false);
+      expect(PSEUDO_FSTYPES.has(fs)).toBe(true);
+    }
+  });
+
+  it('rejects any fuse.* type (e.g. fuse.sshfs)', () => {
+    expect(isRealFilesystem('fuse.sshfs')).toBe(false);
+    expect(isRealFilesystem('fuse.gvfsd-fuse')).toBe(false);
   });
 });

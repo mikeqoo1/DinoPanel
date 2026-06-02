@@ -14,23 +14,29 @@ export interface DiskDriver {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse `df -PB1`. POSIX `-P` guarantees exactly 6 columns; only the HEADER
- * row localizes (the dev host prints zh_TW headers), so we skip line 0 and
- * parse data rows positionally. `-B1` => raw bytes (no KiB math). Capacity is
- * `NN%` or `-` (pseudo filesystems) => usePercent null. Rows whose block
- * column is non-numeric (e.g. the all-dash `systemd-1` binfmt row under `-a`)
- * fail the numeric regex and are skipped.
+ * Parse `df -PTB1`. POSIX `-P` keeps the layout fixed; `-T` inserts a `Type`
+ * (fstype) column right after Filesystem, giving 7 columns
+ * (Filesystem, Type, 1-blocks, Used, Available, Capacity, Mounted-on). Only
+ * the HEADER row localizes (the dev host prints zh_TW headers), so we skip
+ * line 0 and parse data rows positionally. `fstype` is never localized
+ * (`ext4`/`overlay`/`tmpfs`/`fuse.*`), so it is the locale-proof key the web
+ * uses to de-noise the table (hide docker-overlay/pseudo mounts). `-B1` =>
+ * raw bytes. Capacity is `NN%` or `-` (pseudo fs) => usePercent null. Rows
+ * whose block column is non-numeric (e.g. the all-dash `systemd-1` binfmt row
+ * under `-a`) fail the numeric regex and are skipped.
  */
 export function parseDf(stdout: string): DiskFilesystem[] {
   const out: DiskFilesystem[] = [];
   const lines = stdout.split('\n').slice(1); // drop the (possibly localized) header
   for (const line of lines) {
     if (!line.trim()) continue;
-    const m = /^(.+?)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+%|-)\s+(.+?)\s*$/.exec(line);
+    // source(non-greedy) · fstype(single token) · blocks · used · avail · cap · mount
+    const m = /^(.+?)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+%|-)\s+(.+?)\s*$/.exec(line);
     if (!m) continue;
-    const [, source, total, used, available, pct, mount] = m;
+    const [, source, fstype, total, used, available, pct, mount] = m;
     out.push({
       source: source!,
+      fstype: fstype!,
       mount: mount!,
       total: Number(total),
       used: Number(used),
@@ -79,9 +85,9 @@ export class DfDuDiskDriver implements DiskDriver {
   readonly available = true;
 
   async listFilesystems(): Promise<DiskFilesystem[]> {
-    // -P: POSIX 6-col layout (locale-proof rows). -B1: raw bytes.
-    const r = await runCommand('df', ['-PB1']);
-    assertSuccess(r, 'df -PB1');
+    // -P: POSIX layout (locale-proof rows). -T: add the fstype column. -B1: raw bytes.
+    const r = await runCommand('df', ['-PTB1']);
+    assertSuccess(r, 'df -PTB1');
     return parseDf(r.stdout);
   }
 

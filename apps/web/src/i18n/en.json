@@ -861,10 +861,13 @@
     "disk": {
       "not_configured": "Disk usage is unavailable (df is missing).",
       "col_source": "Filesystem",
+      "col_fstype": "Type",
       "col_mount": "Mount",
       "col_used": "Used",
       "col_total": "Total",
       "col_pct": "Use%",
+      "show_system": "Show system filesystems",
+      "system_hidden": "{{count}} hidden",
       "breakdown_title": "Directory breakdown",
       "breakdown_pick": "Choose a path…",
       "breakdown_empty": "No subdirectories for this path.",

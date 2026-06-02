@@ -76,9 +76,10 @@ export type ToolboxStatus = z.infer<typeof toolboxStatusSchema>;
 
 // --- v0.6 Phase 2: disk usage (read-only) ----------------------------------
 
-// One mounted filesystem parsed from `df -PB1` (POSIX columns, raw bytes).
+// One mounted filesystem parsed from `df -PTB1` (POSIX columns + fstype, raw bytes).
 export const diskFilesystemSchema = z.object({
   source: z.string(), // backing device, e.g. "/dev/sda9", "tmpfs"
+  fstype: z.string(), // filesystem type from `df -T`, e.g. "ext4", "overlay", "tmpfs"
   mount: z.string(), // mount point, e.g. "/"
   total: z.number().int().nonnegative(),
   used: z.number().int().nonnegative(),
@@ -87,6 +88,45 @@ export const diskFilesystemSchema = z.object({
   usePercent: z.number().int().min(0).max(100).nullable(),
 });
 export type DiskFilesystem = z.infer<typeof diskFilesystemSchema>;
+
+// Pseudo / virtual / container-layer filesystem types. On a docker host `df`
+// lists dozens of `overlay` mounts (one per container layer) plus kernel
+// pseudo-fs; these bury the handful of real storage filesystems. The disk tab
+// default-hides these (filtering by fstype, never by mount path, so an
+// unusual-but-real mount is never hidden) behind a "show system filesystems"
+// toggle. `fuse.*` types (e.g. `fuse.sshfs`) are also treated as pseudo.
+export const PSEUDO_FSTYPES: ReadonlySet<string> = new Set([
+  'overlay',
+  'tmpfs',
+  'devtmpfs',
+  'proc',
+  'sysfs',
+  'cgroup',
+  'cgroup2',
+  'mqueue',
+  'debugfs',
+  'tracefs',
+  'bpf',
+  'pstore',
+  'securityfs',
+  'configfs',
+  'fusectl',
+  'hugetlbfs',
+  'binfmt_misc',
+  'autofs',
+  'nsfs',
+  'efivarfs',
+  'ramfs',
+  'squashfs',
+  'devpts',
+  'rpc_pipefs',
+]);
+
+/** True for a "real" storage filesystem (not in {@link PSEUDO_FSTYPES} and not a `fuse.*` type). */
+export function isRealFilesystem(fstype: string): boolean {
+  if (fstype.startsWith('fuse.')) return false;
+  return !PSEUDO_FSTYPES.has(fstype);
+}
 
 // One depth-1 child from `du -x -d1 <root>`.
 export const diskBreakdownEntrySchema = z.object({

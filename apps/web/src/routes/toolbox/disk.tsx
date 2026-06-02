@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import type { CleanCategory } from '@dinopanel/shared';
+import { type CleanCategory, isRealFilesystem } from '@dinopanel/shared';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,9 @@ export function DiskTab() {
   const disk = useDiskUsage(breakdownPath, !!status.data && available);
   const cleaners = useCleaners(!!status.data);
   const [cleanTarget, setCleanTarget] = useState<CleanCategory | null>(null);
+  // Docker hosts list dozens of overlay + pseudo mounts; default to real
+  // storage filesystems only, with a toggle to reveal the system ones.
+  const [showAllFs, setShowAllFs] = useState(false);
 
   if (status.isPending) return <Skeleton className="h-32 w-full" />;
   if (status.error) {
@@ -45,30 +48,52 @@ export function DiskTab() {
         <Card className="p-6 text-sm text-destructive">{extractErrorMessage(disk.error)}</Card>
       ) : (
         <>
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr>
-                  <th className="p-3 font-medium">{t('toolbox.disk.col_source')}</th>
-                  <th className="p-3 font-medium">{t('toolbox.disk.col_mount')}</th>
-                  <th className="p-3 font-medium">{t('toolbox.disk.col_used')}</th>
-                  <th className="p-3 font-medium">{t('toolbox.disk.col_total')}</th>
-                  <th className="p-3 font-medium">{t('toolbox.disk.col_pct')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {disk.data!.filesystems.map((fs) => (
-                  <tr key={`${fs.source}-${fs.mount}`} className="border-t">
-                    <td className="p-3 font-mono text-xs">{fs.source}</td>
-                    <td className="p-3 font-mono text-xs">{fs.mount}</td>
-                    <td className="p-3">{formatBytes(fs.used)}</td>
-                    <td className="p-3">{formatBytes(fs.total)}</td>
-                    <td className="p-3">{fs.usePercent === null ? '—' : `${fs.usePercent}%`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+          {(() => {
+            const all = disk.data!.filesystems;
+            const visible = showAllFs ? all : all.filter((fs) => isRealFilesystem(fs.fstype));
+            const hidden = all.length - visible.length;
+            return (
+              <>
+                <Card className="overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40 text-left">
+                      <tr>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_source')}</th>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_fstype')}</th>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_mount')}</th>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_used')}</th>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_total')}</th>
+                        <th className="p-3 font-medium">{t('toolbox.disk.col_pct')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.map((fs) => (
+                        <tr key={`${fs.source}-${fs.mount}`} className="border-t">
+                          <td className="p-3 font-mono text-xs">{fs.source}</td>
+                          <td className="p-3 font-mono text-xs">{fs.fstype}</td>
+                          <td className="p-3 font-mono text-xs">{fs.mount}</td>
+                          <td className="p-3">{formatBytes(fs.used)}</td>
+                          <td className="p-3">{formatBytes(fs.total)}</td>
+                          <td className="p-3">{fs.usePercent === null ? '—' : `${fs.usePercent}%`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+                {(hidden > 0 || showAllFs) && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={showAllFs}
+                      onChange={(e) => setShowAllFs(e.target.checked)}
+                    />
+                    {t('toolbox.disk.show_system')}
+                    {!showAllFs && hidden > 0 ? ` (${t('toolbox.disk.system_hidden', { count: hidden })})` : ''}
+                  </label>
+                )}
+              </>
+            );
+          })()}
 
           {/* Per-directory breakdown */}
           <div className="space-y-2">
