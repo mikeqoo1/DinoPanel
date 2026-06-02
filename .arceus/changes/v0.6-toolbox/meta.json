@@ -1,8 +1,8 @@
 {
   "id": "v0.6-toolbox",
   "title": "Toolbox module — NTP/time-sync + Fail2Ban (extend in-place) + disk usage/curated cleaners (the safe, fully-smoke-testable slice of the v0.6 roadmap pin)",
-  "status": "active",
-  "smokeStatus": "PENDING — v0.6.0 release cut 2026-06-02 (4 package.json bumped 0.5.0->0.6.0, README + README_zh-TW updated, scripts/smoke-toolbox-234.sh added). Remaining operator step: build tarball + scp to Rocky 234, run scripts/smoke-toolbox-234.sh (S1-S5), record evidence, then flip status to completed.",
+  "status": "completed",
+  "smokeStatus": "2026-06-02 Rocky 234 smoke PASSED via scripts/smoke-toolbox-234.sh (v0.6.0 f240ad2, deployed by operator). S1 tools-present (ntp+disk available, 3 cleaners available, firewall fail2ban flag), S2 tool-absent contract (fail2ban absent on host -> GET /firewall/fail2ban/jails 400 FAIL2BAN_NOT_AVAILABLE, live), S3 NTP round-trip (set-ntp + set-timezone via sudo -n round-trip, state unchanged). S4 N/A (fail2ban not installed on 234; absence verified by S2 + unit tests). S5 deferred (journald vacuum + docker prune opt-in, not run against prod). See smoke-pass.md.",
   "createdAt": "2026-06-02",
   "targetVersion": "v0.6.0",
   "dependsOn": ["v0.5-databases-backups"],
@@ -14,7 +14,7 @@
     { "id": "phase-2", "name": "Fail2Ban (extend firewall.service in place: jails/ban/runtime-toggle + sudo retrofit) + disk usage view (df/du) + curated cleaners (journald/dnf|apt/docker-prune; tmp-sweep dropped as unsafe; docker volumes excluded). Adversarial review applied", "estimateDays": 4, "status": "completed" },
     { "id": "phase-3", "name": "Web Toolbox UI — /toolbox/* route + tabs (ntp/fail2ban/disk), use-toolbox + use-firewall fail2ban hooks, i18n (zh-TW + en, 51 keys). UI-enabling backend adds: GET /toolbox/ntp/timezones + safeRoots on DiskUsage. fail2ban jail enable/disable toggle dropped (broken-by-design). Adversarial review applied", "estimateDays": 3.5, "status": "completed" },
     { "id": "phase-4", "name": "Hardening, guardrail tests, docs/toolbox.md + consolidated NOPASSWD sudoers contract, shared rebuild", "estimateDays": 2.5, "status": "completed", "note": "commit d679c69 — stderr-redaction shared-layer fix, guardrail tests (438 total), docs/toolbox.md + sudoers, i18n parity test. Adversarial review 17->3 confirmed (all low) applied." },
-    { "id": "phase-5", "name": "Release v0.6.0 (bump 0.5.0 -> 0.6.0, no migration) + Rocky 234 smoke S1-S5", "estimateDays": 2.5, "status": "active", "note": "Release cut done: 4 package.json -> 0.6.0, README + README_zh-TW, scripts/smoke-toolbox-234.sh, .arceus index. PENDING: tarball build + scp to Rocky 234 + smoke S1-S5 (operator step) -> then status completed." }
+    { "id": "phase-5", "name": "Release v0.6.0 (bump 0.5.0 -> 0.6.0, no migration) + Rocky 234 smoke S1-S5", "estimateDays": 2.5, "status": "completed", "note": "Release cut f240ad2 (4 package.json -> 0.6.0, README + README_zh-TW, scripts/smoke-toolbox-234.sh). Deployed to Rocky 234 by operator; smoke S1-S3 PASSED live (S2 exercised the real fail2ban-absent 400 path), S4 N/A (fail2ban not installed), S5 deferred (opt-in). See smoke-pass.md." }
   ],
   "directionDecisions": {
     "D1_scope": "Toolbox slice only — NTP + Fail2Ban(extend in-place) + disk-usage + curated cleaners. Swap-write -> v0.6.1, Supervisor -> v0.6.1, MFA -> v0.7.0, Passkey -> TLS-gated (recommended default; operator-confirmable)",

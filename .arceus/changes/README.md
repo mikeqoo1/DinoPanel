@@ -51,7 +51,7 @@ Status values in `meta.json`:
 | `v0.5.2-files-read-symlink-protection`      | completed  | v0.5.2  | Security blocker: add read-side symlink-deny check (`assertReadable` + `realpath`) — closes `/etc/shadow` read via user-created symlink |
 | `v0.5.2-db-instance-password-redact`        | completed  | v0.5.2  | Security blocker: strip plaintext DB password from API responses, add `/reveal-password` endpoint with re-auth |
 | `v0.5.2-nginx-directive-injection-guard`    | completed  | v0.5.2  | Security blocker: tighten `indexFiles` / `documentIndex` schemas to safe-filename regex — closes nginx directive injection via site payload |
-| `v0.6-toolbox`                              | active     | v0.6.0  | Toolbox — NTP/time-sync + Fail2Ban (extend firewall in-place) + disk usage/curated cleaners. Clone of the firewall pattern; stateless. Phases 0-5 done, v0.6.0 release cut; Rocky 234 deploy + smoke S1-S5 pending (operator step). Swap-write+Supervisor→v0.6.1, MFA→v0.7.0, Passkey blocked on TLS |
+| `v0.6-toolbox`                              | completed  | v0.6.0  | Toolbox — NTP/time-sync + Fail2Ban (extend firewall in-place) + disk usage/curated cleaners. Clone of the firewall pattern; stateless. 6 phases shipped 2026-06-02 (`f240ad2`), Rocky 234 smoke S1-S3 passed (S2 hit the live fail2ban-absent 400 path; S4 N/A fail2ban not installed; S5 cleaners opt-in). Swap-write+Supervisor→v0.6.1, MFA→v0.7.0, Passkey blocked on TLS |
 | `archived-v0.X-multihost-pmm-inventory`     | archived   | —       | Superseded by v0.4.3-pmm-inventory-readonly. Original 3-option draft (A full union / B limited / C decline); operator picked B |
 
 Released latest first: `033db4c` v0.4.0 release cut, `c8f76c4` Phase 5

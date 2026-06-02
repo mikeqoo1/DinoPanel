@@ -79,6 +79,6 @@ no drizzle migration (stateless).
 - [x] Update README + README_zh-TW (v0.6.0 row → ✅ shipped, new Toolbox feature section, deploy version, docs list) + roadmap memory
 - [x] Add `scripts/smoke-toolbox-234.sh` (turnkey S1-S5; S1-S4 non-destructive, S5 cleaners opt-in via `RUN_CLEANERS=1`) — mirrors `scripts/smoke-backups-234.sh`
 - [x] Release commit: `release(v0.6.0): toolbox module`
-- [ ] **(operator step)** Build tarball + scp via `scripts/deploy-rocky.sh`; deploy to Rocky 234 (`sudo bash install.sh` — overwrites .env / rotates JWT_SECRET / invalidates sessions)
-- [ ] **(operator step)** Smoke S1–S5 via `scripts/smoke-toolbox-234.sh` (record in `smoke-pass.md`): boot tools-present / boot tool-absent / NTP round-trip / fail2ban list+unban / journald vacuum + docker prune
-- [ ] **(after smoke)** Mark meta.json `status: completed` + `smokeStatus`; flip `.arceus/changes/README.md` v0.6 row to completed
+- [x] **(operator)** Deployed v0.6.0 to Rocky 234 via `install.sh` (version badge + `/toolbox` 3 tabs + live `df` confirmed)
+- [x] Smoke via `scripts/smoke-toolbox-234.sh` → `smoke-pass.md`: **S1 PASS** (tools-present), **S2 PASS** (fail2ban absent → live 400 `FAIL2BAN_NOT_AVAILABLE`), **S3 PASS** (NTP round-trip via sudo). **S4 N/A** (fail2ban not installed on 234 — absence covered by S2 + unit tests). **S5 deferred** (journald vacuum + docker prune opt-in, not run against prod).
+- [x] meta.json `status: completed` + `smokeStatus`; `.arceus/changes/README.md` v0.6 row → completed; README roadmap updated
