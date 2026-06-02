@@ -24,11 +24,11 @@ verification block. Release cut at Phase 4. No migration (stateless).
 
 ## Phase 3 — Supervisor web UI
 
-- [ ] `routes/toolbox/services.tsx` (table + per-row lifecycle buttons; protected buttons disabled via shared `serviceActionAllowed`; status gate)
-- [ ] `routes/toolbox/index.tsx`: lazy services tab + `pickTab` + nav
-- [ ] `hooks/use-toolbox.ts`: `useServicesList` + `useServiceAction` + `toolboxKeys.services`
-- [ ] i18n `toolbox.tabs.services` + `toolbox.services.*` (en + zh-TW); parity test green
-- [ ] Verify (incl. web tests) · Phase 3 commit
+- [x] `routes/toolbox/services.tsx` (filterable table: name/desc, active+sub badge, enabled, per-row start/stop/restart/enable/disable; protected buttons **disabled via shared `serviceActionAllowed`** with the reason as title; confirm dialog; status gate)
+- [x] `routes/toolbox/index.tsx`: lazy services tab + `pickTab('/services')` + TabsTrigger/Content; pick-tab test updated
+- [x] `hooks/use-toolbox.ts`: `useServicesList` + `useServiceAction` + `toolboxKeys.services`
+- [x] i18n `toolbox.tabs.services` + `toolbox.services.*` (en + zh-TW); i18n-parity test green
+- [x] Verify typecheck ✓ · lint ✓ · test 464 ✓ · build ✓ · Phase 3 commit
 
 ## Phase 4 — docs + release v0.6.1
 

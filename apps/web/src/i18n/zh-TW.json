@@ -825,7 +825,8 @@
     "tabs": {
       "ntp": "時間同步",
       "fail2ban": "Fail2Ban",
-      "disk": "磁碟與清理"
+      "disk": "磁碟與清理",
+      "services": "服務"
     },
     "ntp": {
       "not_configured": "本機未安裝 timedatectl，無法管理時間同步。",
@@ -884,6 +885,23 @@
       "confirm_warning": "此操作會永久刪除對應的檔案，無法復原。",
       "confirm_label": "請輸入「{{category}}」以確認：",
       "cleaned_toast": "清理完成：{{detail}}"
+    },
+    "services": {
+      "not_configured": "本機沒有 systemctl，無法管理服務。",
+      "filter_ph": "篩選服務…",
+      "col_name": "服務",
+      "col_state": "狀態",
+      "col_enabled": "開機",
+      "col_actions": "操作",
+      "start": "啟動",
+      "stop": "停止",
+      "restart": "重啟",
+      "enable": "開機啟用",
+      "disable": "開機停用",
+      "confirm_title": "確認服務操作",
+      "confirm_body": "{{action}} {{unit}}？",
+      "done_toast": "{{action}} {{unit}} — 完成",
+      "empty": "沒有符合的服務。"
     }
   }
 }

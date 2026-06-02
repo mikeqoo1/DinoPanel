@@ -7,12 +7,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 const NtpTab = lazy(() => import('./ntp').then((m) => ({ default: m.NtpTab })));
 const Fail2banTab = lazy(() => import('./fail2ban').then((m) => ({ default: m.Fail2banTab })));
 const DiskTab = lazy(() => import('./disk').then((m) => ({ default: m.DiskTab })));
+const ServicesTab = lazy(() => import('./services').then((m) => ({ default: m.ServicesTab })));
 
-type TabValue = 'ntp' | 'fail2ban' | 'disk';
+type TabValue = 'ntp' | 'fail2ban' | 'disk' | 'services';
 
 export function pickTab(pathname: string): TabValue {
   if (pathname.endsWith('/fail2ban')) return 'fail2ban';
   if (pathname.endsWith('/disk')) return 'disk';
+  if (pathname.endsWith('/services')) return 'services';
   return 'ntp';
 }
 
@@ -36,6 +38,7 @@ export function ToolboxPage() {
           <TabsTrigger value="ntp">{t('toolbox.tabs.ntp')}</TabsTrigger>
           <TabsTrigger value="fail2ban">{t('toolbox.tabs.fail2ban')}</TabsTrigger>
           <TabsTrigger value="disk">{t('toolbox.tabs.disk')}</TabsTrigger>
+          <TabsTrigger value="services">{t('toolbox.tabs.services')}</TabsTrigger>
         </TabsList>
         <TabsContent value="ntp" className="mt-4">
           <Suspense fallback={fallback}>
@@ -50,6 +53,11 @@ export function ToolboxPage() {
         <TabsContent value="disk" className="mt-4">
           <Suspense fallback={fallback}>
             <DiskTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="services" className="mt-4">
+          <Suspense fallback={fallback}>
+            <ServicesTab />
           </Suspense>
         </TabsContent>
       </Tabs>

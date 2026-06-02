@@ -825,7 +825,8 @@
     "tabs": {
       "ntp": "Time Sync",
       "fail2ban": "Fail2Ban",
-      "disk": "Disk & Cleanup"
+      "disk": "Disk & Cleanup",
+      "services": "Services"
     },
     "ntp": {
       "not_configured": "timedatectl is not installed on this host; time sync cannot be managed.",
@@ -884,6 +885,23 @@
       "confirm_warning": "This permanently deletes the matching files and cannot be undone.",
       "confirm_label": "Type \"{{category}}\" to confirm:",
       "cleaned_toast": "Cleanup done: {{detail}}"
+    },
+    "services": {
+      "not_configured": "systemctl is not available on this host; services cannot be managed.",
+      "filter_ph": "Filter services…",
+      "col_name": "Service",
+      "col_state": "State",
+      "col_enabled": "Boot",
+      "col_actions": "Actions",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "enable": "Enable",
+      "disable": "Disable",
+      "confirm_title": "Confirm service action",
+      "confirm_body": "{{action}} {{unit}}?",
+      "done_toast": "{{action}} {{unit}} — done",
+      "empty": "No services match."
     }
   }
 }

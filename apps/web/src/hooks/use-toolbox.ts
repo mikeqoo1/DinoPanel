@@ -6,6 +6,8 @@ import type {
   CleanersList,
   CleanResult,
   CleanCategory,
+  ServiceUnit,
+  SystemdAction,
 } from '@dinopanel/shared';
 import { api } from '@/lib/api';
 
@@ -16,6 +18,7 @@ export const toolboxKeys = {
   timezones: () => [...toolboxKeys.all, 'timezones'] as const,
   disk: (path?: string) => [...toolboxKeys.all, 'disk', path ?? 'default'] as const,
   cleaners: () => [...toolboxKeys.all, 'cleaners'] as const,
+  services: () => [...toolboxKeys.all, 'services'] as const,
 };
 
 // GET /api/toolbox/status — feature availability (ntp, disk). Always 200.
@@ -98,6 +101,26 @@ export function useRunCleaner() {
     mutationFn: async (category: CleanCategory) =>
       (await api.post<CleanResult>('/toolbox/clean', { category })).data,
     // a clean changes both disk usage and per-category availability
+    onSuccess: () => qc.invalidateQueries({ queryKey: toolboxKeys.all }),
+  });
+}
+
+// GET /api/toolbox/services — all systemd .service units (read-only).
+export function useServicesList(enabled = true) {
+  return useQuery<ServiceUnit[]>({
+    queryKey: toolboxKeys.services(),
+    queryFn: async () => (await api.get<ServiceUnit[]>('/toolbox/services')).data,
+    enabled,
+    retry: 0,
+  });
+}
+
+export function useServiceAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { unit: string; action: SystemdAction }) =>
+      (await api.post<{ ok: true }>('/toolbox/services/action', vars)).data,
+    // a lifecycle action changes the unit's runtime + enabled state
     onSuccess: () => qc.invalidateQueries({ queryKey: toolboxKeys.all }),
   });
 }
