@@ -1,24 +1,30 @@
-# Toolbox (v0.6)
+# Toolbox (v0.6 / v0.6.1)
 
 The Toolbox module groups small host-maintenance tools behind
 `/api/toolbox/*`, plus the Fail2Ban view which extends the firewall
 module at `/api/firewall/fail2ban/*`. The frontend lives at
-`/toolbox` with one tab per tool (NTP, Fail2Ban, Disk).
+`/toolbox` with one tab per tool (NTP, Fail2Ban, Disk, Services).
 
-v0.6.0 ships three tools:
+Tools:
 
-- **NTP / time-sync** — read time-sync state, toggle NTP, change the
-  system timezone (via `timedatectl`, with optional `chronyc`
+- **NTP / time-sync** (v0.6.0) — read time-sync state, toggle NTP, change
+  the system timezone (via `timedatectl`, with optional `chronyc`
   enrichment).
-- **Fail2Ban** — read-only jail list + counters + banned IPs, manual
-  ban, per-IP unban (extends `firewall.service`, see
+- **Fail2Ban** (v0.6.0) — read-only jail list + counters + banned IPs,
+  manual ban, per-IP unban (extends `firewall.service`, see
   [`docs/firewall.md`](firewall.md)).
-- **Disk** — `df` filesystem usage, a `du` per-directory breakdown over
-  a closed root allowlist, and curated tool-owned cleaners (journald
+- **Disk** (v0.6.0; de-noised in v0.6.1) — `df` filesystem usage (now
+  with an fstype column so the docker-overlay/pseudo mounts are
+  default-hidden behind a toggle), a `du` per-directory breakdown over a
+  closed root allowlist, and curated tool-owned cleaners (journald
   vacuum, package-cache clean, docker prune).
+- **Services** (v0.6.1) — systemd `.service` management: list units with
+  runtime + boot-enabled state, and start/stop/restart/enable/disable
+  behind a tiered protected-units guard. See **Services** below.
 
-> Deferred to later v0.6.x / v0.7: swap-file editing, supervisor, MFA,
-> passkey — see `.arceus/changes/v0.6-toolbox/decisions.md` (D1).
+> Deferred to later v0.6.x / v0.7: swap-file editing, MFA, passkey — see
+> `.arceus/changes/v0.6-toolbox/decisions.md` (D1). (Supervisor shipped as
+> the v0.6.1 Services tab — systemd, not supervisord.)
 
 ## Design posture: nothing the tool doesn't own
 
@@ -80,7 +86,12 @@ Cmnd_Alias DINOPANEL_TOOLBOX = \
     /usr/bin/fail2ban-client set * banip *, \
     /usr/bin/fail2ban-client set * unbanip *, \
     /usr/bin/fail2ban-client start *, \
-    /usr/bin/fail2ban-client stop *
+    /usr/bin/fail2ban-client stop *, \
+    /usr/bin/systemctl start *, \
+    /usr/bin/systemctl stop *, \
+    /usr/bin/systemctl restart *, \
+    /usr/bin/systemctl enable *, \
+    /usr/bin/systemctl disable *
 
 dinopanel ALL=(root) NOPASSWD: DINOPANEL_TOOLBOX
 ```
@@ -88,8 +99,12 @@ dinopanel ALL=(root) NOPASSWD: DINOPANEL_TOOLBOX
 Notes:
 
 - Replace `dinopanel` with the account the panel runs under.
+- The `systemctl *` lines are intentionally broad — sudoers cannot encode
+  "every unit except the protected ones", so **the protected-units
+  denylist is enforced in the panel's code, not in sudoers** (see
+  Services below). The wildcard only grants what the code already gates.
 - Binary paths differ by distro — confirm with
-  `command -v timedatectl journalctl dnf apt-get fail2ban-client` and
+  `command -v timedatectl journalctl dnf apt-get fail2ban-client systemctl` and
   adjust the absolute paths. A line whose binary doesn't exist on the
   host simply never matches (harmless), so it's safe to keep both
   `dnf clean all` and `apt-get clean` and let the host use the one it
@@ -128,6 +143,7 @@ real driver or an `Unavailable*` stub:
 | Cleaner: package_cache | `dnf` / `apt-get` | `503 NO_PACKAGE_MANAGER` |
 | Cleaner: docker_prune | docker socket | `503 DOCKER_UNREACHABLE` |
 | Fail2Ban | `fail2ban-client ping` | mutations → `400 FAIL2BAN_NOT_AVAILABLE` |
+| Services | `systemctl` | every op → `503 SERVICES_NOT_CONFIGURED` |
 
 `GET /toolbox/status` and `GET /toolbox/cleaners` report availability
 up-front (computed from the boot probes, without calling the tools), so
@@ -145,6 +161,47 @@ server-side (`toolbox.command_failed` / `firewall.command_failed`); it
 is only included in the response `details.stderr` when `NODE_ENV` is
 `development`. This is a shared-layer fix, so the firewall module
 inherits the same behavior.
+
+## Services (systemd, v0.6.1)
+
+The Services tab manages systemd **`.service` units only** — it does not
+edit or create unit files, and it is systemd, not supervisord (both
+supported distros are systemd, and the codebase already shells
+`systemctl`). Reads are unprivileged; mutations run `sudo -n`.
+
+- `GET /toolbox/services` — every `.service` unit with runtime state
+  (load/active/sub) merged with boot-enabled state (a merge of
+  `systemctl list-units` + `list-unit-files`). No sudo.
+- `POST /toolbox/services/action` `{ unit, action }`,
+  `action ∈ start|stop|restart|enable|disable` →
+  `sudo -n systemctl <action> -- <unit>`.
+
+### Protected-units guard (the safety core)
+
+A single source of truth in `@dinopanel/shared` (`serviceActionAllowed`)
+that the server **enforces** (`400 SERVICE_PROTECTED`) and the web mirrors
+(the matching buttons are disabled). Three tiers:
+
+- **`.service`-only** — any non-`.service` unit (e.g. `ssh.socket`,
+  `multi-user.target`, `home.mount`) is refused. This is load-bearing:
+  without it a `.socket` variant of a protected service (socket-activated
+  sshd is the default on modern Debian/Ubuntu) would slip past the tiers.
+- **SELF** (`dinopanel.service`) — **all** actions refused. Managing the
+  panel's own unit from inside the panel is nonsensical and a stop/restart
+  would kill the request. (Hardcoded; if you rename the unit you lose this
+  guard — manage the panel from a shell.)
+- **CRITICAL** (`sshd`/`ssh`, `firewalld`, `ufw`, `NetworkManager`/
+  `systemd-networkd`, `dbus`/`dbus-broker`, `systemd-logind`,
+  `systemd-journald`) — **stop** and **disable** refused (the
+  lock-yourself-out / brick ops); start/restart/enable allowed (restarting
+  sshd doesn't drop live connections).
+
+Because a string denylist can't see systemd **aliases** (e.g.
+`dbus-org.freedesktop.login1.service` *is* `systemd-logind.service`), the
+server also resolves the canonical unit Id (`systemctl show -p Id`) and
+re-runs the guard on it before mutating. The unit name is shape-validated
+(no leading dash, bounded) and passed after a `--` end-of-options guard,
+so it can never be read as a flag.
 
 ## SELinux / AppArmor
 

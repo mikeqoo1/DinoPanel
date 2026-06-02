@@ -2,17 +2,17 @@
   "id": "v0.6.1-supervisor-disk-denoise",
   "title": "Supervisor (systemd service management) + disk-table de-noise — v0.6.1",
   "status": "active",
-  "smokeStatus": "not started",
+  "smokeStatus": "PENDING — v0.6.1 release cut (4 package.json 0.6.0->0.6.1, docs/toolbox.md Services + systemctl sudoers, README, smoke-toolbox-234.sh S6). Rocky 234 deploy + smoke (S1-S4 + S6 services-guard) is the operator step; then flip to completed.",
   "createdAt": "2026-06-02",
   "targetVersion": "v0.6.1",
   "dependsOn": ["v0.6-toolbox"],
   "scopeNote": "v0.6.x supplement on top of the shipped toolbox. (1) Supervisor = systemd .service management as a 4th toolbox tab (list/status + start/stop/restart/enable/disable), NOT supervisord — both target distros are systemd and the codebase already shells systemctl (scheduler/nginx/firewalld). Tiered protected-units guard. (2) Disk-table de-noise: df -PTB1 adds an fstype column so the docker-overlay/pseudo rows can be filtered (default-hidden, UI toggle to show all). Stateless — no migration. Swap-write stays deferred (not in this cut).",
   "estimatedDevDays": "3-4",
   "phases": [
-    { "id": "phase-1", "name": "Disk de-noise — df -PTB1 + fstype column + shared isRealFilesystem/PSEUDO_FSTYPES + web default-filter + 'show system filesystems' toggle + parser tests", "estimateDays": 0.5, "status": "pending" },
-    { "id": "phase-2", "name": "Supervisor backend — services-driver (systemctl list-units/list-unit-files parse + start/stop/restart/enable/disable via sudo -n), SERVICES_DRIVER token + Unavailable fallback, toolbox status 'services' feature, controller routes, shared schemas + protected-units guard (single source in shared), guardrail tests", "estimateDays": 1.5, "status": "pending" },
-    { "id": "phase-3", "name": "Supervisor web UI — /toolbox 'services' tab (list table + per-row lifecycle actions, protected buttons disabled via shared helper), use-toolbox hooks, i18n (en + zh-TW)", "estimateDays": 1, "status": "pending" },
-    { "id": "phase-4", "name": "docs/toolbox.md (systemctl sudoers alias + Services section + protected-units note), release v0.6.1 (bump 0.6.0 -> 0.6.1, no migration), Rocky 234 smoke", "estimateDays": 1, "status": "pending" }
+    { "id": "phase-1", "name": "Disk de-noise — df -PTB1 + fstype column + shared isRealFilesystem/PSEUDO_FSTYPES + web default-filter + 'show system filesystems' toggle + parser tests", "estimateDays": 0.5, "status": "completed", "note": "commit 099a7cc" },
+    { "id": "phase-2", "name": "Supervisor backend — services-driver + SERVICES_DRIVER token + Unavailable fallback, status 'services' feature, routes, shared schemas + protected-units guard, guardrail tests", "estimateDays": 1.5, "status": "completed", "note": "commit 3ec61c3 — adversarial review 13->4 applied: HIGH .socket/.target bypass + MED alias bypass closed (.service-only guard + canonical-Id re-judge)" },
+    { "id": "phase-3", "name": "Supervisor web UI — /toolbox 'services' tab + use-toolbox hooks + i18n (en + zh-TW)", "estimateDays": 1, "status": "completed", "note": "commit 748eb65 — protected buttons disabled via the shared serviceActionAllowed" },
+    { "id": "phase-4", "name": "docs/toolbox.md (systemctl sudoers alias + Services section + protected-units note), release v0.6.1 (bump 0.6.0 -> 0.6.1, no migration), Rocky 234 smoke", "estimateDays": 1, "status": "active", "note": "docs + bump + README + smoke-script S6 + release commit done; Rocky 234 deploy + smoke is the operator step." }
   ],
   "directionDecisions": {
     "S1_supervisorKind": "systemd .service management (NOT supervisord). Both supported distros are systemd; codebase already uses systemctl (scheduler restart_service, nginx reload, firewalld driver). supervisord rejected: niche, needs separate install, high distro variance.",

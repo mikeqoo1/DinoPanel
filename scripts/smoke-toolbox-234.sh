@@ -182,9 +182,37 @@ else
 EOF
 fi
 
+# --- S6: services (list + live protected-refusal — non-destructive) ---
+info "S6 — services list + protected-units guard (v0.6.1)"
+SERVICES_AVAIL="$(jq -r '.features[] | select(.name=="services") | .available' <<<"$STATUS")"
+if [[ "$SERVICES_AVAIL" != "true" ]]; then
+  skip "services not available on this host (systemctl missing)"
+else
+  SVC="$(api "$BASE_URL/api/toolbox/services")"
+  COUNT="$(jq 'length' <<<"$SVC")"
+  [[ "$COUNT" -ge 1 ]] && pass "listed $COUNT .service units" || fail "services list empty"
+  jq -e 'all(.[]; .name | endswith(".service"))' <<<"$SVC" >/dev/null \
+    && pass "every listed unit is a .service" || fail "a non-.service unit leaked into the list"
+  # Protected refusal is NON-DESTRUCTIVE: the action is refused, nothing runs.
+  for unit in dinopanel.service sshd.service; do
+    RESP="$(curl -s -H "Authorization: Bearer $TOKEN" -X POST "$BASE_URL/api/toolbox/services/action" \
+      -H 'Content-Type: application/json' -d "$(jq -n --arg u "$unit" '{unit:$u,action:"stop"}')")"
+    CODE="$(jq -r '.code // empty' <<<"$RESP")"
+    [[ "$CODE" == "SERVICE_PROTECTED" ]] \
+      && pass "stop $unit refused (SERVICE_PROTECTED)" \
+      || fail "stop $unit NOT refused (got: $(jq -c '.' <<<"$RESP" 2>/dev/null))"
+  done
+  # A .socket variant must also be refused (the .service-only guard).
+  RESP="$(curl -s -H "Authorization: Bearer $TOKEN" -X POST "$BASE_URL/api/toolbox/services/action" \
+    -H 'Content-Type: application/json' -d '{"unit":"ssh.socket","action":"stop"}')"
+  [[ "$(jq -r '.code // empty' <<<"$RESP")" == "SERVICE_PROTECTED" ]] \
+    && pass "stop ssh.socket refused (.service-only guard)" \
+    || fail "ssh.socket stop NOT refused (got: $(jq -c '.' <<<"$RESP" 2>/dev/null))"
+fi
+
 echo
 if [[ "$FAILED" == 0 ]]; then
-  echo -e "\033[32mToolbox smoke S1-S4 PASSED\033[0m ($([[ "$RUN_CLEANERS" == 1 ]] && echo 'S5 ran' || echo 'S5 opt-in'))"
+  echo -e "\033[32mToolbox smoke S1-S4 + S6 PASSED\033[0m ($([[ "$RUN_CLEANERS" == 1 ]] && echo 'S5 ran' || echo 'S5 opt-in'))"
 else
   echo -e "\033[31mSome checks FAILED\033[0m"; exit 1
 fi

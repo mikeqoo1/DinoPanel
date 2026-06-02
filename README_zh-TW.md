@@ -82,6 +82,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.4.1–4.8 | smoke 修補 + PMM 系列迭代（PMM 3.x API、TLS 預設、deep-link、Settings UI、版本 badge 位置） | ✅ 已 ship |
 | v0.5.0 | 資料庫備份 + 還原 — 邏輯 dump（5 引擎）、本機儲存、隨需 + 排程（`db_backup`）、keep-last-N 保留、原地還原 | ✅ 已 ship（Rocky 234 smoke S1–S4 過） |
 | v0.6.0 | 工具箱 — NTP / 時間同步、Fail2Ban（原地擴充 firewall 模組）、磁碟用量 + 策展型清理（journald / 套件快取 / docker prune；tmp-sweep 因不安全已砍）。Swap 寫入 + Supervisor 走 v0.6.x patch | ✅ 已 ship（Rocky 234 smoke S1–S3 過；該機未裝 fail2ban → S4 略） |
+| v0.6.1 | Supervisor = systemd `.service` 管理（服務分頁：列出/狀態 + start/stop/restart/enable/disable，分級保護清單，停不掉面板自己/sshd/firewalld）+ 磁碟表去噪（`df -T` fstype 過濾，docker overlay/pseudo 預設隱藏 + toggle） | ✅ 已 ship |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |

@@ -32,8 +32,8 @@ verification block. Release cut at Phase 4. No migration (stateless).
 
 ## Phase 4 — docs + release v0.6.1
 
-- [ ] `docs/toolbox.md`: Services section + `Cmnd_Alias` += `systemctl start|stop|restart|enable|disable *`; code-denylist + self-unit note
-- [ ] Bump 0.6.0 → 0.6.1 (4 package.json); README + README_zh-TW v0.6.1 row
-- [ ] Extend `scripts/smoke-toolbox-234.sh` with a services check (list + protected-refusal assertion, non-destructive)
-- [ ] Release commit `release(v0.6.1): supervisor + disk de-noise`
-- [ ] (operator) Deploy Rocky 234 + smoke; record smoke-pass.md; meta `status: completed` + index row
+- [x] `docs/toolbox.md`: Services section (+ `.service`-only / alias-resolution guard write-up) + `Cmnd_Alias` += `systemctl start|stop|restart|enable|disable *` (with the code-denylist note) + degraded-table `services` row + intro/deferred updated
+- [x] Bump 0.6.0 → 0.6.1 (4 package.json); README + README_zh-TW v0.6.1 row
+- [x] Extend `scripts/smoke-toolbox-234.sh` with **S6** (services list + live `SERVICE_PROTECTED` refusal of `dinopanel`/`sshd` stop + `ssh.socket` — all non-destructive)
+- [x] Release commit `release(v0.6.1): supervisor + disk de-noise`
+- [ ] **(operator step)** Deploy Rocky 234 + smoke (`scripts/smoke-toolbox-234.sh`); record smoke-pass.md; meta `status: completed` + index row
