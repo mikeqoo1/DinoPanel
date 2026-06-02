@@ -10,7 +10,7 @@
   "estimatedDevDays": "17 (~3 weeks)",
   "phases": [
     { "id": "phase-0", "name": "Activation + shared shell/privilege contracts (lift run-command to common/shell, instanceof CommandError -> HttpException re-wrap standard + backfill firewall opaque-500 fix, TOOLBOX_REQUIRE_SUDO + sudo -n wrapper)", "estimateDays": 2, "status": "completed" },
-    { "id": "phase-1", "name": "NTP / time-sync — module skeleton end-to-end (timedatectl status/set-ntp/set-timezone + optional chronyc, UnavailableNtpDriver 503)", "estimateDays": 2.5, "status": "pending" },
+    { "id": "phase-1", "name": "NTP / time-sync — module skeleton end-to-end (timedatectl show+status parse/set-ntp/set-timezone + optional chronyc, UnavailableNtpDriver 503, adversarial review applied)", "estimateDays": 2.5, "status": "completed" },
     { "id": "phase-2", "name": "Fail2Ban (extend firewall.service in place) + disk usage view + curated category cleaners (journald/dnf|apt/docker-prune/tmp-sweep)", "estimateDays": 4, "status": "pending" },
     { "id": "phase-3", "name": "Web Toolbox UI — /toolbox/* splat route + tabs shell cloning routes/system, use-toolbox hooks, i18n (zh-TW + en)", "estimateDays": 3.5, "status": "pending" },
     { "id": "phase-4", "name": "Hardening, guardrail tests, docs/toolbox.md + consolidated NOPASSWD sudoers contract, shared rebuild", "estimateDays": 2.5, "status": "pending" },

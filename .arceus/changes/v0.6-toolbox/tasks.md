@@ -18,17 +18,18 @@ no drizzle migration (stateless).
 
 ## Phase 1 — NTP / time-sync
 
-- [ ] `apps/server/src/modules/toolbox/toolbox.module.ts` + `toolbox.controller.ts` (`@Controller('toolbox')`, `ZodValidationPipe`) + `toolbox.service.ts`
-- [ ] Wire `ToolboxModule` into `app.module.ts`
-- [ ] `drivers/ntp-driver.ts` behind `which('timedatectl')` + `UnavailableNtpDriver` → 503 `{code:'NTP_NOT_CONFIGURED'}`
-- [ ] `GET /toolbox/ntp` — parse `timedatectl status`
-- [ ] `GET /toolbox/status` — `[{name,available,degraded,reason}]`
-- [ ] `POST /toolbox/ntp/set` — toggle NTP true|false
-- [ ] `POST /toolbox/ntp/timezone` — validate against `timedatectl list-timezones`, reject unknown zone pre-shell-out
-- [ ] Optional `chronyc` tracking/sources detail when `which('chronyc')`
-- [ ] `packages/shared/src/schemas/toolbox.ts` (NTP status + request bodies) re-exported from `schemas/index.ts`
-- [ ] Golden-string parser tests (captured `timedatectl status` / `list-timezones`) + service + module-bootstrap tests
-- [ ] Phase 1 commit: `feat(toolbox): NTP / time-sync (phase 1 of v0.6)`
+- [x] `apps/server/src/modules/toolbox/toolbox.module.ts` (`which('timedatectl')` factory, `inject:[ConfigService]`) + `toolbox.controller.ts` (`@Controller('toolbox')`, `@UsePipes(ZodValidationPipe)`) + `toolbox.service.ts` (`NTP_DRIVER` token, `ntpOp` re-wrap, `OnApplicationBootstrap` sudo probe)
+- [x] Wire `ToolboxModule` into `app.module.ts`
+- [x] `drivers/ntp-driver.ts` — `TimedatectlNtpDriver` + `UnavailableNtpDriver` → 503 `{code:'NTP_NOT_CONFIGURED'}`
+- [x] `GET /toolbox/ntp` — parse `timedatectl show` (primary, locale-proof) with `status` fallback (cross-systemd-version) + best-effort `chronyc tracking` enrichment (3s timeout)
+- [x] `GET /toolbox/status` — `[{name,available,degraded,reason}]` (computed from driver availability + sudo posture; never calls the driver)
+- [x] `POST /toolbox/ntp/set` — toggle NTP true|false (sudo on mutate) → returns fresh status
+- [x] `POST /toolbox/ntp/timezone` — service allowlist-validates against `timedatectl list-timezones` + `--` end-of-options guard, reject unknown zone pre-shell-out → returns fresh status
+- [x] `packages/shared/src/schemas/toolbox.ts` (ntpStatus / setNtp / setTimezone / toolboxStatus) re-exported from `schemas/index.ts`; shared dist rebuilt
+- [x] Golden-string parser tests (real `timedatectl show`/`status` incl. zh-TW localized weekday + systemd-219 fallback + `chronyc tracking`) + service flow/re-wrap tests (14 new)
+- [x] Adversarial review pass (3 lenses × verify): 3 nit/low findings applied (drop `universalTime` asymmetry, chrony 3s timeout, timezone leading-dash + `--` guard); contested ones correctly rejected
+- [x] Verification: typecheck ✓ · lint ✓ · test ✓ · build ✓
+- [x] Phase 1 commit: `feat(toolbox): NTP / time-sync (phase 1 of v0.6)`
 
 ## Phase 2 — Fail2Ban (extend in place) + disk usage / cleaners
 
@@ -63,6 +64,7 @@ no drizzle migration (stateless).
 - [ ] Sudoers snippet in `install.sh` / `deploy-rocky.sh`
 - [ ] Explicit `packages/shared` rebuild (web/server see `toolbox` types)
 - [ ] i18n parity check zh-TW vs en
+- [ ] (carry from Phase 1 review) Project-wide: stop forwarding raw host `stderr` to clients in `commandErrorToHttp` / `ApiExceptionFilter` (gate `details.stderr` behind a dev flag, keep full stderr in server logs). Pre-existing, shared with firewall — fix once in the shared layer so both modules inherit it, do NOT diverge toolbox alone.
 - [ ] Phase 4 commit: `feat(toolbox): hardening + sudoers + docs (phase 4 of v0.6)`
 
 ## Phase 5 — Release v0.6.0 + Rocky smoke

@@ -21,6 +21,7 @@ import { WebsitesModule } from './modules/websites/websites.module';
 import { AcmeModule } from './modules/acme/acme.module';
 import { DatabasesModule } from './modules/databases/databases.module';
 import { BackupsModule } from './modules/backups/backups.module';
+import { ToolboxModule } from './modules/toolbox/toolbox.module';
 import { AuditModule } from './common/audit/audit.module';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
 
@@ -75,6 +76,7 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
     AcmeModule,
     DatabasesModule,
     BackupsModule,
+    ToolboxModule,
     AuditModule,
   ],
   providers: [
