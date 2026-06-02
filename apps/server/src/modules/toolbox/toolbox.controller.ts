@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Post, UsePipes } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UsePipes } from '@nestjs/common';
 import {
   setNtpBodySchema,
   setTimezoneBodySchema,
+  cleanBodySchema,
+  type CleanBody,
+  type CleanResult,
+  type CleanersList,
+  type DiskUsage,
   type NtpStatus,
   type SetNtpBody,
   type SetTimezoneBody,
@@ -34,5 +39,22 @@ export class ToolboxController {
   @UsePipes(new ZodValidationPipe(setTimezoneBodySchema))
   setTimezone(@Body() body: SetTimezoneBody): Promise<NtpStatus> {
     return this.toolbox.setTimezone(body.timezone);
+  }
+
+  @Get('disk')
+  getDisk(@Query('path') path?: string): Promise<DiskUsage> {
+    // `path` is validated against the SAFE_DU_ROOTS allowlist in the service.
+    return this.toolbox.getDisk(path);
+  }
+
+  @Get('cleaners')
+  cleaners(): CleanersList {
+    return this.toolbox.listCleaners();
+  }
+
+  @Post('clean')
+  @UsePipes(new ZodValidationPipe(cleanBodySchema))
+  clean(@Body() body: CleanBody): Promise<CleanResult> {
+    return this.toolbox.runCleaner(body.category);
   }
 }

@@ -107,6 +107,33 @@ lockout with no admin-recovery UI. Recorded now so it isn't forgotten.
 
 ---
 
+## Phase-2 adjustments (decided during implementation, from research findings)
+
+**P2-a — `tmp_sweep` dropped from the cleaner set.** The proposal listed a
+`/tmp` sweep gated by `assertWritable` + `DANGEROUS_WRITE_PATHS`. Research
+disproved the premise: `DANGEROUS_WRITE_PATHS` is a **deny-list** (system roots)
+and `/tmp` is not in it, so it cannot *confine* a sweep — it only blocks
+`/etc`, `/var`, etc. A blanket `/tmp` wipe running as root would also delete
+active sockets / lock files / `systemd-private-*` dirs and can break running
+services, while an age-based deleter is the very thing D2 already excluded as
+too dangerous. So v0.6.0 ships **only tool-owned cleaners** (journald,
+package_cache, docker_prune) — each cleaner's tool owns its targets, the clean
+body is a pure closed enum with no path input, and the toolbox module needs no
+FilesModule import. A safe `/tmp` policy (age + ownership) can be revisited
+later.
+
+**P2-b — `docker_prune` = containers + dangling images only, no volumes.**
+`docker system prune` does not touch volumes without `--volumes`, and
+`pruneVolumes()` can delete data volumes not attached to a running container.
+Pruning is limited to stopped containers + dangling images to match CLI
+semantics and avoid data loss.
+
+**P2-c — Fail2Ban reuses `TOOLBOX_REQUIRE_SUDO`** (not a new
+`FIREWALL_REQUIRE_SUDO`) for the `sudo -n` posture on `fail2ban-client` calls,
+to avoid env-var sprawl. `fail2banSetJailEnabled` is a **runtime** start/stop
+toggle (fail2ban has no persistent enable/disable verb); it does not survive a
+daemon reload and the jail must already be defined in config.
+
 ## D-bug — The firewall opaque-500 fix (verified, not a preference)
 
 The Phase 0 "opaque-500 fix" is **not** in `run-command.ts` internals — those

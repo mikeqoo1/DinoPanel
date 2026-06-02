@@ -1,0 +1,63 @@
+import { describe, it, expect } from 'vitest';
+import { parseDf, parseDu } from '../drivers/disk-driver';
+
+// Real `df -PB1` (the dev host prints a localized zh_TW header — the parser
+// skips line 0 and reads data rows positionally; rows are locale-proof under -P).
+const DF_GOLDEN = `檔案系統             1-區塊         已用        可用 容量 掛載點
+tmpfs            1646391296      7602176  1638789120   1% /run
+/dev/sda9      257802690560 166477746176 78154674176  69% /
+tmpfs               5242880         4096     5238784   1% /run/lock
+/dev/sda3         535805952      6979584   528826368   2% /boot/efi
+`;
+
+// Pseudo filesystems (only appear with `df -a`): Capacity "-" => usePercent null;
+// the all-dash systemd-1 binfmt row has a non-numeric block column and is skipped.
+const DF_PSEUDO_GOLDEN = `Filesystem 1-blocks Used Available Capacity Mounted on
+sysfs 0 0 0 - /sys
+systemd-1 - - - - /proc/sys/fs/binfmt_misc
+`;
+
+const DU_GOLDEN = `25138581504\t/var
+20133314560\t/var/lib
+4761554944\t/var/log
+171286528\t/var/cache
+86016\t/var/tmp
+`;
+
+describe('parseDf', () => {
+  it('parses df -PB1 rows positionally, skipping the (localized) header', () => {
+    expect(parseDf(DF_GOLDEN)).toEqual([
+      { source: 'tmpfs', mount: '/run', total: 1646391296, used: 7602176, available: 1638789120, usePercent: 1 },
+      { source: '/dev/sda9', mount: '/', total: 257802690560, used: 166477746176, available: 78154674176, usePercent: 69 },
+      { source: 'tmpfs', mount: '/run/lock', total: 5242880, used: 4096, available: 5238784, usePercent: 1 },
+      { source: '/dev/sda3', mount: '/boot/efi', total: 535805952, used: 6979584, available: 528826368, usePercent: 2 },
+    ]);
+  });
+
+  it('maps "-" capacity to null and skips non-numeric rows', () => {
+    const rows = parseDf(DF_PSEUDO_GOLDEN);
+    expect(rows).toEqual([
+      { source: 'sysfs', mount: '/sys', total: 0, used: 0, available: 0, usePercent: null },
+    ]);
+  });
+
+  it('clamps a >100% capacity (root-reserved blocks) to 100', () => {
+    const rows = parseDf('Filesystem 1-blocks Used Available Capacity Mounted on\n/dev/sda1 1000 1000 0 105% /\n');
+    expect(rows[0]!.usePercent).toBe(100);
+  });
+});
+
+describe('parseDu', () => {
+  it('extracts the root total and returns children largest-first', () => {
+    expect(parseDu(DU_GOLDEN, '/var')).toEqual({
+      root: '/var',
+      total: 25138581504,
+      entries: [
+        { path: '/var/lib', bytes: 20133314560 },
+        { path: '/var/log', bytes: 4761554944 },
+        { path: '/var/cache', bytes: 171286528 },
+        { path: '/var/tmp', bytes: 86016 },
+      ],
+    });
+  });
+});

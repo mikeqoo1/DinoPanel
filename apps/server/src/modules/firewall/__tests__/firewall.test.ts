@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpException } from '@nestjs/common';
 import { parseUfwRules, buildUfwArgs } from '../drivers/ufw.driver';
 import { parseFirewalldOutput, buildRichRule } from '../drivers/firewalld.driver';
-import { FirewallService } from '../firewall.service';
+import {
+  FirewallService,
+  parseFail2banJailList,
+  parseFail2banJailDetail,
+} from '../firewall.service';
 import type { FirewallDriver, RawRule } from '../firewall-driver';
 import { CommandError } from '../../../common/shell/run-command';
 
@@ -336,5 +340,63 @@ describe('FirewallService — driver error re-wrap (v0.6 Phase 0)', () => {
     expect((caught as HttpException).getResponse()).toMatchObject({
       code: 'FIREWALL_TOOL_MISSING',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fail2ban-client output parsers (v0.6 Phase 2)
+// ---------------------------------------------------------------------------
+
+const F2B_STATUS_GOLDEN = `Status
+|- Number of jail:      2
+\`- Jail list:   sshd, nginx-http-auth
+`;
+
+const F2B_JAIL_GOLDEN = `Status for the jail: sshd
+|- Filter
+|  |- Currently failed: 1
+|  |- Total failed:     3
+|  \`- File list:        /var/log/auth.log
+\`- Actions
+   |- Currently banned: 2
+   |- Total banned:     5
+   \`- Banned IP list:   192.0.2.10 203.0.113.7
+`;
+
+const F2B_EMPTY_JAIL_GOLDEN = `Status for the jail: nginx-http-auth
+\`- Actions
+   |- Currently banned: 0
+   |- Total banned:     0
+   \`- Banned IP list:
+`;
+
+describe('parseFail2banJailList', () => {
+  it('parses the global Jail list line', () => {
+    expect(parseFail2banJailList(F2B_STATUS_GOLDEN)).toEqual(['sshd', 'nginx-http-auth']);
+  });
+
+  it('returns [] when no jail list is present', () => {
+    expect(parseFail2banJailList('Status\n|- Number of jail: 0\n`- Jail list:\t')).toEqual([]);
+  });
+});
+
+describe('parseFail2banJailDetail', () => {
+  it('parses counters + banned IPs from a jail status block', () => {
+    expect(parseFail2banJailDetail('sshd', F2B_JAIL_GOLDEN)).toEqual({
+      name: 'sshd',
+      enabled: true,
+      currentlyFailed: 1,
+      totalFailed: 3,
+      currentlyBanned: 2,
+      totalBanned: 5,
+      bannedIps: ['192.0.2.10', '203.0.113.7'],
+    });
+  });
+
+  it('yields an empty bannedIps array when no IPs are banned', () => {
+    const jail = parseFail2banJailDetail('nginx-http-auth', F2B_EMPTY_JAIL_GOLDEN);
+    expect(jail.bannedIps).toEqual([]);
+    expect(jail.currentlyBanned).toBe(0);
+    expect(jail.totalBanned).toBe(0);
   });
 });

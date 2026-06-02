@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
-import type { NtpStatus } from '@dinopanel/shared';
+import type { DiskBreakdown, DiskFilesystem, NtpStatus } from '@dinopanel/shared';
 import { ToolboxService } from '../toolbox.service';
 import type { NtpDriver } from '../drivers/ntp-driver';
+import type { DiskDriver } from '../drivers/disk-driver';
+import type { CleanerDriver } from '../drivers/cleaner-driver';
 import { CommandError } from '../../../common/shell/run-command';
 
 const noopLogger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
@@ -28,17 +30,41 @@ class FakeNtpDriver implements NtpDriver {
   setTimezone = vi.fn<(tz: string) => Promise<void>>().mockResolvedValue(undefined);
 }
 
-function makeService(driver: NtpDriver, requireSudo = true): ToolboxService {
-  return new ToolboxService(driver, makeConfig(requireSudo) as never, noopLogger as never);
+class FakeDiskDriver implements DiskDriver {
+  available = true;
+  listFilesystems = vi.fn<() => Promise<DiskFilesystem[]>>().mockResolvedValue([]);
+  breakdown = vi
+    .fn<(root: string) => Promise<DiskBreakdown>>()
+    .mockResolvedValue({ root: '/var', total: 0, entries: [] });
+}
+
+function makeCleaner(): CleanerDriver {
+  return {
+    list: vi.fn().mockReturnValue([]),
+    run: vi.fn().mockResolvedValue({ category: 'journald', freedBytes: null, detail: 'ok' }),
+  } as unknown as CleanerDriver;
+}
+
+function makeService(opts: {
+  ntp?: NtpDriver;
+  disk?: DiskDriver;
+  cleaner?: CleanerDriver;
+  requireSudo?: boolean;
+} = {}): ToolboxService {
+  return new ToolboxService(
+    opts.ntp ?? new FakeNtpDriver(),
+    opts.disk ?? new FakeDiskDriver(),
+    opts.cleaner ?? makeCleaner(),
+    makeConfig(opts.requireSudo ?? true) as never,
+    noopLogger as never,
+  );
 }
 
 describe('ToolboxService — error re-wrap', () => {
   it('re-wraps a driver CommandError as a coded 503 HttpException, not a bare 500', async () => {
-    const driver = new FakeNtpDriver();
-    driver.getStatus.mockRejectedValueOnce(
-      new CommandError('TOOL_MISSING', 'timedatectl: not installed'),
-    );
-    const service = makeService(driver);
+    const ntp = new FakeNtpDriver();
+    ntp.getStatus.mockRejectedValueOnce(new CommandError('TOOL_MISSING', 'timedatectl: not installed'));
+    const service = makeService({ ntp });
 
     let caught: unknown;
     try {
@@ -54,56 +80,108 @@ describe('ToolboxService — error re-wrap', () => {
 
 describe('ToolboxService — setTimezone', () => {
   it('rejects an unknown timezone before shelling out', async () => {
-    const driver = new FakeNtpDriver();
-    const service = makeService(driver);
+    const ntp = new FakeNtpDriver();
+    const service = makeService({ ntp });
     await expect(service.setTimezone('Mars/Phobos')).rejects.toMatchObject({
       response: { code: 'TOOLBOX_INVALID_TIMEZONE' },
     });
-    expect(driver.setTimezone).not.toHaveBeenCalled();
+    expect(ntp.setTimezone).not.toHaveBeenCalled();
   });
 
   it('applies a known timezone and returns the fresh status', async () => {
-    const driver = new FakeNtpDriver();
-    const service = makeService(driver);
+    const ntp = new FakeNtpDriver();
+    const service = makeService({ ntp });
     const result = await service.setTimezone('Asia/Taipei');
-    expect(driver.setTimezone).toHaveBeenCalledWith('Asia/Taipei');
-    expect(driver.getStatus).toHaveBeenCalled();
+    expect(ntp.setTimezone).toHaveBeenCalledWith('Asia/Taipei');
+    expect(ntp.getStatus).toHaveBeenCalled();
     expect(result).toEqual(SAMPLE_STATUS);
   });
 });
 
 describe('ToolboxService — setNtp', () => {
   it('passes the enabled flag to the driver and returns the fresh status', async () => {
-    const driver = new FakeNtpDriver();
-    const service = makeService(driver);
+    const ntp = new FakeNtpDriver();
+    const service = makeService({ ntp });
     const result = await service.setNtp(true);
-    expect(driver.setNtp).toHaveBeenCalledWith(true);
+    expect(ntp.setNtp).toHaveBeenCalledWith(true);
     expect(result).toEqual(SAMPLE_STATUS);
   });
 });
 
+describe('ToolboxService — getDisk', () => {
+  it('rejects a path outside the SAFE_DU_ROOTS allowlist', async () => {
+    const disk = new FakeDiskDriver();
+    const service = makeService({ disk });
+    await expect(service.getDisk('/etc')).rejects.toMatchObject({
+      response: { code: 'TOOLBOX_DISK_PATH_NOT_ALLOWED' },
+    });
+    expect(disk.breakdown).not.toHaveBeenCalled();
+  });
+
+  it('returns filesystems with no breakdown when no path is given', async () => {
+    const disk = new FakeDiskDriver();
+    const service = makeService({ disk });
+    const result = await service.getDisk();
+    expect(disk.listFilesystems).toHaveBeenCalled();
+    expect(disk.breakdown).not.toHaveBeenCalled();
+    expect(result.breakdown).toBeNull();
+  });
+
+  it('runs a breakdown for an allowlisted path', async () => {
+    const disk = new FakeDiskDriver();
+    const service = makeService({ disk });
+    const result = await service.getDisk('/var');
+    expect(disk.breakdown).toHaveBeenCalledWith('/var');
+    expect(result.breakdown).toEqual({ root: '/var', total: 0, entries: [] });
+  });
+});
+
+describe('ToolboxService — cleaners', () => {
+  it('delegates runCleaner to the cleaner driver', async () => {
+    const cleaner = makeCleaner();
+    const service = makeService({ cleaner });
+    const result = await service.runCleaner('journald');
+    expect(cleaner.run).toHaveBeenCalledWith('journald');
+    expect(result).toMatchObject({ category: 'journald' });
+  });
+
+  it('exposes the cleaner availability list', () => {
+    const cleaner = makeCleaner();
+    const service = makeService({ cleaner });
+    service.listCleaners();
+    expect(cleaner.list).toHaveBeenCalled();
+  });
+});
+
 describe('ToolboxService — status()', () => {
-  it('reports degraded with SUDO_UNAVAILABLE when sudo is required but the boot probe has not passed', () => {
-    // onApplicationBootstrap not run -> sudoProbeOk stays false; requireSudo=true.
-    const service = makeService(new FakeNtpDriver(), true);
+  it('reports ntp degraded (SUDO_UNAVAILABLE) and disk available', () => {
+    // onApplicationBootstrap not run -> sudoProbeOk false; requireSudo true.
+    const service = makeService({ requireSudo: true });
     expect(service.status().features).toEqual([
       { name: 'ntp', available: true, degraded: true, reason: 'SUDO_UNAVAILABLE' },
+      { name: 'disk', available: true, degraded: false, reason: null },
     ]);
   });
 
   it('is not degraded when sudo is not required', () => {
-    const service = makeService(new FakeNtpDriver(), false);
-    expect(service.status().features).toEqual([
-      { name: 'ntp', available: true, degraded: false, reason: null },
-    ]);
+    const service = makeService({ requireSudo: false });
+    expect(service.status().features[0]).toEqual({
+      name: 'ntp',
+      available: true,
+      degraded: false,
+      reason: null,
+    });
   });
 
-  it('reports NTP_NOT_CONFIGURED when the driver is unavailable', () => {
-    const driver = new FakeNtpDriver();
-    driver.available = false;
-    const service = makeService(driver, false);
+  it('reports NTP_NOT_CONFIGURED / DISK_NOT_CONFIGURED when drivers are unavailable', () => {
+    const ntp = new FakeNtpDriver();
+    ntp.available = false;
+    const disk = new FakeDiskDriver();
+    disk.available = false;
+    const service = makeService({ ntp, disk, requireSudo: false });
     expect(service.status().features).toEqual([
       { name: 'ntp', available: false, degraded: false, reason: 'NTP_NOT_CONFIGURED' },
+      { name: 'disk', available: false, degraded: false, reason: 'DISK_NOT_CONFIGURED' },
     ]);
   });
 });

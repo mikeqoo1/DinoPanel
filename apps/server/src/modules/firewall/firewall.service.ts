@@ -9,12 +9,14 @@ import {
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { and, eq, isNull, lt, isNotNull } from 'drizzle-orm';
+import { fail2banJailNameSchema } from '@dinopanel/shared';
 import type {
   FirewallBackend,
   FirewallRule,
   StagedRuleResponse,
   StageFirewallRuleBody,
   Fail2banEntry,
+  Fail2banJail,
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { firewallRuleMeta } from '../../database/schema';
@@ -25,7 +27,9 @@ import {
 } from './firewall-driver';
 import {
   CommandError,
+  assertSuccess,
   commandErrorToHttp,
+  probeCommand,
   runCommand,
 } from '../../common/shell/run-command';
 
@@ -45,13 +49,19 @@ const STARTUP_ORPHAN_THRESHOLD_MS = 60_000;
 export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy {
   private staged = new Map<number, StagedEntry>();
   private fail2banAvailable = false;
+  // fail2ban-client needs root; reuse the toolbox sudo posture (sudo -n is a
+  // no-op when the panel already runs as root). Read once in the constructor.
+  private readonly fail2banSudo: boolean;
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     @Inject(FIREWALL_DRIVER) private readonly driver: FirewallDriver,
     private readonly logger: Logger,
     private readonly config: ConfigService<{ app: AppConfig }>,
-  ) {}
+  ) {
+    const app = this.config.get<AppConfig>('app', { infer: true });
+    this.fail2banSudo = app?.env.TOOLBOX_REQUIRE_SUDO ?? false;
+  }
 
   async onApplicationBootstrap(): Promise<void> {
     await this.recoverySweep();
@@ -292,46 +302,121 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
   // -------------------------------------------------------------------------
 
   private async probeFail2ban(): Promise<boolean> {
-    try {
-      const result = await runCommand('fail2ban-client', ['ping']);
-      return result.exitCode === 0;
-    } catch {
-      return false;
+    return probeCommand('fail2ban-client', ['ping'], { sudo: this.fail2banSudo });
+  }
+
+  private requireFail2ban(): void {
+    if (!this.fail2banAvailable) {
+      throw new BadRequestException({ code: 'FAIL2BAN_NOT_AVAILABLE' });
     }
+  }
+
+  private fail2ban(args: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
+    return runCommand('fail2ban-client', args, { sudo: this.fail2banSudo });
+  }
+
+  /** Guard: the jail must exist in the live jail list before any mutation. */
+  private async assertJailExists(jail: string): Promise<void> {
+    const status = await this.fail2ban(['status']);
+    assertSuccess(status, 'fail2ban-client status');
+    if (!parseFail2banJailList(status.stdout).includes(jail)) {
+      throw new BadRequestException({
+        code: 'FAIL2BAN_JAIL_NOT_FOUND',
+        message: `Unknown jail: ${jail}`,
+      });
+    }
+  }
+
+  /** Read-only: every running jail with live counters + banned IPs. */
+  async fail2banJails(): Promise<Fail2banJail[]> {
+    this.requireFail2ban();
+    return this.driverOp(async () => {
+      const status = await this.fail2ban(['status']);
+      assertSuccess(status, 'fail2ban-client status');
+      const out: Fail2banJail[] = [];
+      for (const jail of parseFail2banJailList(status.stdout)) {
+        // Skip (don't 500) a jail that races to non-zero between the list and
+        // detail fetch (e.g. a concurrent stop/reload) — mirrors the
+        // skip-bad-entry convention in files.service listing.
+        try {
+          const detail = await this.fail2ban(['status', jail]);
+          assertSuccess(detail, `fail2ban-client status ${jail}`);
+          out.push(parseFail2banJailDetail(jail, detail.stdout));
+        } catch (err) {
+          this.logger.warn({ err, jail }, 'firewall.fail2ban_jail_detail_failed');
+        }
+      }
+      return out;
+    });
   }
 
   async fail2banBanned(): Promise<Fail2banEntry[]> {
-    if (!this.fail2banAvailable) {
-      throw new BadRequestException({ code: 'FAIL2BAN_NOT_AVAILABLE' });
-    }
-    const status = await runCommand('fail2ban-client', ['status']);
-    const jailMatch = /Jail list:\s*([^\n]+)/.exec(status.stdout);
-    const jails = jailMatch
-      ? jailMatch[1]!.split(',').map((s) => s.trim()).filter(Boolean)
-      : [];
-    const out: Fail2banEntry[] = [];
-    for (const jail of jails) {
-      const detail = await runCommand('fail2ban-client', ['status', jail]);
-      const banned = /Banned IP list:\s*([^\n]+)/.exec(detail.stdout);
-      if (!banned || !banned[1]) continue;
-      const ips = banned[1].split(/\s+/).filter(Boolean);
-      for (const ip of ips) out.push({ ip, jail, bannedAt: null });
-    }
-    return out;
+    this.requireFail2ban();
+    return this.driverOp(async () => {
+      const status = await this.fail2ban(['status']);
+      assertSuccess(status, 'fail2ban-client status');
+      const out: Fail2banEntry[] = [];
+      for (const jail of parseFail2banJailList(status.stdout)) {
+        // Skip a jail that races to non-zero (concurrent stop/reload) rather
+        // than 500 the whole banned-list read.
+        try {
+          const detail = await this.fail2ban(['status', jail]);
+          assertSuccess(detail, `fail2ban-client status ${jail}`);
+          for (const ip of parseFail2banJailDetail(jail, detail.stdout).bannedIps) {
+            out.push({ ip, jail, bannedAt: null });
+          }
+        } catch (err) {
+          this.logger.warn({ err, jail }, 'firewall.fail2ban_jail_detail_failed');
+        }
+      }
+      return out;
+    });
+  }
+
+  /** Manually ban an IP in a jail: `fail2ban-client set <jail> banip <ip>`. */
+  async fail2banBan(jail: string, ip: string): Promise<{ ok: true }> {
+    this.requireFail2ban();
+    await this.driverOp(() => this.assertJailExists(jail));
+    return this.driverOp(async () => {
+      const r = await this.fail2ban(['set', jail, 'banip', ip]);
+      assertSuccess(r, `fail2ban-client set ${jail} banip ${ip}`);
+      return { ok: true } as const;
+    });
   }
 
   async fail2banUnban(ip: string, jail: string): Promise<{ ok: true }> {
-    if (!this.fail2banAvailable) {
-      throw new BadRequestException({ code: 'FAIL2BAN_NOT_AVAILABLE' });
-    }
-    const result = await runCommand('fail2ban-client', ['set', jail, 'unbanip', ip]);
-    if (result.exitCode !== 0) {
+    this.requireFail2ban();
+    await this.driverOp(() => this.assertJailExists(jail));
+    return this.driverOp(async () => {
+      const r = await this.fail2ban(['set', jail, 'unbanip', ip]);
+      assertSuccess(r, `fail2ban-client set ${jail} unbanip ${ip}`);
+      return { ok: true } as const;
+    });
+  }
+
+  /**
+   * RUNTIME enable/disable a jail via start/stop. fail2ban has no native
+   * enable/disable verb — this does NOT persist across a daemon reload, and
+   * the jail must already be defined in config (start of an undefined jail
+   * fails). Documented as a runtime toggle in the UI.
+   */
+  async fail2banSetJailEnabled(jail: string, enabled: boolean): Promise<{ ok: true }> {
+    this.requireFail2ban();
+    // The jail arrives as an unvalidated URL path param and (for `start`)
+    // cannot be checked against the running-jail allowlist, so enforce the
+    // shared safe-name shape here — no leading dash, bounded length.
+    if (!fail2banJailNameSchema.safeParse(jail).success) {
       throw new BadRequestException({
-        code: 'FAIL2BAN_UNBAN_FAILED',
-        message: result.stderr || 'fail2ban-client unbanip failed',
+        code: 'FAIL2BAN_INVALID_JAIL',
+        message: `Invalid jail name: ${jail}`,
       });
     }
-    return { ok: true };
+    return this.driverOp(async () => {
+      const sub = enabled ? 'start' : 'stop';
+      const r = await this.fail2ban([sub, jail]);
+      assertSuccess(r, `fail2ban-client ${sub} ${jail}`);
+      return { ok: true } as const;
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -397,4 +482,38 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
     }
     await this.db.delete(firewallRuleMeta).where(eq(firewallRuleMeta.id, metaId));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Pure fail2ban-client output parsers (exported for golden-string tests).
+// ---------------------------------------------------------------------------
+
+/** Parse the global `fail2ban-client status` "Jail list:" line. */
+export function parseFail2banJailList(stdout: string): string[] {
+  const m = /Jail list:\s*([^\n]*)/i.exec(stdout);
+  if (!m || !m[1]) return [];
+  return m[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Parse `fail2ban-client status <jail>` into counters + banned IP list. */
+export function parseFail2banJailDetail(name: string, stdout: string): Fail2banJail {
+  const num = (re: RegExp): number => {
+    const m = re.exec(stdout);
+    return m && m[1] ? Number(m[1]) : 0;
+  };
+  const bannedLine = /Banned IP list:\s*([^\n]*)/i.exec(stdout);
+  const bannedIps =
+    bannedLine && bannedLine[1] ? bannedLine[1].split(/\s+/).filter(Boolean) : [];
+  return {
+    name,
+    enabled: true, // present in the running jail list => active
+    currentlyFailed: num(/Currently failed:\s*(\d+)/i),
+    totalFailed: num(/Total failed:\s*(\d+)/i),
+    currentlyBanned: num(/Currently banned:\s*(\d+)/i),
+    totalBanned: num(/Total banned:\s*(\d+)/i),
+    bannedIps,
+  };
 }

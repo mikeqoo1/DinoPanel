@@ -33,16 +33,18 @@ no drizzle migration (stateless).
 
 ## Phase 2 — Fail2Ban (extend in place) + disk usage / cleaners
 
-- [ ] Retrofit existing `probeFail2ban` / `fail2banBanned` / `fail2banUnban` onto the sudo wrapper + D-bug re-wrap
-- [ ] Fail2Ban: jail enable/disable, ban-add, read-only jail/config list (in `firewall.service.ts`)
-- [ ] Verify `/firewall/fail2ban/*` routes + existing web caller still work
-- [ ] `drivers/disk-driver.ts` — `GET /toolbox/disk` (reuse `/ws/metrics` `fsSize` snapshot + `du -x -d1`/`df`)
-- [ ] `POST /toolbox/disk/clean` — category enum `journald | package_cache | docker_prune | tmp_sweep` (NO free path)
-- [ ] `journald` → `journalctl --vacuum-*`; `package_cache` → `dnf clean all`/`apt-get clean` (driver branch); `docker_prune` → dockerode via `ContainersModule`; `tmp_sweep` → gated by files-module `assertWritable` + `DANGEROUS_WRITE_PATHS`
-- [ ] `which()`-probe + `*_NOT_CONFIGURED` 503 fallback per feature
-- [ ] Shared schemas for fail2ban jail + disk usage/clean bodies
-- [ ] Per-feature driver + parser tests
-- [ ] Phase 2 commit: `feat(toolbox): fail2ban extend + disk usage/cleaners (phase 2 of v0.6)`
+- [x] Retrofit `probeFail2ban` / `fail2banBanned` / `fail2banUnban` onto `{ sudo }` (reuse `TOOLBOX_REQUIRE_SUDO`) + the existing `driverOp` re-wrap; extract inline regexes into exported `parseFail2banJailList` / `parseFail2banJailDetail`
+- [x] Fail2Ban new ops in `firewall.service.ts`: `fail2banJails` (read-only counters+banned), `fail2banBan`, `fail2banSetJailEnabled` (runtime start/stop — non-persistent), `assertJailExists` allowlist guard; per-jail try/catch so one racing jail doesn't 500 the list
+- [x] Controller routes: `GET /firewall/fail2ban/jails`, `POST /firewall/fail2ban/ban`, `POST /firewall/fail2ban/jails/:name/enabled`; retrofit `/firewall/fail2ban/unban` with body validation. Existing `/banned` + web Badge unaffected
+- [x] `drivers/disk-driver.ts` — `GET /toolbox/disk` via `df -PB1` (header-skip positional parse, locale-proof, %clamp) + `du -x -d1 -B1 -- <root>` (best-effort, no assertSuccess); `?path=` gated by closed `SAFE_DU_ROOTS` allowlist (read-only → exact-match enum, NOT the write guard)
+- [x] `drivers/cleaner-driver.ts` — `POST /toolbox/clean` category enum `journald | package_cache | docker_prune` + `GET /toolbox/cleaners` availability. journald `--vacuum-size=500M` (server constant); package_cache `dnf clean all` / `apt-get clean` (which-detected); docker_prune via injected `DOCKER` dockerode handle (containers + dangling images, **NO volumes**), `mapDockerError`
+- [x] **`tmp_sweep` DROPPED** (see decisions §Phase-2) — blanket `/tmp` wipe risks active sockets/locks; `DANGEROUS_WRITE_PATHS` is a deny-list (no `/tmp`), so it can't confine a sweep; every shipped cleaner is tool-owned with no path input → no FilesModule import
+- [x] `which()`-probe + `*_NOT_CONFIGURED` 503 fallback (disk via `DfDuDiskDriver`/`UnavailableDiskDriver`; cleaners report per-category availability)
+- [x] Shared schemas: fail2ban jail/ban/unban/set-enabled + `fail2banJailNameSchema` (firewall.ts); disk usage + clean category/result/cleaners (toolbox.ts)
+- [x] Per-feature driver + parser tests (fail2ban parsers ×4, parseDf/parseDu ×4 incl. >100% clamp, disk/cleaner service flow ×5)
+- [x] Adversarial review (3 lenses × verify): 4 low/nit applied (%clamp, images-deleted count, per-jail skip+log, shared jail-name schema); DI/allowlist/sudo/volumes verified clean
+- [x] Verification: typecheck ✓ · lint ✓ · test 397 ✓ · build ✓
+- [x] Phase 2 commit: `feat(toolbox): fail2ban extend + disk usage + curated cleaners (phase 2 of v0.6)`
 
 ## Phase 3 — Web Toolbox UI
 

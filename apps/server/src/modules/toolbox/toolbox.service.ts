@@ -6,12 +6,28 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
-import type { NtpStatus, ToolboxStatus } from '@dinopanel/shared';
+import type {
+  CleanCategory,
+  CleanResult,
+  CleanersList,
+  DiskUsage,
+  NtpStatus,
+  ToolboxStatus,
+} from '@dinopanel/shared';
 import type { AppConfig } from '../../config/configuration';
 import { CommandError, commandErrorToHttp, probeCommand } from '../../common/shell/run-command';
 import type { NtpDriver } from './drivers/ntp-driver';
+import type { DiskDriver } from './drivers/disk-driver';
+import type { CleanerDriver } from './drivers/cleaner-driver';
 
 export const NTP_DRIVER = Symbol('NTP_DRIVER');
+export const DISK_DRIVER = Symbol('DISK_DRIVER');
+export const CLEANER_DRIVER = Symbol('CLEANER_DRIVER');
+
+// Closed allowlist of roots the du breakdown may scan. The disk view is
+// read-only, so an exact-match enum is the gate (NOT the files-module write
+// guard). Extend deliberately.
+const SAFE_DU_ROOTS: readonly string[] = ['/var', '/usr', '/home', '/opt', '/var/log', '/var/lib'];
 
 @Injectable()
 export class ToolboxService implements OnApplicationBootstrap {
@@ -20,6 +36,8 @@ export class ToolboxService implements OnApplicationBootstrap {
 
   constructor(
     @Inject(NTP_DRIVER) private readonly ntp: NtpDriver,
+    @Inject(DISK_DRIVER) private readonly disk: DiskDriver,
+    @Inject(CLEANER_DRIVER) private readonly cleaner: CleanerDriver,
     @Inject(ConfigService) config: ConfigService<{ app: AppConfig }>,
     private readonly logger: Logger,
   ) {
@@ -49,7 +67,7 @@ export class ToolboxService implements OnApplicationBootstrap {
    * (the shared firewall driverOp pattern). HttpExceptions (e.g. the
    * Unavailable driver's 503) pass straight through.
    */
-  private async ntpOp<T>(fn: () => Promise<T>): Promise<T> {
+  private async hostOp<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (err) {
@@ -60,18 +78,33 @@ export class ToolboxService implements OnApplicationBootstrap {
 
   /** GET /toolbox/status — computed from driver availability + sudo posture. */
   status(): ToolboxStatus {
-    const available = this.ntp.available;
-    const degraded = available && this.requireSudo && !this.sudoProbeOk;
-    const reason = !available ? 'NTP_NOT_CONFIGURED' : degraded ? 'SUDO_UNAVAILABLE' : null;
-    return { features: [{ name: 'ntp', available, degraded, reason }] };
+    const ntpAvailable = this.ntp.available;
+    const ntpDegraded = ntpAvailable && this.requireSudo && !this.sudoProbeOk;
+    const diskAvailable = this.disk.available;
+    return {
+      features: [
+        {
+          name: 'ntp',
+          available: ntpAvailable,
+          degraded: ntpDegraded,
+          reason: !ntpAvailable ? 'NTP_NOT_CONFIGURED' : ntpDegraded ? 'SUDO_UNAVAILABLE' : null,
+        },
+        {
+          name: 'disk',
+          available: diskAvailable,
+          degraded: false, // read-only df/du — no sudo dependency
+          reason: diskAvailable ? null : 'DISK_NOT_CONFIGURED',
+        },
+      ],
+    };
   }
 
   getNtpStatus(): Promise<NtpStatus> {
-    return this.ntpOp(() => this.ntp.getStatus());
+    return this.hostOp(() => this.ntp.getStatus());
   }
 
   async setNtp(enabled: boolean): Promise<NtpStatus> {
-    await this.ntpOp(() => this.ntp.setNtp(enabled));
+    await this.hostOp(() => this.ntp.setNtp(enabled));
     return this.getNtpStatus();
   }
 
@@ -79,15 +112,43 @@ export class ToolboxService implements OnApplicationBootstrap {
     // Allowlist check against the host's own zone DB before shelling out —
     // a clean 400 instead of a confusing COMMAND_FAILED 500. (On an
     // unavailable host listTimezones 503s, which is the correct signal.)
-    const zones = await this.ntpOp(() => this.ntp.listTimezones());
+    const zones = await this.hostOp(() => this.ntp.listTimezones());
     if (!zones.includes(tz)) {
       throw new BadRequestException({
         code: 'TOOLBOX_INVALID_TIMEZONE',
         message: `Unknown timezone: ${tz}`,
       });
     }
-    await this.ntpOp(() => this.ntp.setTimezone(tz));
+    await this.hostOp(() => this.ntp.setTimezone(tz));
     this.logger.debug({ tz }, 'toolbox.ntp.timezone_set');
     return this.getNtpStatus();
+  }
+
+  /** GET /toolbox/disk — filesystem usage + optional per-directory breakdown. */
+  async getDisk(path?: string): Promise<DiskUsage> {
+    const filesystems = await this.hostOp(() => this.disk.listFilesystems());
+    let breakdown: DiskUsage['breakdown'] = null;
+    if (path !== undefined) {
+      if (!SAFE_DU_ROOTS.includes(path)) {
+        throw new BadRequestException({
+          code: 'TOOLBOX_DISK_PATH_NOT_ALLOWED',
+          message: `Path not in the disk-breakdown allowlist: ${path}`,
+        });
+      }
+      breakdown = await this.hostOp(() => this.disk.breakdown(path));
+    }
+    return { filesystems, breakdown };
+  }
+
+  /** GET /toolbox/cleaners — per-category availability. */
+  listCleaners(): CleanersList {
+    return { cleaners: this.cleaner.list() };
+  }
+
+  /** POST /toolbox/clean — run one curated cleaner. */
+  runCleaner(category: CleanCategory): Promise<CleanResult> {
+    // docker_prune surfaces coded HttpExceptions via mapDockerError; the shell
+    // cleaners throw CommandError, which hostOp re-wraps to TOOLBOX_*.
+    return this.hostOp(() => this.cleaner.run(category));
   }
 }
