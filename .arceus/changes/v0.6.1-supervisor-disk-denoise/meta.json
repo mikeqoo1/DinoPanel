@@ -1,0 +1,26 @@
+{
+  "id": "v0.6.1-supervisor-disk-denoise",
+  "title": "Supervisor (systemd service management) + disk-table de-noise — v0.6.1",
+  "status": "active",
+  "smokeStatus": "not started",
+  "createdAt": "2026-06-02",
+  "targetVersion": "v0.6.1",
+  "dependsOn": ["v0.6-toolbox"],
+  "scopeNote": "v0.6.x supplement on top of the shipped toolbox. (1) Supervisor = systemd .service management as a 4th toolbox tab (list/status + start/stop/restart/enable/disable), NOT supervisord — both target distros are systemd and the codebase already shells systemctl (scheduler/nginx/firewalld). Tiered protected-units guard. (2) Disk-table de-noise: df -PTB1 adds an fstype column so the docker-overlay/pseudo rows can be filtered (default-hidden, UI toggle to show all). Stateless — no migration. Swap-write stays deferred (not in this cut).",
+  "estimatedDevDays": "3-4",
+  "phases": [
+    { "id": "phase-1", "name": "Disk de-noise — df -PTB1 + fstype column + shared isRealFilesystem/PSEUDO_FSTYPES + web default-filter + 'show system filesystems' toggle + parser tests", "estimateDays": 0.5, "status": "pending" },
+    { "id": "phase-2", "name": "Supervisor backend — services-driver (systemctl list-units/list-unit-files parse + start/stop/restart/enable/disable via sudo -n), SERVICES_DRIVER token + Unavailable fallback, toolbox status 'services' feature, controller routes, shared schemas + protected-units guard (single source in shared), guardrail tests", "estimateDays": 1.5, "status": "pending" },
+    { "id": "phase-3", "name": "Supervisor web UI — /toolbox 'services' tab (list table + per-row lifecycle actions, protected buttons disabled via shared helper), use-toolbox hooks, i18n (en + zh-TW)", "estimateDays": 1, "status": "pending" },
+    { "id": "phase-4", "name": "docs/toolbox.md (systemctl sudoers alias + Services section + protected-units note), release v0.6.1 (bump 0.6.0 -> 0.6.1, no migration), Rocky 234 smoke", "estimateDays": 1, "status": "pending" }
+  ],
+  "directionDecisions": {
+    "S1_supervisorKind": "systemd .service management (NOT supervisord). Both supported distros are systemd; codebase already uses systemctl (scheduler restart_service, nginx reload, firewalld driver). supervisord rejected: niche, needs separate install, high distro variance.",
+    "S2_writeScope": "Full lifecycle (start/stop/restart/enable/disable) with TIERED protection: SELF (dinopanel.service) refuses ALL mutation; CRITICAL set (sshd/ssh, firewalld, ufw, NetworkManager/systemd-networkd, dbus/dbus-broker, systemd-logind, systemd-journald) refuses stop+disable but allows start/restart/enable; everything else fully allowed. Guard lives in shared (single source) so server enforces + web disables buttons.",
+    "S3_diskDenoise": "df -PTB1 adds an fstype column (POSIX, never localized). Server returns ALL filesystems incl. fstype; the web default-hides pseudo/overlay rows via shared PSEUDO_FSTYPES + a 'show system filesystems' toggle. Filter by fstype (not path) so an unusual-but-real mount is never hidden.",
+    "S4_persistence": "stateless — no drizzle table, no migration, live systemctl query only. No staged/confirm window needed because self-mutation is hard-refused outright.",
+    "S5_privilege": "reuse TOOLBOX_REQUIRE_SUDO. Reads (list-units/list-unit-files) need no sudo; mutations run sudo -n systemctl <action> -- <unit>. Extend the DINOPANEL_TOOLBOX sudoers alias with systemctl start/stop/restart/enable/disable *; the protected-units denylist is enforced in CODE (sudoers can't encode 'all except self')."
+  },
+  "supersededDrafts": [],
+  "previousChange": "v0.6-toolbox"
+}
