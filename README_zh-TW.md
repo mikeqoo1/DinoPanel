@@ -74,8 +74,11 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.4 | 資料庫（5 引擎全容器）+ PMM 摘要卡 + v0.3 收尾（Sheet drawer、auto-provision PHP-FPM、ACME_EMAIL UI、外部 conf 對帳） | ✅ 已 ship |
 | v0.4.1–4.8 | smoke 修補 + PMM 系列迭代（PMM 3.x API、TLS 預設、deep-link、Settings UI、版本 badge 位置） | ✅ 已 ship |
 | v0.5.0 | 資料庫備份 + 還原 — 邏輯 dump（5 引擎）、本機儲存、隨需 + 排程（`db_backup`）、keep-last-N 保留、原地還原 | ✅ 已 ship（Rocky 234 smoke S1–S4 過） |
-| v0.6 | 工具箱（Fail2Ban / Supervisor / Swap / NTP）+ MFA + Passkey | 規劃中 |
-| v1.0 | 穩定版 + 完整 i18n | 規劃中 |
+| v0.6.0 | 工具箱 — NTP / 時間同步、Fail2Ban（原地擴充 firewall 模組）、磁碟用量 + 策展型清理（journald / 套件快取 / docker prune / tmp）。Swap 寫入 + Supervisor 走 v0.6.x patch | 規劃中（下一站） |
+| v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
+| v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
+| v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
+| v1.0 | 穩定化 — 完整 i18n（en / zh-TW）、文件、bundle / 效能調校、安全 audit、全模組 Rocky smoke | 規劃中 |
 
 App Store / 模板式一鍵安裝在 v0.2 時永久移除 — 每個模組改成自己負責安裝路徑。
 
