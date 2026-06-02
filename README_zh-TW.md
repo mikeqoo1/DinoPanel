@@ -6,7 +6,7 @@
 
 DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面集中管理檔案、終端機、容器、自動申請 SSL 的網站、防火牆、排程任務與日誌中心等。整個專案為獨立的 clean-room reimplementation，靈感取自業界一流的管理面板，但範圍刻意修剪到一個維護者能持續產出的程度。
 
-> **狀態：** Pre-1.0，持續開發中。截至 **v0.5** 已涵蓋容器、網站 + ACME SSL、**資料庫（MySQL / MariaDB / PostgreSQL / Redis / MongoDB）+ PMM PromQL 摘要卡**、**資料庫備份 + 還原（隨需或排程、keep-last-N 保留、原地還原）**、防火牆、排程、日誌中心。已在 Rocky Linux 9.4 production-class 機器（Xeon Gold 5218、600+ 天 uptime）完成端到端 smoke 驗證；v0.5.0 備份也在同台機器 smoke 過。下一站 v0.6（工具箱）。
+> **狀態：** Pre-1.0，持續開發中。截至 **v0.6** 已涵蓋容器、網站 + ACME SSL、**資料庫（MySQL / MariaDB / PostgreSQL / Redis / MongoDB）+ PMM PromQL 摘要卡**、**資料庫備份 + 還原（隨需或排程、keep-last-N 保留、原地還原）**、防火牆、排程、日誌中心，以及**主機工具箱（NTP / 時間同步、Fail2Ban、磁碟用量 + 策展型清理）**。已在 Rocky Linux 9.4 production-class 機器（Xeon Gold 5218、600+ 天 uptime）完成端到端 smoke 驗證；v0.5.0 備份也在同台機器 smoke 過。下一站 v0.7（帳號安全）。
 
 ## 功能
 
@@ -63,6 +63,13 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 - **日誌中心** — 系統 / SSH / 操作 / 登入 / 任務 / 網站日誌瀏覽，cursor 分頁 + WebSocket 即時尾追
 - **稽核 interceptor** — 每個寫入型 API 呼叫都會寫一筆 `operation_log`，敏感欄位 redacted，可配置保留天數
 
+### 工具箱（v0.6）
+
+- **NTP / 時間同步** — 讀取同步狀態（`timedatectl` + 選配 `chronyc`）、開關 NTP 服務、改系統時區（對主機自身的時區清單做 allowlist 驗證）
+- **Fail2Ban** — 唯讀 jail 清單（即時計數器 + 已封 IP）、手動封鎖、逐 IP 解封（原地擴充 firewall 模組）
+- **磁碟** — `df` 檔案系統用量 + 對封閉 root allowlist 的 `du` 逐目錄分解，加上策展型 tool-owned 清理（journald vacuum / 套件快取 clean / docker prune — 無任意路徑刪除）
+- 主機 binary 缺席時各工具優雅降級（503 / availability 旗標）；寫入型操作走單一 `sudo -n` NOPASSWD 合約，且原始 host stderr 在 production 不會回到前端。詳見 [`docs/toolbox.md`](./docs/toolbox.md)
+
 ## 路線圖
 
 | 版本 | 範圍 | 狀態 |
@@ -74,7 +81,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.4 | 資料庫（5 引擎全容器）+ PMM 摘要卡 + v0.3 收尾（Sheet drawer、auto-provision PHP-FPM、ACME_EMAIL UI、外部 conf 對帳） | ✅ 已 ship |
 | v0.4.1–4.8 | smoke 修補 + PMM 系列迭代（PMM 3.x API、TLS 預設、deep-link、Settings UI、版本 badge 位置） | ✅ 已 ship |
 | v0.5.0 | 資料庫備份 + 還原 — 邏輯 dump（5 引擎）、本機儲存、隨需 + 排程（`db_backup`）、keep-last-N 保留、原地還原 | ✅ 已 ship（Rocky 234 smoke S1–S4 過） |
-| v0.6.0 | 工具箱 — NTP / 時間同步、Fail2Ban（原地擴充 firewall 模組）、磁碟用量 + 策展型清理（journald / 套件快取 / docker prune / tmp）。Swap 寫入 + Supervisor 走 v0.6.x patch | 規劃中（下一站） |
+| v0.6.0 | 工具箱 — NTP / 時間同步、Fail2Ban（原地擴充 firewall 模組）、磁碟用量 + 策展型清理（journald / 套件快取 / docker prune；tmp-sweep 因不安全已砍）。Swap 寫入 + Supervisor 走 v0.6.x patch | ✅ 已 ship（Rocky 234 smoke 待跑） |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
@@ -126,8 +133,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # 把 tarball 丟到目標機，然後在目標機上：
-tar -xzf dinopanel-0.5.0-prebuild-x64.tar.gz
-cd dinopanel-0.5.0-prebuild-x64
+tar -xzf dinopanel-0.6.0-prebuild-x64.tar.gz
+cd dinopanel-0.6.0-prebuild-x64
 sudo bash install.sh
 ```
 
@@ -149,7 +156,7 @@ packages/
   shared/             # 共用 Zod schema、WS 通訊協定型別、錯誤碼
 scripts/              # install.sh（upgrade-safe）、build-release.sh
 deploy/               # systemd unit、nginx 範例
-docs/                 # 架構、網站、ACME、防火牆、排程、日誌等文件
+docs/                 # 架構、網站、ACME、防火牆、排程、日誌、工具箱等文件
 .arceus/changes/      # 每個版本的 change proposal + decisions + tasks
 release/              # 打好的 tarball（內容 gitignored）
 ```
@@ -162,6 +169,7 @@ release/              # 打好的 tarball（內容 gitignored）
 - [資料庫](./docs/databases.md) — 5 引擎容器化 DB、PMM 卡、帳密
 - [備份](./docs/backups.md) — 邏輯 dump、保留、排程 + 原地還原
 - [防火牆](./docs/firewall.md) — ufw / firewalld driver、rollback 保險
+- [工具箱](./docs/toolbox.md) — NTP、Fail2Ban、磁碟用量 + 清理、sudoers
 - [排程](./docs/scheduler.md) — cron 任務、runner、內建 purge dogfood
 - [日誌](./docs/logs.md) — 五個日誌來源、保留策略、audit interceptor
 - [部署](./docs/deployment.md) — 生產環境安裝 + 升級流程

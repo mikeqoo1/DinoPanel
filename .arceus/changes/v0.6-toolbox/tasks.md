@@ -75,9 +75,10 @@ no drizzle migration (stateless).
 
 ## Phase 5 — Release v0.6.0 + Rocky smoke
 
-- [ ] Bump `apps/server` + `apps/web` package.json 0.5.0 → 0.6.0 (no migration)
-- [ ] Update README + README_zh-TW (mark v0.6.0 shipped) + roadmap memory
-- [ ] Release commit: `release(v0.6.0): toolbox module`
-- [ ] Build tarball + scp via `scripts/deploy-rocky.sh`; deploy to Rocky 234
-- [ ] Smoke S1–S5 (record in `smoke-pass.md`): boot tools-present / boot tool-absent / NTP round-trip / fail2ban list+unban / journald vacuum + docker prune
-- [ ] Mark meta.json `status: completed` + `smokeStatus`
+- [x] Bump package.json 0.5.0 → 0.6.0 (no migration) — all 4: root + `apps/server` + `apps/web` + `packages/shared`
+- [x] Update README + README_zh-TW (v0.6.0 row → ✅ shipped, new Toolbox feature section, deploy version, docs list) + roadmap memory
+- [x] Add `scripts/smoke-toolbox-234.sh` (turnkey S1-S5; S1-S4 non-destructive, S5 cleaners opt-in via `RUN_CLEANERS=1`) — mirrors `scripts/smoke-backups-234.sh`
+- [x] Release commit: `release(v0.6.0): toolbox module`
+- [ ] **(operator step)** Build tarball + scp via `scripts/deploy-rocky.sh`; deploy to Rocky 234 (`sudo bash install.sh` — overwrites .env / rotates JWT_SECRET / invalidates sessions)
+- [ ] **(operator step)** Smoke S1–S5 via `scripts/smoke-toolbox-234.sh` (record in `smoke-pass.md`): boot tools-present / boot tool-absent / NTP round-trip / fail2ban list+unban / journald vacuum + docker prune
+- [ ] **(after smoke)** Mark meta.json `status: completed` + `smokeStatus`; flip `.arceus/changes/README.md` v0.6 row to completed

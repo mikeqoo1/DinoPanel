@@ -11,14 +11,16 @@ web UI. Designed as an independent clean-room reimplementation
 inspired by best-in-class panels, deliberately trimmed to what one
 maintainer can actually own.
 
-> **Status:** Pre-1.0, actively developed. Through **v0.5** the panel
+> **Status:** Pre-1.0, actively developed. Through **v0.6** the panel
 > handles containers, websites + ACME SSL, **databases (MySQL /
 > MariaDB / PostgreSQL / Redis / MongoDB) with PMM PromQL summary
 > cards**, **logical database backups + restore (on-demand or
 > scheduled, keep-last-N retention, restore-in-place)**, firewall,
-> scheduler, and log centre. Validated end-to-end on Rocky Linux 9.4
-> production-class hardware (Xeon Gold 5218, 600+ days uptime); v0.5.0
-> backups smoke-tested on the same box. Next milestone is v0.6 (toolbox).
+> scheduler, log centre, and a **host toolbox (NTP / time-sync,
+> Fail2Ban, disk usage + curated cleaners)**. Validated end-to-end on
+> Rocky Linux 9.4 production-class hardware (Xeon Gold 5218, 600+ days
+> uptime); v0.5.0 backups smoke-tested on the same box. Next milestone
+> is v0.7 (account security).
 
 ## Features
 
@@ -102,6 +104,21 @@ maintainer can actually own.
 - **Audit interceptor** — every mutating API call writes an
   `operation_log` row with redacted body and rotating retention
 
+### Toolbox (v0.6)
+
+- **NTP / time-sync** — read sync state (`timedatectl` + optional
+  `chronyc`), toggle the NTP service, change the system timezone
+  (validated against the host's own zone list)
+- **Fail2Ban** — read-only jail list with live counters + banned IPs,
+  manual ban, per-IP unban (extends the firewall module in place)
+- **Disk** — `df` filesystem usage + a `du` per-directory breakdown over
+  a closed root allowlist, plus curated tool-owned cleaners (journald
+  vacuum / package-cache clean / docker prune — no arbitrary-path delete)
+- Each tool degrades gracefully (503 / availability flag) when its host
+  binary is absent; mutating ops run under a single `sudo -n` NOPASSWD
+  contract, and raw host stderr never reaches the client in production.
+  See [`docs/toolbox.md`](./docs/toolbox.md)
+
 ## Roadmap
 
 | Version | Scope | Status |
@@ -120,7 +137,7 @@ maintainer can actually own.
 | v0.4.7  | "Open in PMM" deep-link rewrite to per-engine Instance Summary dashboards (v0.4.6's `/inventory/services/<id>` also 404'd — PMM 3 has no per-service-id UI route); floating version badge top-right of every page; Vite injects version from package.json so future releases bump one place | ✅ shipped |
 | v0.4.8  | Reposition version badge — v0.4.7's floating top-right badge overlapped page action buttons; move to sidebar bottom under user menu, `text-sm` (was `text-[10px]` at sidebar top in earlier versions), single instance | ✅ shipped |
 | v0.5.0  | Database backups + restore — logical dumps (mysql/mariadb/postgresql/redis/mongodb), local storage, on-demand + scheduled (`db_backup` task), keep-last-N retention, restore-in-place | ✅ shipped (smoke S1–S4 on Rocky 234) |
-| v0.6.0  | Toolbox — NTP / time-sync, Fail2Ban (extended in-place under firewall), disk usage + curated cleaners (journald / package-cache / docker-prune / tmp). Swap-write + Supervisor follow as v0.6.x patches | planned (next) |
+| v0.6.0  | Toolbox — NTP / time-sync, Fail2Ban (extended in-place under firewall), disk usage + curated cleaners (journald / package-cache / docker-prune; tmp-sweep dropped as unsafe). Swap-write + Supervisor follow as v0.6.x patches | ✅ shipped (Rocky 234 smoke pending) |
 | v0.7.0  | Account security — TOTP MFA + recovery codes, login session management, IP allow-list, SSH config management (sshd port / root-login / keys). Adds a `SecretsService` (also encrypts the v0.4 plaintext DB passwords). Passkey / WebAuthn gated on a TLS deployment | planned |
 | v0.8.0  | Alerts & notifications — monitoring thresholds (CPU / RAM / disk), notification channels (email / webhook), alert history (driven by the existing scheduler) | planned |
 | v0.9.0  | Remote backups + panel snapshot — S3 / MinIO-compatible backup targets, full panel snapshot backup / restore (settings + DB + site conf) | planned |
@@ -159,7 +176,7 @@ pnpm dev
 pnpm typecheck
 pnpm lint
 
-# Run unit tests (server 313 + web 26 + shared suites)
+# Run unit tests (438 total — server + web + shared suites)
 pnpm test
 
 # Build production bundle
@@ -174,8 +191,8 @@ pnpm build
 bash scripts/build-release.sh --prebuild=x64
 
 # Copy the tarball to the target host, then on the target:
-tar -xzf dinopanel-0.5.0-prebuild-x64.tar.gz
-cd dinopanel-0.5.0-prebuild-x64
+tar -xzf dinopanel-0.6.0-prebuild-x64.tar.gz
+cd dinopanel-0.6.0-prebuild-x64
 sudo bash install.sh
 ```
 
@@ -202,7 +219,7 @@ packages/
   shared/             # Shared Zod schemas, WS protocol types, error codes
 scripts/              # install.sh (upgrade-safe), build-release.sh
 deploy/               # systemd unit, nginx examples
-docs/                 # Architecture, websites, ACME, databases, backups, firewall, scheduler, logs
+docs/                 # Architecture, websites, ACME, databases, backups, firewall, scheduler, logs, toolbox
 .arceus/changes/      # Change-management proposals + decisions + tasks per version
 release/              # Built tarballs (gitignored content)
 ```
@@ -215,6 +232,7 @@ release/              # Built tarballs (gitignored content)
 - [Databases](./docs/databases.md) — 5-engine container DBs, PMM cards, credentials
 - [Backups](./docs/backups.md) — logical dumps, retention, scheduled + restore-in-place
 - [Firewall](./docs/firewall.md) — ufw / firewalld drivers, rollback safeguard
+- [Toolbox](./docs/toolbox.md) — NTP, Fail2Ban, disk usage + cleaners, sudoers
 - [Scheduler](./docs/scheduler.md) — cron jobs, runners, dogfooded purge
 - [Logs](./docs/logs.md) — five log sources, retention, audit interceptor
 - [Deployment](./docs/deployment.md) — production install + upgrade flow
