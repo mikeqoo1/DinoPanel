@@ -17,6 +17,7 @@
     "databases": "Databases",
     "backups": "Backups",
     "system": "System",
+    "toolbox": "Toolbox",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -817,6 +818,69 @@
       "error_generic": "Failed to reveal password.",
       "field_label": "Password",
       "countdown": "Hides in {{seconds}}s"
+    }
+  },
+  "toolbox": {
+    "title": "Toolbox",
+    "tabs": {
+      "ntp": "Time Sync",
+      "fail2ban": "Fail2Ban",
+      "disk": "Disk & Cleanup"
+    },
+    "ntp": {
+      "not_configured": "timedatectl is not installed on this host; time sync cannot be managed.",
+      "sudo_warning": "Changing time settings requires sudo, but the boot probe failed. See docs/toolbox.md to add the NOPASSWD entry.",
+      "synced": "Synchronized",
+      "not_synced": "Not synchronized",
+      "rtc_local_warning": "The hardware clock (RTC) is set to local time. Switch it to UTC to avoid drift when dual-booting.",
+      "enable_label": "NTP auto-sync",
+      "enable_hint": "Keeps the clock in sync via systemd-timesyncd or chrony.",
+      "enable": "Enable",
+      "disable": "Disable",
+      "enabled_toast": "NTP auto-sync enabled",
+      "disabled_toast": "NTP auto-sync disabled",
+      "timezone_label": "Timezone",
+      "timezone_updated": "Timezone updated"
+    },
+    "fail2ban": {
+      "not_configured": "Fail2Ban is not installed or not running on this host.",
+      "ban_title": "Manually ban an IP",
+      "jail_ph": "Jail (e.g. sshd)",
+      "ip_ph": "IP address (e.g. 203.0.113.5)",
+      "ban": "Ban",
+      "banned_toast": "Banned {{ip}}",
+      "unban": "Unban",
+      "unbanned_toast": "Unbanned {{ip}}",
+      "empty": "No running jails.",
+      "col_jail": "Jail",
+      "col_state": "State",
+      "col_failed": "Failed (now / total)",
+      "col_banned": "Banned (now / total)",
+      "active": "Active"
+    },
+    "disk": {
+      "not_configured": "Disk usage is unavailable (df is missing).",
+      "col_source": "Filesystem",
+      "col_mount": "Mount",
+      "col_used": "Used",
+      "col_total": "Total",
+      "col_pct": "Use%",
+      "breakdown_title": "Directory breakdown",
+      "breakdown_pick": "Choose a path…",
+      "breakdown_empty": "No subdirectories for this path.",
+      "cleaners_title": "System cleanup",
+      "category": {
+        "journald": "System logs (journald)",
+        "package_cache": "Package manager cache",
+        "docker_prune": "Docker dangling data"
+      },
+      "ready": "Ready",
+      "unavailable": "Unavailable",
+      "clean": "Clean",
+      "confirm_title": "Confirm cleanup",
+      "confirm_warning": "This permanently deletes the matching files and cannot be undone.",
+      "confirm_label": "Type \"{{category}}\" to confirm:",
+      "cleaned_toast": "Cleanup done: {{detail}}"
     }
   }
 }

@@ -48,16 +48,18 @@ no drizzle migration (stateless).
 
 ## Phase 3 — Web Toolbox UI
 
-- [ ] `apps/web/src/routes/toolbox/index.tsx` Tabs shell (clone `routes/system/index.tsx`, `useLocation`+`pickTab`, lazy+Suspense)
-- [ ] Per-tab files: `ntp`, `fail2ban`, `disk`
-- [ ] `/toolbox/*` splat route + named-export unwrap in `App.tsx`
-- [ ] Sidebar entry (Wrench icon, `nav.toolbox`)
-- [ ] `use-toolbox.ts` hooks + `toolboxKeys` factory (invalidate `.all` on mutate) + `extractErrorMessage` + sonner toasts
-- [ ] Status `Badge` + "not configured on this host" `Card` keyed off `*_NOT_CONFIGURED`
-- [ ] Type-to-confirm `Dialog` for disk-cleaner actions
-- [ ] All DTO types imported from `@dinopanel/shared`
-- [ ] `toolbox.*` + `nav.toolbox` keys in BOTH `zh-TW.json` and `en.json`
-- [ ] Phase 3 commit: `feat(toolbox): web UI — tabs, hooks, i18n (phase 3 of v0.6)`
+- [x] `routes/toolbox/index.tsx` Tabs shell (clone `routes/system/index.tsx`, `pickTab`, lazy+Suspense all 3 tabs) + exported `pickTab` (unit-tested)
+- [x] Per-tab files: `ntp` (status + enable toggle + datalist timezone picker), `fail2ban` (jails table + ban form w/ jail datalist + per-IP unban), `disk` (filesystems table + `safeRoots` breakdown picker + cleaners w/ type-to-confirm Dialog)
+- [x] `/toolbox/*` splat route + named-export unwrap in `App.tsx`; sidebar entry (Wrench, `nav.toolbox`)
+- [x] `use-toolbox.ts` hooks + `toolboxKeys` factory (mutations invalidate `.all`; setNtp/setTimezone seed via setQueryData; `placeholderData: keepPreviousData` on disk); fail2ban hooks ADDED to `use-firewall.ts` with distinct `fail2banJails`/`fail2banBanned` key segments (mutations invalidate the `fail2ban()` prefix)
+- [x] "not configured" gated off `GET /toolbox/status` `features[].available/reason` (+ `status.error` guard) and `GET /firewall/status` `{fail2ban}`; per-cleaner availability from `GET /toolbox/cleaners`
+- [x] Type-to-confirm `Dialog` for disk-cleaner actions (gate on typing the category)
+- [x] All DTO types imported from `@dinopanel/shared`; `formatBytes` reused from `lib/utils`
+- [x] `toolbox.*` (51 keys) + `nav.toolbox` in BOTH `zh-TW.json` and `en.json` (parity verified)
+- [x] **UI-enabling backend additions**: `GET /toolbox/ntp/timezones` (datalist) + `safeRoots` on `DiskUsage` (self-describing breakdown picker)
+- [x] Adversarial review (3 lenses × verify): 5 findings applied — **fail2ban jail enable/disable toggle DROPPED from UI** (see decisions §Phase-3: backend only lists running jails, so the toggle was broken-by-design), fail2ban queryKey collision split, `status.error` guards ×3, disk `keepPreviousData`, ban-jail datalist
+- [x] Verification: typecheck ✓ · lint ✓ · test 400 ✓ · build ✓
+- [x] Phase 3 commit: `feat(toolbox): web UI — tabs, hooks, i18n (phase 3 of v0.6)`
 
 ## Phase 4 — Hardening, guardrail tests, sudoers + docs
 

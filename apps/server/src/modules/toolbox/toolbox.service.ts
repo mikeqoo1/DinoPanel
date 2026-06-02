@@ -124,6 +124,11 @@ export class ToolboxService implements OnApplicationBootstrap {
     return this.getNtpStatus();
   }
 
+  /** GET /toolbox/ntp/timezones — the host zone list (for the picker). */
+  listTimezones(): Promise<string[]> {
+    return this.hostOp(() => this.ntp.listTimezones());
+  }
+
   /** GET /toolbox/disk — filesystem usage + optional per-directory breakdown. */
   async getDisk(path?: string): Promise<DiskUsage> {
     const filesystems = await this.hostOp(() => this.disk.listFilesystems());
@@ -137,7 +142,7 @@ export class ToolboxService implements OnApplicationBootstrap {
       }
       breakdown = await this.hostOp(() => this.disk.breakdown(path));
     }
-    return { filesystems, breakdown };
+    return { filesystems, breakdown, safeRoots: [...SAFE_DU_ROOTS] };
   }
 
   /** GET /toolbox/cleaners — per-category availability. */

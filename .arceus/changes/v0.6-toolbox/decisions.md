@@ -134,6 +134,23 @@ to avoid env-var sprawl. `fail2banSetJailEnabled` is a **runtime** start/stop
 toggle (fail2ban has no persistent enable/disable verb); it does not survive a
 daemon reload and the jail must already be defined in config.
 
+## Phase-3 adjustment (decided during implementation, from review findings)
+
+**P3-a — the fail2ban jail enable/disable toggle is NOT exposed in the UI.**
+The backend `fail2banJails()` enumerates only the *running* "Jail list" and
+`parseFail2banJailDetail` hard-codes `enabled: true`, so every listed jail is
+active. A UI toggle would therefore: (1) have dead "inactive/enable" branches,
+and (2) on "disable" run `fail2ban-client stop <jail>`, after which the jail
+vanishes from the running list with **no in-product re-enable path** (re-enable
+needs the jail to be listed, which a stopped jail isn't). Listing
+configured-but-stopped jails would require parsing `/etc/fail2ban/*.local`,
+which Phase 2 deliberately avoided. So the fail2ban tab ships the unambiguous,
+high-value ops only — read-only jail list (counters + banned IPs), manual ban,
+per-IP unban — and shows a static "running" badge. The backend
+`fail2banSetJailEnabled` endpoint + `useFail2banSetJailEnabled` hook remain
+(tested, valid runtime op) but are not surfaced; a future iteration can add the
+toggle once configured-jail listing exists.
+
 ## D-bug — The firewall opaque-500 fix (verified, not a preference)
 
 The Phase 0 "opaque-500 fix" is **not** in `run-command.ts` internals — those

@@ -106,6 +106,9 @@ export type DiskBreakdown = z.infer<typeof diskBreakdownSchema>;
 export const diskUsageSchema = z.object({
   filesystems: z.array(diskFilesystemSchema),
   breakdown: diskBreakdownSchema.nullable(), // present only when ?path= was a SAFE root
+  // The roots the breakdown picker may request (the server's allowlist), so
+  // the UI is self-describing and doesn't hardcode the list.
+  safeRoots: z.array(z.string()),
 });
 export type DiskUsage = z.infer<typeof diskUsageSchema>;
 

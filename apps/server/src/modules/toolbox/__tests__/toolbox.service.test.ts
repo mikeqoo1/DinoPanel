@@ -96,6 +96,13 @@ describe('ToolboxService — setTimezone', () => {
     expect(ntp.getStatus).toHaveBeenCalled();
     expect(result).toEqual(SAMPLE_STATUS);
   });
+
+  it('listTimezones delegates to the driver', async () => {
+    const ntp = new FakeNtpDriver();
+    const service = makeService({ ntp });
+    await expect(service.listTimezones()).resolves.toEqual(['Asia/Taipei', 'UTC']);
+    expect(ntp.listTimezones).toHaveBeenCalled();
+  });
 });
 
 describe('ToolboxService — setNtp', () => {
@@ -118,13 +125,14 @@ describe('ToolboxService — getDisk', () => {
     expect(disk.breakdown).not.toHaveBeenCalled();
   });
 
-  it('returns filesystems with no breakdown when no path is given', async () => {
+  it('returns filesystems + safeRoots with no breakdown when no path is given', async () => {
     const disk = new FakeDiskDriver();
     const service = makeService({ disk });
     const result = await service.getDisk();
     expect(disk.listFilesystems).toHaveBeenCalled();
     expect(disk.breakdown).not.toHaveBeenCalled();
     expect(result.breakdown).toBeNull();
+    expect(result.safeRoots).toContain('/var');
   });
 
   it('runs a breakdown for an allowlisted path', async () => {

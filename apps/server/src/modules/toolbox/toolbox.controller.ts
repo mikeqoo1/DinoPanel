@@ -41,6 +41,11 @@ export class ToolboxController {
     return this.toolbox.setTimezone(body.timezone);
   }
 
+  @Get('ntp/timezones')
+  timezones(): Promise<string[]> {
+    return this.toolbox.listTimezones();
+  }
+
   @Get('disk')
   getDisk(@Query('path') path?: string): Promise<DiskUsage> {
     // `path` is validated against the SAFE_DU_ROOTS allowlist in the service.
