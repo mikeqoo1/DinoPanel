@@ -82,6 +82,16 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((v) => v === 'true'),
+
+  // v0.6 toolbox — gates the degraded/warn posture for host tools the
+  // toolbox shells out to (timedatectl, fail2ban-client, journalctl, dnf/apt).
+  // Hard requirement in prod (panel runs as root, sudo -n is a no-op); flip to
+  // 'false' for dev where sudo isn't configured and the boot probe would
+  // otherwise log a noisy warning. Mirrors WEBSITES_REQUIRE_SUDO.
+  TOOLBOX_REQUIRE_SUDO: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

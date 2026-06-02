@@ -20,11 +20,14 @@ import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { firewallRuleMeta } from '../../database/schema';
 import type { AppConfig } from '../../config/configuration';
 import {
-  FirewallCommandError,
   type FirewallDriver,
   type RawRule,
 } from './firewall-driver';
-import { runCommand } from './drivers/run-command';
+import {
+  CommandError,
+  commandErrorToHttp,
+  runCommand,
+} from '../../common/shell/run-command';
 
 export const FIREWALL_DRIVER = Symbol('FIREWALL_DRIVER');
 
@@ -72,8 +75,23 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
     return this.fail2banAvailable;
   }
 
+  /**
+   * Run a host-touching driver op, re-wrapping any {@link CommandError} as a
+   * coded HttpException (`FIREWALL_*`) so `ApiExceptionFilter` surfaces a real
+   * `code` instead of dropping a bare Error to a generic 500. This is the
+   * shared re-wrap standard the v0.6 toolbox module also uses.
+   */
+  private async driverOp<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (err instanceof CommandError) throw commandErrorToHttp(err, 'FIREWALL');
+      throw err;
+    }
+  }
+
   async getStatus(): Promise<{ backend: FirewallBackend; enabled: boolean; fail2ban: boolean }> {
-    const { enabled } = await this.driver.getStatus();
+    const { enabled } = await this.driverOp(() => this.driver.getStatus());
     return {
       backend: this.driver.backend,
       enabled,
@@ -82,15 +100,15 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   async enable(): Promise<void> {
-    await this.driver.enable();
+    await this.driverOp(() => this.driver.enable());
   }
 
   async disable(): Promise<void> {
-    await this.driver.disable();
+    await this.driverOp(() => this.driver.disable());
   }
 
   async listRules(): Promise<FirewallRule[]> {
-    const kernel = await this.driver.listRules();
+    const kernel = await this.driverOp(() => this.driver.listRules());
     const metaRows = await this.db
       .select()
       .from(firewallRuleMeta)
@@ -153,6 +171,7 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
     } catch (err) {
       // Roll back the metadata row; the kernel rule was never added
       await this.db.delete(firewallRuleMeta).where(eq(firewallRuleMeta.id, metaId));
+      if (err instanceof CommandError) throw commandErrorToHttp(err, 'FIREWALL');
       throw err;
     }
 
@@ -228,12 +247,14 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
       .limit(1);
     if (!row[0]) throw new NotFoundException({ code: 'RULE_NOT_FOUND' });
     const r = row[0];
-    await this.driver.removeRule({
-      port: r.port,
-      proto: r.proto,
-      source: r.source,
-      action: r.action,
-    });
+    await this.driverOp(() =>
+      this.driver.removeRule({
+        port: r.port,
+        proto: r.proto,
+        source: r.source,
+        action: r.action,
+      }),
+    );
     await this.db.delete(firewallRuleMeta).where(eq(firewallRuleMeta.id, metaId));
     return { ok: true };
   }
@@ -342,7 +363,7 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
           action: row.action,
         });
       } catch (err) {
-        if (err instanceof FirewallCommandError) {
+        if (err instanceof CommandError) {
           this.logger.warn({ err, id: row.id }, 'firewall.recovery_revert_failed');
         }
       }

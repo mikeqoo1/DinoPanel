@@ -30,13 +30,8 @@ export class FirewallNotConfiguredError extends Error {
   }
 }
 
-export class FirewallCommandError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly stderr?: string,
-  ) {
-    super(message);
-    this.name = 'FirewallCommandError';
-  }
-}
+// FirewallCommandError was removed in v0.6 Phase 0 — the firewall module now
+// uses the shared `CommandError` from `common/shell/run-command`, re-wrapped at
+// the service layer via `commandErrorToHttp(err, 'FIREWALL')` so the public
+// FIREWALL_TOOL_MISSING / FIREWALL_PERMISSION_DENIED / FIREWALL_COMMAND_FAILED /
+// FIREWALL_SPAWN_ERROR codes are preserved.

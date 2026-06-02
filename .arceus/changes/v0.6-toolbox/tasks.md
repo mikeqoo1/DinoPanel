@@ -6,14 +6,15 @@ no drizzle migration (stateless).
 
 ## Phase 0 — Activation + shared shell/privilege contracts
 
-- [ ] Resolve decisions D1–D7 (recommended defaults adopted; see `decisions.md`)
-- [ ] Lift `apps/server/src/modules/firewall/drivers/run-command.ts` → `apps/server/src/common/shell/run-command.ts` with a generic `CommandError` (string-union `code`; `ENOENT→TOOL_MISSING`, perm-denied→`PERMISSION_DENIED`)
-- [ ] Migrate `firewall` onto `common/shell/run-command.ts` (no behaviour change; existing firewall tests green)
-- [ ] Establish service-layer `instanceof CommandError → HttpException({code})` re-wrap standard
-- [ ] Backfill the re-wrap into `firewall.service` (closes the D-bug opaque-500 gap) + regression test
-- [ ] Add `TOOLBOX_REQUIRE_SUDO` to `apps/server/src/config/env.schema.ts` (mirror `WEBSITES_REQUIRE_SUDO` enum/transform)
-- [ ] `sudo('-n', …)` wrapper + non-throwing `OnApplicationBootstrap` probe pattern (nginx model)
-- [ ] Phase 0 commit: `feat(toolbox): activation + shared shell/privilege contracts (phase 0 of v0.6)`
+- [x] Resolve decisions D1–D7 (recommended defaults adopted; see `decisions.md`)
+- [x] Lift `firewall/drivers/run-command.ts` → `apps/server/src/common/shell/run-command.ts` with a generic `CommandError` (string-union `kind`; `ENOENT→TOOL_MISSING`, perm-denied→`PERMISSION_DENIED`, else `COMMAND_FAILED`/`SPAWN_ERROR`) + `probeCommand` (never-throws boot probe) + `runCommand({sudo})` option
+- [x] Migrate `firewall` onto `common/shell/run-command.ts` — ufw/firewalld drivers + `firewall.module` `which()` (now uses `probeCommand`); old file deleted; `FirewallCommandError` removed (codes preserved via `FIREWALL_${kind}`)
+- [x] Establish service-layer `instanceof CommandError → HttpException({code})` re-wrap standard (`commandErrorToHttp(err, prefix)`)
+- [x] Backfill the re-wrap into `firewall.service` via a private `driverOp()` wrapper on getStatus/enable/disable/listRules/stage/removeRule (closes the D-bug opaque-500 gap) + regression test
+- [x] Add `TOOLBOX_REQUIRE_SUDO` to `apps/server/src/config/env.schema.ts` (mirror `WEBSITES_REQUIRE_SUDO` enum/transform)
+- [x] `sudo('-n', …)` wrapper (`runCommand({sudo:true})`) + non-throwing boot probe (`probeCommand`) pattern in place (nginx model)
+- [x] Verification: typecheck ✓ · lint ✓ · test 370/370 ✓ (10 new run-command + 1 firewall re-wrap) · build ✓
+- [x] Phase 0 commit: `feat(toolbox): shared shell + privilege contracts, fix firewall opaque-500 (phase 0 of v0.6)`
 
 ## Phase 1 — NTP / time-sync
 

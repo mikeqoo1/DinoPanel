@@ -5,7 +5,7 @@ import {
   type FirewallAction,
 } from '@dinopanel/shared';
 import { type FirewallDriver, type RawRule } from '../firewall-driver';
-import { runCommand, assertSuccess } from './run-command';
+import { runCommand, assertSuccess } from '../../../common/shell/run-command';
 
 @Injectable()
 export class FirewalldDriver implements FirewallDriver {

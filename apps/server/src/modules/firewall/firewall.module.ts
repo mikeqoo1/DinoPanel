@@ -5,15 +5,10 @@ import { UfwDriver } from './drivers/ufw.driver';
 import { FirewalldDriver } from './drivers/firewalld.driver';
 import type { FirewallBackend } from '@dinopanel/shared';
 import type { FirewallDriver, RawRule } from './firewall-driver';
-import { runCommand } from './drivers/run-command';
+import { probeCommand } from '../../common/shell/run-command';
 
-async function which(cmd: string): Promise<boolean> {
-  try {
-    const result = await runCommand('which', [cmd], { timeoutMs: 5_000 });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
+function which(cmd: string): Promise<boolean> {
+  return probeCommand('which', [cmd], { timeoutMs: 5_000 });
 }
 
 /**

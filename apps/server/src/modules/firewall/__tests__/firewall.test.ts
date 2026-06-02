@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { HttpException } from '@nestjs/common';
 import { parseUfwRules, buildUfwArgs } from '../drivers/ufw.driver';
 import { parseFirewalldOutput, buildRichRule } from '../drivers/firewalld.driver';
 import { FirewallService } from '../firewall.service';
 import type { FirewallDriver, RawRule } from '../firewall-driver';
+import { CommandError } from '../../../common/shell/run-command';
 
 // ---------------------------------------------------------------------------
 // UfwDriver parser/builder
@@ -306,5 +308,33 @@ describe('FirewallService — staged lifecycle', () => {
     await service.cancelStage(staged.stagedId);
     expect(driver.removed).toHaveLength(1);
     expect(driver.removed[0]).toMatchObject({ port: 8082 });
+  });
+});
+
+describe('FirewallService — driver error re-wrap (v0.6 Phase 0)', () => {
+  it('re-wraps a driver CommandError as a coded HttpException, not a bare 500', async () => {
+    const db = makeFakeDb();
+    const driver = new FakeDriver();
+    driver.getStatus = vi
+      .fn()
+      .mockRejectedValue(new CommandError('TOOL_MISSING', 'ufw: not installed'));
+    const service = new FirewallService(
+      db as never,
+      driver,
+      noopLogger as never,
+      makeConfig() as never,
+    );
+
+    let caught: unknown;
+    try {
+      await service.getStatus();
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(HttpException);
+    expect((caught as HttpException).getStatus()).toBe(503);
+    expect((caught as HttpException).getResponse()).toMatchObject({
+      code: 'FIREWALL_TOOL_MISSING',
+    });
   });
 });
