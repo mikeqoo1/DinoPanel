@@ -3,14 +3,18 @@ import { HttpException } from '@nestjs/common';
 import type { DiskBreakdown, DiskFilesystem, NtpStatus } from '@dinopanel/shared';
 import { ToolboxService } from '../toolbox.service';
 import type { NtpDriver } from '../drivers/ntp-driver';
+import { UnavailableNtpDriver } from '../drivers/ntp-driver';
 import type { DiskDriver } from '../drivers/disk-driver';
+import { UnavailableDiskDriver } from '../drivers/disk-driver';
 import type { CleanerDriver } from '../drivers/cleaner-driver';
 import { CommandError } from '../../../common/shell/run-command';
 
 const noopLogger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
 
-function makeConfig(requireSudo = true) {
-  return { get: vi.fn().mockReturnValue({ env: { TOOLBOX_REQUIRE_SUDO: requireSudo } }) };
+function makeConfig(requireSudo = true, isDev = false) {
+  return {
+    get: vi.fn().mockReturnValue({ env: { TOOLBOX_REQUIRE_SUDO: requireSudo }, isDev }),
+  };
 }
 
 const SAMPLE_STATUS: NtpStatus = {
@@ -50,12 +54,13 @@ function makeService(opts: {
   disk?: DiskDriver;
   cleaner?: CleanerDriver;
   requireSudo?: boolean;
+  isDev?: boolean;
 } = {}): ToolboxService {
   return new ToolboxService(
     opts.ntp ?? new FakeNtpDriver(),
     opts.disk ?? new FakeDiskDriver(),
     opts.cleaner ?? makeCleaner(),
-    makeConfig(opts.requireSudo ?? true) as never,
+    makeConfig(opts.requireSudo ?? true, opts.isDev ?? false) as never,
     noopLogger as never,
   );
 }
@@ -75,6 +80,62 @@ describe('ToolboxService — error re-wrap', () => {
     expect(caught).toBeInstanceOf(HttpException);
     expect((caught as HttpException).getStatus()).toBe(503);
     expect((caught as HttpException).getResponse()).toMatchObject({ code: 'TOOLBOX_TOOL_MISSING' });
+  });
+});
+
+describe('ToolboxService — stderr redaction (carry from Phase 1)', () => {
+  it('does NOT forward host stderr to the client in production (isDev=false)', async () => {
+    const ntp = new FakeNtpDriver();
+    ntp.getStatus.mockRejectedValueOnce(
+      new CommandError('COMMAND_FAILED', 'timedatectl failed', 'sensitive host stderr'),
+    );
+    const service = makeService({ ntp, isDev: false });
+
+    const caught = (await service.getNtpStatus().catch((e: unknown) => e)) as HttpException;
+    expect(caught).toBeInstanceOf(HttpException);
+    expect(caught.getResponse()).toMatchObject({ code: 'TOOLBOX_COMMAND_FAILED' });
+    expect(caught.getResponse()).not.toHaveProperty('details');
+    // The full stderr is preserved in the server log, never silently dropped.
+    expect(noopLogger.warn).toHaveBeenCalledWith(
+      { kind: 'COMMAND_FAILED', stderr: 'sensitive host stderr' },
+      'toolbox.command_failed',
+    );
+  });
+
+  it('surfaces stderr in details in development (isDev=true)', async () => {
+    const ntp = new FakeNtpDriver();
+    ntp.getStatus.mockRejectedValueOnce(
+      new CommandError('COMMAND_FAILED', 'timedatectl failed', 'sensitive host stderr'),
+    );
+    const service = makeService({ ntp, isDev: true });
+
+    const caught = (await service.getNtpStatus().catch((e: unknown) => e)) as HttpException;
+    expect(caught.getResponse()).toMatchObject({ details: { stderr: 'sensitive host stderr' } });
+  });
+});
+
+describe('ToolboxService — unavailable drivers degrade to 503', () => {
+  it('getNtpStatus 503s NTP_NOT_CONFIGURED when timedatectl is absent', async () => {
+    const service = makeService({ ntp: new UnavailableNtpDriver() });
+    const caught = (await service.getNtpStatus().catch((e: unknown) => e)) as HttpException;
+    expect(caught).toBeInstanceOf(HttpException);
+    expect(caught.getStatus()).toBe(503);
+    expect(caught.getResponse()).toMatchObject({ code: 'NTP_NOT_CONFIGURED' });
+  });
+
+  it('setTimezone 503s NTP_NOT_CONFIGURED (the allowlist read hits the Unavailable driver)', async () => {
+    const service = makeService({ ntp: new UnavailableNtpDriver() });
+    const caught = (await service.setTimezone('Asia/Taipei').catch((e: unknown) => e)) as HttpException;
+    expect(caught.getStatus()).toBe(503);
+    expect(caught.getResponse()).toMatchObject({ code: 'NTP_NOT_CONFIGURED' });
+  });
+
+  it('getDisk 503s DISK_NOT_CONFIGURED when df is absent', async () => {
+    const service = makeService({ disk: new UnavailableDiskDriver() });
+    const caught = (await service.getDisk().catch((e: unknown) => e)) as HttpException;
+    expect(caught).toBeInstanceOf(HttpException);
+    expect(caught.getStatus()).toBe(503);
+    expect(caught.getResponse()).toMatchObject({ code: 'DISK_NOT_CONFIGURED' });
   });
 });
 
@@ -120,6 +181,16 @@ describe('ToolboxService — getDisk', () => {
     const disk = new FakeDiskDriver();
     const service = makeService({ disk });
     await expect(service.getDisk('/etc')).rejects.toMatchObject({
+      response: { code: 'TOOLBOX_DISK_PATH_NOT_ALLOWED' },
+    });
+    expect(disk.breakdown).not.toHaveBeenCalled();
+  });
+
+  it('rejects a sub-path of an allowlisted root (exact-match, not prefix-match)', async () => {
+    const disk = new FakeDiskDriver();
+    const service = makeService({ disk });
+    // '/var' is allowlisted, but the gate is exact-match — '/var/foo' must not slip through.
+    await expect(service.getDisk('/var/foo')).rejects.toMatchObject({
       response: { code: 'TOOLBOX_DISK_PATH_NOT_ALLOWED' },
     });
     expect(disk.breakdown).not.toHaveBeenCalled();

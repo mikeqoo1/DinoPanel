@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
   OnApplicationBootstrap,
@@ -32,6 +33,7 @@ const SAFE_DU_ROOTS: readonly string[] = ['/var', '/usr', '/home', '/opt', '/var
 @Injectable()
 export class ToolboxService implements OnApplicationBootstrap {
   private readonly requireSudo: boolean;
+  private readonly isDev: boolean;
   private sudoProbeOk = false;
 
   constructor(
@@ -44,6 +46,7 @@ export class ToolboxService implements OnApplicationBootstrap {
     const app = config.get<AppConfig>('app', { infer: true });
     if (!app) throw new Error('App config missing');
     this.requireSudo = app.env.TOOLBOX_REQUIRE_SUDO;
+    this.isDev = app.isDev ?? false;
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -71,9 +74,21 @@ export class ToolboxService implements OnApplicationBootstrap {
     try {
       return await fn();
     } catch (err) {
-      if (err instanceof CommandError) throw commandErrorToHttp(err, 'TOOLBOX');
+      if (err instanceof CommandError) throw this.rewrapCommandError(err);
       throw err;
     }
+  }
+
+  /**
+   * Log the full host stderr server-side, then re-wrap to a coded
+   * HttpException whose client `details.stderr` is gated on `isDev` (Phase 4
+   * hardening — raw host stderr never reaches the client in production).
+   */
+  private rewrapCommandError(err: CommandError): HttpException {
+    if (err.stderr) {
+      this.logger.warn({ kind: err.kind, stderr: err.stderr }, 'toolbox.command_failed');
+    }
+    return commandErrorToHttp(err, 'TOOLBOX', { exposeStderr: this.isDev });
   }
 
   /** GET /toolbox/status — computed from driver availability + sudo posture. */

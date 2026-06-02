@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
   NotFoundException,
@@ -52,6 +53,7 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
   // fail2ban-client needs root; reuse the toolbox sudo posture (sudo -n is a
   // no-op when the panel already runs as root). Read once in the constructor.
   private readonly fail2banSudo: boolean;
+  private readonly isDev: boolean;
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
@@ -61,6 +63,7 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
   ) {
     const app = this.config.get<AppConfig>('app', { infer: true });
     this.fail2banSudo = app?.env.TOOLBOX_REQUIRE_SUDO ?? false;
+    this.isDev = app?.isDev ?? false;
   }
 
   async onApplicationBootstrap(): Promise<void> {
@@ -95,9 +98,21 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
     try {
       return await fn();
     } catch (err) {
-      if (err instanceof CommandError) throw commandErrorToHttp(err, 'FIREWALL');
+      if (err instanceof CommandError) throw this.rewrapCommandError(err);
       throw err;
     }
+  }
+
+  /**
+   * Log the full host stderr server-side, then re-wrap to a coded
+   * HttpException whose client `details.stderr` is gated on `isDev` (Phase 4
+   * hardening — raw host stderr never reaches the client in production).
+   */
+  private rewrapCommandError(err: CommandError): HttpException {
+    if (err.stderr) {
+      this.logger.warn({ kind: err.kind, stderr: err.stderr }, 'firewall.command_failed');
+    }
+    return commandErrorToHttp(err, 'FIREWALL', { exposeStderr: this.isDev });
   }
 
   async getStatus(): Promise<{ backend: FirewallBackend; enabled: boolean; fail2ban: boolean }> {
@@ -181,7 +196,7 @@ export class FirewallService implements OnApplicationBootstrap, OnModuleDestroy 
     } catch (err) {
       // Roll back the metadata row; the kernel rule was never added
       await this.db.delete(firewallRuleMeta).where(eq(firewallRuleMeta.id, metaId));
-      if (err instanceof CommandError) throw commandErrorToHttp(err, 'FIREWALL');
+      if (err instanceof CommandError) throw this.rewrapCommandError(err);
       throw err;
     }
 

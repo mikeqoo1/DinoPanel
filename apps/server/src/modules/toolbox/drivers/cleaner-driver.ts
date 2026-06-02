@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import type Dockerode from 'dockerode';
 import type { CleanCategory, CleanResult, ToolboxCleaner } from '@dinopanel/shared';
 import { mapDockerError } from '../../containers/docker-error';
@@ -53,6 +53,14 @@ export class CleanerDriver {
         return this.packageCache();
       case 'docker_prune':
         return this.dockerPrune();
+      default:
+        // Unreachable for a schema-validated CleanCategory, but a closed-enum
+        // switch returning `undefined` on an unknown value would be a latent
+        // crash. Defense-in-depth: refuse anything outside the curated set.
+        throw new BadRequestException({
+          code: 'TOOLBOX_UNKNOWN_CLEANER',
+          message: `Unknown cleaner category: ${String(category)}`,
+        });
     }
   }
 

@@ -112,18 +112,36 @@ const KIND_STATUS: Record<CommandErrorKind, number> = {
   SPAWN_ERROR: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 
+export interface CommandErrorToHttpOptions {
+  /**
+   * Include the raw host `stderr` in the client-facing `details`. Default
+   * `false` — host stderr can leak filesystem paths / config internals and is
+   * kept in server logs only (the caller logs it). Pass the module's `isDev`
+   * flag so it still surfaces in development for debugging. v0.6 Phase 4
+   * hardening — shared by every module that re-wraps a CommandError.
+   */
+  exposeStderr?: boolean;
+}
+
 /**
  * Re-wrap a {@link CommandError} as a coded `HttpException` so
  * `ApiExceptionFilter` surfaces `{ code: "<PREFIX>_<KIND>" }` to the client
  * instead of dropping a bare Error to a generic 500. `codePrefix` is the
  * module's namespace, e.g. `FIREWALL` → `FIREWALL_TOOL_MISSING`.
+ *
+ * `stderr` is NOT forwarded to the client unless `opts.exposeStderr` is set —
+ * the service layer logs the full stderr server-side before calling this.
  */
-export function commandErrorToHttp(err: CommandError, codePrefix: string): HttpException {
+export function commandErrorToHttp(
+  err: CommandError,
+  codePrefix: string,
+  opts: CommandErrorToHttpOptions = {},
+): HttpException {
   return new HttpException(
     {
       code: `${codePrefix}_${err.kind}`,
       message: err.message,
-      ...(err.stderr ? { details: { stderr: err.stderr } } : {}),
+      ...(opts.exposeStderr && err.stderr ? { details: { stderr: err.stderr } } : {}),
     },
     KIND_STATUS[err.kind],
   );

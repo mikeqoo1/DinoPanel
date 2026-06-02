@@ -58,8 +58,18 @@ describe('commandErrorToHttp', () => {
     expect(http.getResponse()).toMatchObject({ code: 'NTP_TOOL_MISSING' });
   });
 
-  it('maps COMMAND_FAILED to a 500 and forwards stderr as details', () => {
+  it('redacts host stderr from the client response by default (production posture)', () => {
     const http = commandErrorToHttp(new CommandError('COMMAND_FAILED', 'x', 'boom'), 'FIREWALL');
+    expect(http.getStatus()).toBe(500);
+    expect(http.getResponse()).toMatchObject({ code: 'FIREWALL_COMMAND_FAILED' });
+    // stderr can leak host paths / config internals — never forwarded unless opted in.
+    expect(http.getResponse()).not.toHaveProperty('details');
+  });
+
+  it('forwards stderr as details only when exposeStderr is set (development)', () => {
+    const http = commandErrorToHttp(new CommandError('COMMAND_FAILED', 'x', 'boom'), 'FIREWALL', {
+      exposeStderr: true,
+    });
     expect(http.getStatus()).toBe(500);
     expect(http.getResponse()).toMatchObject({
       code: 'FIREWALL_COMMAND_FAILED',

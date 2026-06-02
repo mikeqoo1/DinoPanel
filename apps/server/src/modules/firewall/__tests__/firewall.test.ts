@@ -8,7 +8,19 @@ import {
   parseFail2banJailDetail,
 } from '../firewall.service';
 import type { FirewallDriver, RawRule } from '../firewall-driver';
-import { CommandError } from '../../../common/shell/run-command';
+import { CommandError, runCommand } from '../../../common/shell/run-command';
+import type * as RunCommandModule from '../../../common/shell/run-command';
+
+// Stub the shell layer so the fail2ban service ops (which call the module-level
+// runCommand directly, not the injected driver) are controllable. Everything
+// else — CommandError, assertSuccess, commandErrorToHttp — stays real so the
+// re-wrap + allowlist logic is exercised for real. No other test in this file
+// touches runCommand/probeCommand (the FirewallDriver is faked), so this is inert
+// for them.
+vi.mock('../../../common/shell/run-command', async (importOriginal) => {
+  const actual = await importOriginal<typeof RunCommandModule>();
+  return { ...actual, runCommand: vi.fn(), probeCommand: vi.fn() };
+});
 
 // ---------------------------------------------------------------------------
 // UfwDriver parser/builder
@@ -398,5 +410,118 @@ describe('parseFail2banJailDetail', () => {
     expect(jail.bannedIps).toEqual([]);
     expect(jail.currentlyBanned).toBe(0);
     expect(jail.totalBanned).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fail2ban service guardrails (v0.6 Phase 4)
+// ---------------------------------------------------------------------------
+
+describe('FirewallService — fail2ban guardrails (v0.6 Phase 4)', () => {
+  function makeF2bService(fail2banAvailable: boolean): FirewallService {
+    const db = makeFakeDb();
+    const driver = new FakeDriver();
+    const service = new FirewallService(
+      db as never,
+      driver,
+      noopLogger as never,
+      makeConfig() as never,
+    );
+    // `fail2banAvailable` is normally set by onApplicationBootstrap()'s probe;
+    // set it directly to avoid running the boot sweep in a unit test.
+    (service as unknown as { fail2banAvailable: boolean }).fail2banAvailable = fail2banAvailable;
+    return service;
+  }
+
+  beforeEach(() => {
+    vi.mocked(runCommand).mockReset();
+  });
+
+  it('ban/unban 400 FAIL2BAN_NOT_AVAILABLE when fail2ban is absent (no shell-out)', async () => {
+    const service = makeF2bService(false);
+    await expect(service.fail2banBan('sshd', '1.2.3.4')).rejects.toMatchObject({
+      response: { code: 'FAIL2BAN_NOT_AVAILABLE' },
+    });
+    await expect(service.fail2banUnban('1.2.3.4', 'sshd')).rejects.toMatchObject({
+      response: { code: 'FAIL2BAN_NOT_AVAILABLE' },
+    });
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it('ban rejects an unknown jail via the assertJailExists allowlist', async () => {
+    const service = makeF2bService(true);
+    // `fail2ban-client status` returns the live jail list (sshd, nginx-http-auth).
+    vi.mocked(runCommand).mockResolvedValue({ exitCode: 0, stdout: F2B_STATUS_GOLDEN, stderr: '' });
+    await expect(service.fail2banBan('does-not-exist', '1.2.3.4')).rejects.toMatchObject({
+      response: { code: 'FAIL2BAN_JAIL_NOT_FOUND' },
+    });
+  });
+
+  it('unban rejects an unknown jail via the assertJailExists allowlist', async () => {
+    const service = makeF2bService(true);
+    vi.mocked(runCommand).mockResolvedValue({ exitCode: 0, stdout: F2B_STATUS_GOLDEN, stderr: '' });
+    await expect(service.fail2banUnban('1.2.3.4', 'does-not-exist')).rejects.toMatchObject({
+      response: { code: 'FAIL2BAN_JAIL_NOT_FOUND' },
+    });
+  });
+
+  it('setJailEnabled rejects an injection-shaped jail name before shelling out', async () => {
+    const service = makeF2bService(true);
+    await expect(service.fail2banSetJailEnabled('-evil', true)).rejects.toMatchObject({
+      response: { code: 'FAIL2BAN_INVALID_JAIL' },
+    });
+    expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it('ban shells out the exact argv the sudoers Cmnd_Alias pins', async () => {
+    const service = makeF2bService(true);
+    // The assertJailExists status read + the mutation both go through runCommand;
+    // a golden jail list satisfies the allowlist and exitCode 0 satisfies assertSuccess.
+    vi.mocked(runCommand).mockResolvedValue({ exitCode: 0, stdout: F2B_STATUS_GOLDEN, stderr: '' });
+    await expect(service.fail2banBan('sshd', '1.2.3.4')).resolves.toEqual({ ok: true });
+    expect(runCommand).toHaveBeenCalledWith(
+      'fail2ban-client',
+      ['set', 'sshd', 'banip', '1.2.3.4'],
+      expect.anything(),
+    );
+  });
+
+  it('unban shells out unbanip with the (ip, jail) params in the right order', async () => {
+    const service = makeF2bService(true);
+    vi.mocked(runCommand).mockResolvedValue({ exitCode: 0, stdout: F2B_STATUS_GOLDEN, stderr: '' });
+    // fail2banUnban takes (ip, jail) — the OPPOSITE order from fail2banBan(jail, ip);
+    // pin it so a transposition can't slip through.
+    await expect(service.fail2banUnban('1.2.3.4', 'sshd')).resolves.toEqual({ ok: true });
+    expect(runCommand).toHaveBeenCalledWith(
+      'fail2ban-client',
+      ['set', 'sshd', 'unbanip', '1.2.3.4'],
+      expect.anything(),
+    );
+  });
+});
+
+describe('FirewallService — stderr redaction (v0.6 Phase 4)', () => {
+  it('logs full stderr server-side but does NOT forward it to the client (isDev=false)', async () => {
+    const db = makeFakeDb();
+    const driver = new FakeDriver();
+    driver.getStatus = vi
+      .fn()
+      .mockRejectedValue(new CommandError('COMMAND_FAILED', 'ufw failed', 'sensitive host stderr'));
+    const service = new FirewallService(
+      db as never,
+      driver,
+      noopLogger as never,
+      makeConfig() as never,
+    );
+
+    const caught = (await service.getStatus().catch((e: unknown) => e)) as HttpException;
+    expect(caught).toBeInstanceOf(HttpException);
+    expect(caught.getResponse()).toMatchObject({ code: 'FIREWALL_COMMAND_FAILED' });
+    expect(caught.getResponse()).not.toHaveProperty('details');
+    // The full stderr is preserved in the server log, never silently dropped.
+    expect(noopLogger.warn).toHaveBeenCalledWith(
+      { kind: 'COMMAND_FAILED', stderr: 'sensitive host stderr' },
+      'firewall.command_failed',
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseDf, parseDu } from '../drivers/disk-driver';
+import { HttpException } from '@nestjs/common';
+import { parseDf, parseDu, UnavailableDiskDriver } from '../drivers/disk-driver';
 
 // Real `df -PB1` (the dev host prints a localized zh_TW header — the parser
 // skips line 0 and reads data rows positionally; rows are locale-proof under -P).
@@ -59,5 +60,28 @@ describe('parseDu', () => {
         { path: '/var/tmp', bytes: 86016 },
       ],
     });
+  });
+});
+
+describe('UnavailableDiskDriver — degrades to 503 when df is absent', () => {
+  const driver = new UnavailableDiskDriver();
+
+  it('reports available=false without touching the host', () => {
+    expect(driver.available).toBe(false);
+  });
+
+  it.each([
+    ['listFilesystems', () => driver.listFilesystems()],
+    ['breakdown', () => driver.breakdown()],
+  ])('%s 503s with DISK_NOT_CONFIGURED', (_name, op) => {
+    let caught: unknown;
+    try {
+      void op();
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(HttpException);
+    expect((caught as HttpException).getStatus()).toBe(503);
+    expect((caught as HttpException).getResponse()).toMatchObject({ code: 'DISK_NOT_CONFIGURED' });
   });
 });

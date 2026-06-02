@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { HttpException } from '@nestjs/common';
 import {
   parseTimedatectlShow,
   parseTimedatectlStatus,
   parseChronyTracking,
+  UnavailableNtpDriver,
 } from '../drivers/ntp-driver';
 
 // Real `timedatectl show` from a Rocky/dev host (key=value, locale-proof).
@@ -108,5 +110,30 @@ describe('parseChronyTracking', () => {
       stratum: 2,
       leapStatus: 'Normal',
     });
+  });
+});
+
+describe('UnavailableNtpDriver — degrades to 503 when timedatectl is absent', () => {
+  const driver = new UnavailableNtpDriver();
+
+  it('reports available=false without touching the host', () => {
+    expect(driver.available).toBe(false);
+  });
+
+  it.each([
+    ['getStatus', () => driver.getStatus()],
+    ['listTimezones', () => driver.listTimezones()],
+    ['setNtp', () => driver.setNtp()],
+    ['setTimezone', () => driver.setTimezone()],
+  ])('%s 503s with NTP_NOT_CONFIGURED', (_name, op) => {
+    let caught: unknown;
+    try {
+      void op();
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(HttpException);
+    expect((caught as HttpException).getStatus()).toBe(503);
+    expect((caught as HttpException).getResponse()).toMatchObject({ code: 'NTP_NOT_CONFIGURED' });
   });
 });

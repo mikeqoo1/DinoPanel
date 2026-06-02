@@ -345,6 +345,12 @@ if systemctl is-active --quiet "$SERVICE_NAME"; then
   echo "  Logs:   journalctl -u $SERVICE_NAME -f"
   echo "  Stop:   sudo systemctl stop $SERVICE_NAME"
   echo "  Start:  sudo systemctl start $SERVICE_NAME"
+  echo
+  echo "  Sudoers (host tools run as an unprivileged user via sudo -n):"
+  echo "    • Websites : /etc/sudoers.d/dinopanel          — see docs/websites.md"
+  echo "    • Toolbox  : /etc/sudoers.d/dinopanel-toolbox  — see docs/toolbox.md"
+  echo "      (NTP / fail2ban / journald+package+docker cleaners; one Cmnd_Alias)"
+  echo "      Validate with: sudo visudo -cf /etc/sudoers.d/dinopanel-toolbox"
 else
   err "Service failed to start. Check: journalctl -u $SERVICE_NAME -n 50"
 fi

@@ -63,13 +63,15 @@ no drizzle migration (stateless).
 
 ## Phase 4 — Hardening, guardrail tests, sudoers + docs
 
-- [ ] Guardrail tests: `tmp_sweep` refuses out-of-allowlist target; `set-timezone` rejects invalid zone; every feature degrades to 503 when its binary is absent
-- [ ] `docs/toolbox.md` with consolidated NOPASSWD `Cmnd_Alias` (mirror `docs/websites.md`)
-- [ ] Sudoers snippet in `install.sh` / `deploy-rocky.sh`
-- [ ] Explicit `packages/shared` rebuild (web/server see `toolbox` types)
-- [ ] i18n parity check zh-TW vs en
-- [ ] (carry from Phase 1 review) Project-wide: stop forwarding raw host `stderr` to clients in `commandErrorToHttp` / `ApiExceptionFilter` (gate `details.stderr` behind a dev flag, keep full stderr in server logs). Pre-existing, shared with firewall — fix once in the shared layer so both modules inherit it, do NOT diverge toolbox alone.
-- [ ] Phase 4 commit: `feat(toolbox): hardening + sudoers + docs (phase 4 of v0.6)`
+- [x] Guardrail tests — `tmp_sweep` bullet was STALE (dropped P2-a); reconciled to the real allowlists/guards: `set-timezone` rejects unknown/leading-dash/injection zones (shared schema + service allowlist); disk `?path=` rejects out-of-allowlist AND sub-path of an allowlisted root (exact-match, not prefix); `clean` rejects out-of-enum category (shared schema + a hardened `cleaner-driver.run()` `default` throw → `TOOLBOX_UNKNOWN_CLEANER`); fail2ban ban/unban reject unknown jail (`assertJailExists`) + invalid jail name; every feature degrades to 503 when its binary is absent (Unavailable NTP/Disk drivers, journald/package_cache/docker cleaners, fail2ban `FAIL2BAN_NOT_AVAILABLE`)
+- [x] `docs/toolbox.md` with consolidated NOPASSWD `Cmnd_Alias` (mirror `docs/websites.md`) — incl. `secure_path` resolution caveat
+- [x] Sudoers reminder in `install.sh` (post-install echo → docs/toolbox.md) + `deploy-rocky.sh` (printed contract block; note: deploy-rocky.sh is git-ignored/local-only, so the tracked contract lives in docs/toolbox.md + install.sh)
+- [x] Explicit `packages/shared` rebuild (`pnpm --filter @dinopanel/shared build`) — no schema change this phase, web/server see toolbox types
+- [x] i18n parity check zh-TW vs en — added a web vitest `i18n-parity.test.ts` (full key-set parity, 720/720; guards every module, not just toolbox)
+- [x] (carry from Phase 1 review) stop forwarding raw host `stderr` to clients — fixed once in the shared layer: `commandErrorToHttp(err, prefix, { exposeStderr })` redacts `details.stderr` by default; firewall + toolbox each log full stderr server-side (`*.command_failed`) then pass `exposeStderr: isDev`. websites/databases stderr exposure is a separate PRE-EXISTING out-of-scope item (followup, not diverged here)
+- [x] Adversarial review (4 lenses × verify): 17 findings → 3 confirmed (all low, additive): fail2ban happy-path argv assertion (pins the `ban(jail,ip)`/`unban(ip,jail)` ordering + sudoers argv), firewall-side redaction test + server-side warn assertion, sudoers `secure_path` doc caveat — all applied
+- [x] Verification: typecheck ✓ · lint ✓ · test 438 ✓ · build ✓
+- [x] Phase 4 commit: `feat(toolbox): hardening + sudoers + docs (phase 4 of v0.6)`
 
 ## Phase 5 — Release v0.6.0 + Rocky smoke
 
