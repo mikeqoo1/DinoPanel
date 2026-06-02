@@ -6,10 +6,21 @@ import { probeCommand } from '../../common/shell/run-command';
 import { ContainersModule } from '../containers/containers.module';
 import { DOCKER } from '../containers/docker.token';
 import { ToolboxController } from './toolbox.controller';
-import { ToolboxService, NTP_DRIVER, DISK_DRIVER, CLEANER_DRIVER } from './toolbox.service';
+import {
+  ToolboxService,
+  NTP_DRIVER,
+  DISK_DRIVER,
+  CLEANER_DRIVER,
+  SERVICES_DRIVER,
+} from './toolbox.service';
 import { TimedatectlNtpDriver, UnavailableNtpDriver, type NtpDriver } from './drivers/ntp-driver';
 import { DfDuDiskDriver, UnavailableDiskDriver, type DiskDriver } from './drivers/disk-driver';
 import { CleanerDriver, type PackageManager } from './drivers/cleaner-driver';
+import {
+  SystemctlServicesDriver,
+  UnavailableServicesDriver,
+  type ServicesDriver,
+} from './drivers/services-driver';
 
 function which(cmd: string): Promise<boolean> {
   return probeCommand('which', [cmd], { timeoutMs: 5_000 });
@@ -62,10 +73,31 @@ const cleanerDriverProvider: Provider = {
   },
 };
 
+// systemd .service management (v0.6.1), or an Unavailable fallback when
+// systemctl is absent. Reads need no sudo; mutations run sudo -n.
+const servicesDriverProvider: Provider = {
+  provide: SERVICES_DRIVER,
+  inject: [ConfigService],
+  useFactory: async (config: ConfigService<{ app: AppConfig }>): Promise<ServicesDriver> => {
+    if (await which('systemctl')) {
+      const app = config.get<AppConfig>('app', { infer: true });
+      if (!app) throw new Error('App config missing');
+      return new SystemctlServicesDriver(app.env.TOOLBOX_REQUIRE_SUDO);
+    }
+    return new UnavailableServicesDriver();
+  },
+};
+
 @Module({
   imports: [ContainersModule], // for the DOCKER dockerode handle (docker_prune)
   controllers: [ToolboxController],
-  providers: [ntpDriverProvider, diskDriverProvider, cleanerDriverProvider, ToolboxService],
+  providers: [
+    ntpDriverProvider,
+    diskDriverProvider,
+    cleanerDriverProvider,
+    servicesDriverProvider,
+    ToolboxService,
+  ],
   exports: [ToolboxService],
 })
 export class ToolboxModule {}

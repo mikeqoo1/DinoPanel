@@ -13,14 +13,14 @@ verification block. Release cut at Phase 4. No migration (stateless).
 
 ## Phase 2 — Supervisor backend (systemd)
 
-- [ ] `packages/shared/schemas/services.ts` (or in toolbox.ts): `serviceUnitSchema`, `systemdActionSchema` (enum), `serviceActionBodySchema`, `serviceUnitNameSchema`; `SUPERVISOR_SELF_UNIT`, `SUPERVISOR_CRITICAL_UNITS`, `serviceActionAllowed(unit, action)`; re-export from index; shared rebuilt
-- [ ] `drivers/services-driver.ts`: `ServicesDriver` iface; `SystemctlServicesDriver` (list = merge list-units + list-unit-files; action = sudo -n systemctl <action> -- <unit>); `UnavailableServicesDriver` (503 `SERVICES_NOT_CONFIGURED`); exported parsers `parseSystemctlUnits` / `parseSystemctlUnitFiles`
-- [ ] `toolbox.module.ts`: `SERVICES_DRIVER` token + `which('systemctl')` factory
-- [ ] `toolbox.service.ts`: inject SERVICES_DRIVER; `listServices()`; `serviceAction()` (shape-validate → `serviceActionAllowed` guard → hostOp driver.action); `status()` += `services` feature
-- [ ] `toolbox.controller.ts`: `GET /toolbox/services`, `POST /toolbox/services/action` (ZodValidationPipe)
-- [ ] tests: parsers golden; `serviceActionAllowed` (self/critical/ordinary/normalize); service-level protected → `SERVICE_PROTECTED`, invalid → `SERVICE_INVALID_UNIT`, Unavailable → 503
-- [ ] Adversarial review (guard correctness) → apply
-- [ ] Verify · Phase 2 commit
+- [x] `packages/shared/schemas/services.ts`: `serviceUnitSchema`, `systemdActionSchema`, `serviceActionBodySchema`, `serviceUnitNameSchema`; `SUPERVISOR_SELF_UNIT`, `SUPERVISOR_CRITICAL_UNITS`, `normalizeServiceUnit`, `serviceActionAllowed` (**.service-only** + self + critical tiers); re-export from index; shared rebuilt
+- [x] `drivers/services-driver.ts`: `ServicesDriver` iface (list/action/**resolveCanonicalUnit**); `SystemctlServicesDriver` (list = merge list-units + list-unit-files, best-effort enrich; action = sudo -n `systemctl <action> -- <unit>`; resolveCanonicalUnit = `systemctl show -p Id --value`); `UnavailableServicesDriver` (503 `SERVICES_NOT_CONFIGURED`); parsers `parseSystemctlUnits`/`parseSystemctlUnitFiles`
+- [x] `toolbox.module.ts`: `SERVICES_DRIVER` token + `which('systemctl')` factory
+- [x] `toolbox.service.ts`: inject SERVICES_DRIVER; `listServices()`; `serviceAction()` (shape → guard → **resolve canonical Id + re-judge** → hostOp action); `status()` += `services` feature
+- [x] `toolbox.controller.ts`: `GET /toolbox/services`, `POST /toolbox/services/action` (ZodValidationPipe)
+- [x] tests: parsers golden; `serviceActionAllowed` (self/critical/ordinary/normalize/**non-.service**); service-level protected/invalid/**socket+target bypass**/**alias bypass**/Unavailable 503
+- [x] Adversarial review (4 lenses × verify): 13 findings → 4 confirmed → **all applied** (HIGH .socket/.target bypass + MED alias bypass + MED cross-type surface → `.service`-only guard + canonical-Id re-judge; LOW list-unit-files rejection swallow)
+- [x] Verify typecheck ✓ · lint ✓ · test 464 ✓ · build ✓ · Phase 2 commit
 
 ## Phase 3 — Supervisor web UI
 

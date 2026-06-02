@@ -7,6 +7,7 @@ export * from './files.js';
 export * from './firewall.js';
 export * from './logs.js';
 export * from './scheduler.js';
+export * from './services.js';
 export * from './settings.js';
 export * from './system.js';
 export * from './toolbox.js';

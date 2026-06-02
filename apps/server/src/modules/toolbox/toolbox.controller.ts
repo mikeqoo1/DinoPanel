@@ -3,11 +3,14 @@ import {
   setNtpBodySchema,
   setTimezoneBodySchema,
   cleanBodySchema,
+  serviceActionBodySchema,
   type CleanBody,
   type CleanResult,
   type CleanersList,
   type DiskUsage,
   type NtpStatus,
+  type ServiceActionBody,
+  type ServiceUnit,
   type SetNtpBody,
   type SetTimezoneBody,
   type ToolboxStatus,
@@ -61,5 +64,16 @@ export class ToolboxController {
   @UsePipes(new ZodValidationPipe(cleanBodySchema))
   clean(@Body() body: CleanBody): Promise<CleanResult> {
     return this.toolbox.runCleaner(body.category);
+  }
+
+  @Get('services')
+  services(): Promise<ServiceUnit[]> {
+    return this.toolbox.listServices();
+  }
+
+  @Post('services/action')
+  @UsePipes(new ZodValidationPipe(serviceActionBodySchema))
+  serviceAction(@Body() body: ServiceActionBody): Promise<{ ok: true }> {
+    return this.toolbox.serviceAction(body.unit, body.action);
   }
 }

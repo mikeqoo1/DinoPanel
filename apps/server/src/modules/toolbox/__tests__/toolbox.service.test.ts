@@ -1,12 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { HttpException } from '@nestjs/common';
-import type { DiskBreakdown, DiskFilesystem, NtpStatus } from '@dinopanel/shared';
+import type { DiskBreakdown, DiskFilesystem, NtpStatus, ServiceUnit, SystemdAction } from '@dinopanel/shared';
 import { ToolboxService } from '../toolbox.service';
 import type { NtpDriver } from '../drivers/ntp-driver';
 import { UnavailableNtpDriver } from '../drivers/ntp-driver';
 import type { DiskDriver } from '../drivers/disk-driver';
 import { UnavailableDiskDriver } from '../drivers/disk-driver';
 import type { CleanerDriver } from '../drivers/cleaner-driver';
+import type { ServicesDriver } from '../drivers/services-driver';
+import { UnavailableServicesDriver } from '../drivers/services-driver';
 import { CommandError } from '../../../common/shell/run-command';
 
 const noopLogger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
@@ -49,10 +51,21 @@ function makeCleaner(): CleanerDriver {
   } as unknown as CleanerDriver;
 }
 
+class FakeServicesDriver implements ServicesDriver {
+  available = true;
+  list = vi.fn<() => Promise<ServiceUnit[]>>().mockResolvedValue([]);
+  action = vi.fn<(unit: string, action: SystemdAction) => Promise<void>>().mockResolvedValue(undefined);
+  // default: identity (no alias) — the alias test overrides this
+  resolveCanonicalUnit = vi
+    .fn<(unit: string) => Promise<string>>()
+    .mockImplementation((unit) => Promise.resolve(unit));
+}
+
 function makeService(opts: {
   ntp?: NtpDriver;
   disk?: DiskDriver;
   cleaner?: CleanerDriver;
+  services?: ServicesDriver;
   requireSudo?: boolean;
   isDev?: boolean;
 } = {}): ToolboxService {
@@ -60,6 +73,7 @@ function makeService(opts: {
     opts.ntp ?? new FakeNtpDriver(),
     opts.disk ?? new FakeDiskDriver(),
     opts.cleaner ?? makeCleaner(),
+    opts.services ?? new FakeServicesDriver(),
     makeConfig(opts.requireSudo ?? true, opts.isDev ?? false) as never,
     noopLogger as never,
   );
@@ -233,12 +247,13 @@ describe('ToolboxService — cleaners', () => {
 });
 
 describe('ToolboxService — status()', () => {
-  it('reports ntp degraded (SUDO_UNAVAILABLE) and disk available', () => {
+  it('reports ntp + services degraded (SUDO_UNAVAILABLE) and disk available', () => {
     // onApplicationBootstrap not run -> sudoProbeOk false; requireSudo true.
     const service = makeService({ requireSudo: true });
     expect(service.status().features).toEqual([
       { name: 'ntp', available: true, degraded: true, reason: 'SUDO_UNAVAILABLE' },
       { name: 'disk', available: true, degraded: false, reason: null },
+      { name: 'services', available: true, degraded: true, reason: 'SUDO_UNAVAILABLE' },
     ]);
   });
 
@@ -252,15 +267,86 @@ describe('ToolboxService — status()', () => {
     });
   });
 
-  it('reports NTP_NOT_CONFIGURED / DISK_NOT_CONFIGURED when drivers are unavailable', () => {
+  it('reports *_NOT_CONFIGURED when drivers are unavailable', () => {
     const ntp = new FakeNtpDriver();
     ntp.available = false;
     const disk = new FakeDiskDriver();
     disk.available = false;
-    const service = makeService({ ntp, disk, requireSudo: false });
+    const services = new FakeServicesDriver();
+    services.available = false;
+    const service = makeService({ ntp, disk, services, requireSudo: false });
     expect(service.status().features).toEqual([
       { name: 'ntp', available: false, degraded: false, reason: 'NTP_NOT_CONFIGURED' },
       { name: 'disk', available: false, degraded: false, reason: 'DISK_NOT_CONFIGURED' },
+      { name: 'services', available: false, degraded: false, reason: 'SERVICES_NOT_CONFIGURED' },
     ]);
+  });
+});
+
+describe('ToolboxService — services (Supervisor) protected-units guard', () => {
+  it('refuses ALL mutation of the panel\'s own unit (dinopanel.service)', async () => {
+    const services = new FakeServicesDriver();
+    const service = makeService({ services });
+    for (const action of ['start', 'stop', 'restart', 'enable', 'disable'] as const) {
+      const caught = (await service.serviceAction('dinopanel.service', action).catch((e) => e)) as HttpException;
+      expect(caught.getResponse()).toMatchObject({ code: 'SERVICE_PROTECTED' });
+    }
+    expect(services.action).not.toHaveBeenCalled();
+  });
+
+  it('refuses stop/disable on a critical unit but allows restart (bare name normalized)', async () => {
+    const services = new FakeServicesDriver();
+    const service = makeService({ services });
+
+    for (const action of ['stop', 'disable'] as const) {
+      const caught = (await service.serviceAction('sshd', action).catch((e) => e)) as HttpException;
+      expect(caught.getResponse()).toMatchObject({ code: 'SERVICE_PROTECTED' });
+    }
+    await expect(service.serviceAction('sshd', 'restart')).resolves.toEqual({ ok: true });
+    expect(services.action).toHaveBeenCalledWith('sshd', 'restart');
+  });
+
+  it('allows every action on an ordinary unit', async () => {
+    const services = new FakeServicesDriver();
+    const service = makeService({ services });
+    await expect(service.serviceAction('crond.service', 'restart')).resolves.toEqual({ ok: true });
+    expect(services.action).toHaveBeenCalledWith('crond.service', 'restart');
+  });
+
+  it('rejects an injection-shaped unit name before shelling out', async () => {
+    const services = new FakeServicesDriver();
+    const service = makeService({ services });
+    const caught = (await service.serviceAction('-x;reboot', 'restart').catch((e) => e)) as HttpException;
+    expect(caught.getResponse()).toMatchObject({ code: 'SERVICE_INVALID_UNIT' });
+    expect(services.action).not.toHaveBeenCalled();
+  });
+
+  it('refuses a non-.service unit type — closes the ssh.socket / multi-user.target bypass', async () => {
+    const services = new FakeServicesDriver();
+    const service = makeService({ services });
+    for (const unit of ['ssh.socket', 'dbus.socket', 'multi-user.target']) {
+      const caught = (await service.serviceAction(unit, 'stop').catch((e) => e)) as HttpException;
+      expect(caught.getResponse()).toMatchObject({ code: 'SERVICE_PROTECTED' });
+    }
+    expect(services.action).not.toHaveBeenCalled();
+  });
+
+  it('refuses an ALIAS of a protected unit by resolving its canonical Id', async () => {
+    const services = new FakeServicesDriver();
+    // systemd resolves this alias to systemd-logind.service (a CRITICAL unit).
+    services.resolveCanonicalUnit.mockResolvedValue('systemd-logind.service');
+    const service = makeService({ services });
+    const caught = (await service
+      .serviceAction('dbus-org.freedesktop.login1.service', 'stop')
+      .catch((e) => e)) as HttpException;
+    expect(caught.getResponse()).toMatchObject({ code: 'SERVICE_PROTECTED' });
+    expect(services.action).not.toHaveBeenCalled();
+  });
+
+  it('listServices 503s SERVICES_NOT_CONFIGURED on the Unavailable driver', async () => {
+    const service = makeService({ services: new UnavailableServicesDriver() });
+    const caught = (await service.listServices().catch((e) => e)) as HttpException;
+    expect(caught.getStatus()).toBe(503);
+    expect(caught.getResponse()).toMatchObject({ code: 'SERVICES_NOT_CONFIGURED' });
   });
 });
