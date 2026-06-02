@@ -1,0 +1,31 @@
+{
+  "id": "v0.6-toolbox",
+  "title": "Toolbox module — NTP/time-sync + Fail2Ban (extend in-place) + disk usage/curated cleaners (the safe, fully-smoke-testable slice of the v0.6 roadmap pin)",
+  "status": "ready",
+  "smokeStatus": "not started",
+  "createdAt": "2026-06-02",
+  "targetVersion": "v0.6.0",
+  "dependsOn": ["v0.5-databases-backups"],
+  "scopeNote": "Next roadmap chapter after databases + backups. Near-verbatim clone of the shipped firewall pattern (which-probe → driver → Unavailable*Driver 503 → spawn runCommand). Ships ONLY the safe subset: NTP, Fail2Ban (extended in firewall module, ~70% built), disk usage + curated owned-target cleaners. Stateless — no migration. Swap-write + Supervisor deferred to v0.6.1; MFA to v0.7.0; Passkey blocked on TLS.",
+  "estimatedDevDays": "17 (~3 weeks)",
+  "phases": [
+    { "id": "phase-0", "name": "Activation + shared shell/privilege contracts (lift run-command to common/shell, instanceof CommandError -> HttpException re-wrap standard + backfill firewall opaque-500 fix, TOOLBOX_REQUIRE_SUDO + sudo -n wrapper)", "estimateDays": 2, "status": "pending" },
+    { "id": "phase-1", "name": "NTP / time-sync — module skeleton end-to-end (timedatectl status/set-ntp/set-timezone + optional chronyc, UnavailableNtpDriver 503)", "estimateDays": 2.5, "status": "pending" },
+    { "id": "phase-2", "name": "Fail2Ban (extend firewall.service in place) + disk usage view + curated category cleaners (journald/dnf|apt/docker-prune/tmp-sweep)", "estimateDays": 4, "status": "pending" },
+    { "id": "phase-3", "name": "Web Toolbox UI — /toolbox/* splat route + tabs shell cloning routes/system, use-toolbox hooks, i18n (zh-TW + en)", "estimateDays": 3.5, "status": "pending" },
+    { "id": "phase-4", "name": "Hardening, guardrail tests, docs/toolbox.md + consolidated NOPASSWD sudoers contract, shared rebuild", "estimateDays": 2.5, "status": "pending" },
+    { "id": "phase-5", "name": "Release v0.6.0 (bump 0.5.0 -> 0.6.0, no migration) + Rocky 234 smoke S1-S5", "estimateDays": 2.5, "status": "pending" }
+  ],
+  "directionDecisions": {
+    "D1_scope": "Toolbox slice only — NTP + Fail2Ban(extend in-place) + disk-usage + curated cleaners. Swap-write -> v0.6.1, Supervisor -> v0.6.1, MFA -> v0.7.0, Passkey -> TLS-gated (recommended default; operator-confirmable)",
+    "D2_diskCleanupScope": "curated owned-target categories only (journald vacuum / dnf|apt cache / docker prune / tmp sweep); NO arbitrary-path+age deleter",
+    "D3_fail2ban": "extend in place under firewall module; Toolbox tab is a view onto firewall.service (no route migration)",
+    "D4_privilege": "single TOOLBOX_REQUIRE_SUDO env + one consolidated NOPASSWD Cmnd_Alias (timedatectl, fail2ban-client, journalctl --vacuum, dnf|apt clean) + sudo -n wrapper + non-throwing boot probe",
+    "D5_persistence": "stateless for v0.6.0 — no drizzle migration, no scheduler task type",
+    "D6_uiPlacement": "new top-level /toolbox/* splat route + sidebar entry (Wrench)",
+    "D7_mfaEscapeHatch": "when MFA lands in v0.7.0, ship+test scripts/disable-mfa CLI escape hatch BEFORE the MFA endpoints (recorded now)",
+    "D_bug_firewall500": "verified: FirewallCommandError extends Error (not HttpException) so ApiExceptionFilter drops it to a generic 500; fix is the service-layer instanceof CommandError -> HttpException({code}) re-wrap, NOT the run-command internals (which already map errno). Right-sizes Phase 0 to 2 days."
+  },
+  "supersededDrafts": [],
+  "previousChange": "v0.5-databases-backups"
+}
