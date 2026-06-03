@@ -36,4 +36,4 @@ verification block. Release cut at Phase 4. No migration (stateless).
 - [x] Bump 0.6.0 → 0.6.1 (4 package.json); README + README_zh-TW v0.6.1 row
 - [x] Extend `scripts/smoke-toolbox-234.sh` with **S6** (services list + live `SERVICE_PROTECTED` refusal of `dinopanel`/`sshd` stop + `ssh.socket` — all non-destructive)
 - [x] Release commit `release(v0.6.1): supervisor + disk de-noise`
-- [ ] **(operator step)** Deploy Rocky 234 + smoke (`scripts/smoke-toolbox-234.sh`); record smoke-pass.md; meta `status: completed` + index row
+- [x] Deploy Rocky 234 (operator) + smoke (`scripts/smoke-toolbox-234.sh`): **S1-S3 + S6 PASSED** (S6 verified the protected guard live: dinopanel/sshd/ssh.socket → SERVICE_PROTECTED; disk fstype de-noise confirmed live — 15/27 overlay default-hidden). smoke-pass.md written; meta `status: completed`; index + README rows updated. (panel runs as root → systemctl works without the sudoers lines on this box.)
