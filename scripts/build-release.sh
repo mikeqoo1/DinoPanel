@@ -128,8 +128,30 @@ if [ ${#PREBUILD_ARCHS[@]} -gt 0 ]; then
     mkdir -p "$DEST_DIR"
     cp "$PTY_NODE" "${DEST_DIR}/pty.node"
     [ -f "$SPAWN_HELPER" ] && cp "$SPAWN_HELPER" "${DEST_DIR}/spawn-helper" || true
+    # install.sh 只在版本相符時才使用預編譯檔（見該檔的原生模組預檢段）
+    node -p "require(require('path').resolve('${NODE_PTY_DIR}','package.json')).version" > "${DEST_DIR}/pty.version"
 
     echo "    ✓ linux-${target_arch}/pty.node → $(du -sh "${DEST_DIR}/pty.node" | cut -f1)"
+
+    # ── better-sqlite3 ────────────────────────────────────────────────────────
+    # 一併收 better-sqlite3 的 .node。npm >= 12 預設不執行 install script，所以
+    # 目標機的 npm install 不會編譯它；有了這份預編譯檔，install.sh 的預檢可以
+    # 純離線修復（否則要靠 prebuild-install 連 GitHub）。
+    echo "==> 收集 better-sqlite3 prebuild for linux-${target_arch}"
+    BSQ_DIR="$(find node_modules/.pnpm -maxdepth 3 -name "better-sqlite3" -type d 2>/dev/null | grep "node_modules/better-sqlite3$" | head -1)"
+    BSQ_NODE="${BSQ_DIR:-}/build/Release/better_sqlite3.node"
+
+    if [ -n "$BSQ_DIR" ] && [ -f "$BSQ_NODE" ]; then
+      BSQ_DEST="${STAGE}/server/node_modules/better-sqlite3/prebuilds/linux-${target_arch}"
+      mkdir -p "$BSQ_DEST"
+      cp "$BSQ_NODE" "${BSQ_DEST}/better_sqlite3.node"
+      node -p "require(require('path').resolve('${BSQ_DIR}','package.json')).version" > "${BSQ_DEST}/better_sqlite3.version"
+      echo "    ✓ linux-${target_arch}/better_sqlite3.node ($(cat "${BSQ_DEST}/better_sqlite3.version")) → $(du -sh "${BSQ_DEST}/better_sqlite3.node" | cut -f1)"
+    else
+      # 非致命：install.sh 會退回 prebuild-install（需網路），失敗時大聲中止。
+      echo "    [WARNING] 找不到已編譯的 better_sqlite3.node，未收進 tarball"
+      echo "    [WARNING] 目標機將需要網路（prebuild-install）或編譯工具鏈"
+    fi
   done
 
   # 確保 node_modules/node-pty 其餘 JS 檔案也一起進 tarball

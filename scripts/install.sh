@@ -254,7 +254,126 @@ info "Installing shared package runtime dependencies"
 ( cd "$INSTALL_DIR/shared" && npm install --omit=dev --no-package-lock --silent ) || err "shared npm install failed"
 
 info "Installing server runtime dependencies"
-( cd "$INSTALL_DIR/server" && npm install --omit=dev --no-package-lock --silent ) || err "npm install failed"
+# 原生套件宣告為 range（better-sqlite3 ^12.0.0 / node-pty ^1.0.0），而這裡用
+# --no-package-lock，所以 npm 會在安裝當下解析到最新的相容版本 — 可能不是這份
+# tarball 建置與測試時的版本，也就與隨附的預編譯 .node 不符。若 tarball 帶了
+# prebuilds 的 .version，就把這兩個套件釘到相同版本：預編譯檔直接可用（免網路、
+# 免編譯），且生產跑的是實際測過的版本。缺 .version（未帶 prebuild 的 tarball）
+# 時 NATIVE_PINS 為空，行為與過去完全相同。
+NATIVE_PINS=""
+for _spec in "better-sqlite3:better_sqlite3" "node-pty:pty"; do
+  _p="${_spec%%:*}"
+  _b="${_spec##*:}"
+  _vf="$SRC/server/node_modules/${_p}/prebuilds/linux-${ARCH_NORM}/${_b}.version"
+  if [ -f "$_vf" ]; then
+    NATIVE_PINS="$NATIVE_PINS ${_p}@$(cat "$_vf")"
+  fi
+done
+[ -n "$NATIVE_PINS" ] && info "釘住原生套件版本以配合隨附預編譯檔：${NATIVE_PINS# }"
+# shellcheck disable=SC2086 # NATIVE_PINS 需要 word-splitting 成多個套件參數
+( cd "$INSTALL_DIR/server" && npm install --omit=dev --no-package-lock --no-save --silent $NATIVE_PINS ) \
+  || err "npm install failed"
+
+# ── 原生模組預檢與修復 ────────────────────────────────────────────────────────
+# npm >= 12 預設不執行套件的 install script（除非列入 allowScripts），所以上面
+# 的 npm install 會「成功」但 better-sqlite3 / node-pty 完全沒編譯。沒有這一段
+# 的話，失敗會延後到下面的 migration 步驟才以看不懂的
+# `Could not locate the bindings file` 爆出來，而且服務已經被停掉 —
+# 2026-08-04 v0.6.2 部署 Rocky 234 就是這樣停擺的。
+#
+# 修復來源是 $SRC（解開後的 tarball），npm 不會動它。只有在預編譯檔的版本與
+# 實際安裝的版本相符時才敢複製 — install.sh 用 --no-package-lock，npm 會解析
+# 到最新的 semver 相容版本，硬塞不同版本的 .node 可能載入後才在呼叫時炸掉。
+#
+# ponytail: 不自動跑 node-gyp 編譯 — 走到那一步表示 tarball 預編譯檔與
+# prebuild-install 都失敗了，那需要人看一眼；這裡改為印出兩條修復指令。
+# better-sqlite3 的 binding 是延遲載入的：require() 會過，只有真的 new Database()
+# 時才會拋 `Could not locate the bindings file` — v0.6.2 部署就是這樣讓 install.sh
+# 一路走到 migration 才爆掉。所以這裡必須實際建一個 :memory: 連線才算驗過。
+# node-pty 相反，require() 就會立刻載入 .node，一般檢查即可。
+native_ok() {
+  case "$1" in
+    better-sqlite3)
+      ( cd "$INSTALL_DIR/server" \
+          && node -e "new (require('better-sqlite3'))(':memory:').close()" >/dev/null 2>&1 ) ;;
+    *)
+      ( cd "$INSTALL_DIR/server" && node -e "require('$1')" >/dev/null 2>&1 ) ;;
+  esac
+}
+
+installed_pkg_version() {
+  node -e "try{process.stdout.write(require('$INSTALL_DIR/server/node_modules/$1/package.json').version)}catch(e){}" 2>/dev/null
+}
+
+repair_from_tarball() {
+  local pkg="$1" bin="$2"
+  local src_dir="$SRC/server/node_modules/$pkg/prebuilds/linux-${ARCH_NORM}"
+  [ -f "$src_dir/$bin" ] || return 1
+  local vfile="$src_dir/${bin%.node}.version"
+  if [ -f "$vfile" ]; then
+    local shipped want
+    shipped="$(cat "$vfile")"
+    want="$(installed_pkg_version "$pkg")"
+    if [ -n "$want" ] && [ "$shipped" != "$want" ]; then
+      info "$pkg：tarball 預編譯檔為 $shipped，實際安裝 $want — 版本不符，不使用"
+      return 1
+    fi
+  fi
+  mkdir -p "$INSTALL_DIR/server/node_modules/$pkg/build/Release"
+  cp -f "$src_dir/$bin" "$INSTALL_DIR/server/node_modules/$pkg/build/Release/$bin" || return 1
+  if [ -f "$src_dir/spawn-helper" ]; then
+    cp -f "$src_dir/spawn-helper" "$INSTALL_DIR/server/node_modules/$pkg/build/Release/spawn-helper" || true
+  fi
+  return 0
+}
+
+repair_with_prebuild_install() {
+  local pkg="$1"
+  local bindir="$INSTALL_DIR/server/node_modules/.bin"
+  [ -x "$bindir/prebuild-install" ] || return 1
+  ( cd "$INSTALL_DIR/server/node_modules/$pkg" \
+      && PATH="$bindir:$PATH" prebuild-install >/dev/null 2>&1 ) || return 1
+  return 0
+}
+
+info "Verifying native modules (better-sqlite3 / node-pty)"
+for _spec in "better-sqlite3:better_sqlite3.node" "node-pty:pty.node"; do
+  _pkg="${_spec%%:*}"
+  _bin="${_spec##*:}"
+
+  if native_ok "$_pkg"; then
+    ok "$_pkg 原生模組可載入"
+    continue
+  fi
+
+  info "$_pkg 原生模組缺失或不可載入 — 嘗試修復（npm >= 12 預設不執行 install script）"
+
+  if repair_from_tarball "$_pkg" "$_bin" && native_ok "$_pkg"; then
+    ok "$_pkg 已由 tarball 預編譯檔修復"
+    continue
+  fi
+
+  if repair_with_prebuild_install "$_pkg" && native_ok "$_pkg"; then
+    ok "$_pkg 已由 prebuild-install 取得官方預編譯檔"
+    continue
+  fi
+
+  err "$_pkg 原生模組無法載入，安裝在 migration 與 systemctl restart 之前中止。
+（$INSTALL_DIR 的檔案已被替換，但服務尚未重啟 — 既有的執行中實例仍以舊程式服務，
+  不會像沒有這道預檢時那樣被留在停止狀態。）
+
+npm >= 12 預設封鎖套件 install script，因此 better-sqlite3 / node-pty 不會自動編譯。
+請在 $INSTALL_DIR/server 手動修復其中一種：
+
+  # 取官方預編譯檔（需連得到 GitHub）
+  cd $INSTALL_DIR/server/node_modules/$_pkg
+  PATH=$INSTALL_DIR/server/node_modules/.bin:\$PATH prebuild-install
+
+  # 或從原始碼編譯（需 gcc / g++ / make / python3）
+  cd $INSTALL_DIR/server/node_modules/$_pkg && npx node-gyp rebuild --release
+
+完成後以 'cd $INSTALL_DIR/server && node -e \"require(\\\"$_pkg\\\")\"' 驗證，再重跑 install.sh。"
+done
 
 info "Running database migrations"
 ( cd "$INSTALL_DIR/server" \

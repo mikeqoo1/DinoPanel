@@ -25,7 +25,8 @@ DinoPanel 需要以 root 身份執行，原因與其管理的功能直接相關�
 
 ## 依賴需求（Native Module）
 
-DinoPanel 使用 **node-pty**（C++ native module）提供 Web SSH 終端機功能。
+DinoPanel 有兩個 C++ native module：**better-sqlite3**（資料庫，開機必需）與
+**node-pty**（Web SSH 終端機）。
 
 ### 標準 tarball（不含 prebuild）
 
@@ -41,9 +42,62 @@ target 機器需要安裝編譯工具鏈，否則 `npm install` 時 node-pty 會
 
 ### Prebuild tarball（免編譯）
 
-若使用含有 `-prebuild-x64` 或 `-prebuild-arm64` 後綴的 tarball，node-pty 的
-precompiled binary 已打包進去。`install.sh` 偵測到 `prebuilds/linux-<arch>/pty.node`
-後會**跳過編譯工具鏈預檢**，target 機器不需要 build-essential / python3。
+若使用含有 `-prebuild-x64` 或 `-prebuild-arm64` 後綴的 tarball，node-pty 與
+better-sqlite3 的 precompiled binary 都已打包進去。`install.sh` 偵測到
+`prebuilds/linux-<arch>/pty.node` 後會**跳過編譯工具鏈預檢**，target 機器不需要
+build-essential / python3。
+
+### ⚠️ npm ≥ 12：install script 預設被封鎖
+
+**npm 12 起預設不執行套件的 install script**（除非列入 `allowScripts`）。這對
+DinoPanel 的影響是致命且沉默的：`npm install` **回報成功**，但 better-sqlite3 與
+node-pty 完全沒有被編譯。徵狀是安裝走到後面的 migration 步驟才拋出
+
+```
+Error: Could not locate the bindings file. Tried: … better_sqlite3.node
+```
+
+（2026-08-04 部署 v0.6.2 到 Rocky 234 時就是這樣，服務被留在停止狀態。當時 npm 為
+12.0.1；同一台機器在 2026-06-03 裝 v0.6.1 還是好的 — 是 npm 換了預設行為。）
+
+`install.sh` 現在對此有防護，依序執行：
+
+1. **釘住原生套件版本**：若 tarball 帶了 prebuilds，讀取其中的 `.version` 檔，把
+   `better-sqlite3` 與 `node-pty` 釘到與預編譯檔完全相同的版本再 `npm install`。
+   （這兩個套件宣告為 range，而 `install.sh` 用 `--no-package-lock`，否則 npm 會在
+   安裝當下解析到更新的版本，與隨附的 `.node` 不符。釘住的附帶好處是生產跑的就是
+   建置與測試時的版本。）
+2. **預檢**：實際 `new Database(':memory:')` 與 `require('node-pty')` 驗證兩個
+   binding 真的可用。**注意 better-sqlite3 的 binding 是延遲載入的** — 光
+   `require()` 會過，只有真的建連線才會炸，所以預檢必須實際建一個連線。
+3. **修復**：偵測到壞掉時，先從**解開後的 tarball**（`npm install` 不會動它）複製
+   隨附的預編譯 `.node`（版本相符才用），失敗才退回 `prebuild-install`（需連
+   GitHub）。
+4. **大聲失敗**：兩條都不行時，在 migration 與 `systemctl restart` **之前**中止，
+   並印出手動修復指令 — 不會像沒有預檢時那樣把服務留在停止狀態。
+
+因此帶 prebuild 的 tarball 現在可以**完全離線**安裝（不需網路、不需編譯工具鏈）。
+若使用不含 prebuild 的 tarball 且 npm ≥ 12，則會走到步驟 3 的 `prebuild-install`
+（需網路）或步驟 4 的手動修復。
+
+手動修復（在 `/usr/local/dinopanel/server` 下，`<pkg>` 為 `better-sqlite3` 或
+`node-pty`）：
+
+```bash
+# 取官方預編譯檔（需連得到 GitHub）
+cd /usr/local/dinopanel/server/node_modules/<pkg>
+PATH=/usr/local/dinopanel/server/node_modules/.bin:$PATH prebuild-install
+
+# 或從原始碼編譯（需 gcc / g++ / make / python3）
+cd /usr/local/dinopanel/server/node_modules/<pkg> && npx node-gyp rebuild --release
+
+# 驗證（better-sqlite3 要實際建連線才算驗過）
+cd /usr/local/dinopanel/server
+node -e "new (require('better-sqlite3'))(':memory:').close(); require('node-pty')" && echo OK
+```
+
+不建議用 `npm install-scripts approve` — 那會對整批套件開放腳本執行權限，範圍遠大
+於實際需要。
 
 ## Prebuild 使用方式
 

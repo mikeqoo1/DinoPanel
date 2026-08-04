@@ -1,0 +1,7 @@
+{
+  "id": "v0.6.3-deploy-native-bindings",
+  "title": "Deploy hardening — native-binding preflight + ship better-sqlite3 prebuild (npm 12 blocks install scripts)",
+  "status": "completed",
+  "createdAt": "2026-08-04T06:53:11.423Z",
+  "updatedAt": "2026-08-04T07:12:51.596Z"
+}
