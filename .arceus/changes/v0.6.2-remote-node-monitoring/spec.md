@@ -24,7 +24,7 @@
 ### F3 — 遠端容器狀態
 - `GET /api/nodes/:id/containers` → `{ dockerAvailable: boolean, containers: RemoteContainer[] }`。
 - 實作：`sshExec(node, DOCKER_PS_CMD)`（`export LC_ALL=C; docker ps -a --format '{{json .}}'`），逐行 JSON parse，映射 `{ ID→id, Names→name, Image→image, State→state, Status→status }`；`state` 以既有 `ContainerState` enum（`packages/shared/src/schemas/containers.ts`）驗證，未知值 fallback `dead` 不丟例外；單筆壞 JSON 行丟棄 + warn log，其餘照常回傳（單一容器的怪輸出不弄瞎整個清單）。
-- 遠端 `docker` 不存在（exit 127 或 stderr 含 `command not found`）→ **200** `{ dockerAvailable: false, containers: [] }` — docker 缺席是節點的預期狀態不是錯誤，UI 渲染「未安裝 Docker」。
+- 遠端 `docker` 不存在（exit 127，或非零 exit 且 stderr 出現針對 docker 的 not-found）→ **200** `{ dockerAvailable: false, containers: [] }` — docker 缺席是節點的預期狀態不是錯誤，UI 渲染「未安裝 Docker」。判定**絕不**在 exit 0 成立：非互動 ssh 會 source 遠端 `~/.bashrc`，無關的 `foo: command not found` 雜訊曾能讓正在跑容器的節點被誤報為未安裝（D9）。此判定為單一來源（`ssh.ts` 的 `isDockerAbsent`），同時供 200 回應與 log 抑制使用，兩處不得漂移。
 - metrics 與 docker ps 刻意為兩次獨立 ssh 呼叫：沒裝 docker 不弄髒主機指標。
 
 ### F4 — 錯誤分類（重用 CommandError 管線 + stderr 樣式細分）

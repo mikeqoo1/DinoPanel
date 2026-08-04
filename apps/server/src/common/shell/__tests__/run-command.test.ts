@@ -80,7 +80,7 @@ describe('commandErrorToHttp', () => {
 
 describe('runCommand — maxOutputBytes cap (FIX-3)', () => {
   it('rejects with COMMAND_FAILED when combined output exceeds maxOutputBytes', async () => {
-    // Write 2 KB total; cap at 1 KB — must be killed and rejected before completion.
+    // Write 5 KB total (512 * 10); cap at 1 KB — must be killed and rejected before completion.
     const result = runCommand(
       process.execPath,
       ['-e', `const c='x'.repeat(512); for(let i=0;i<10;i++) process.stdout.write(c);`],

@@ -3,6 +3,7 @@ import { HttpException } from '@nestjs/common';
 import {
   buildSshArgs,
   classifySshFailure,
+  isDockerAbsent,
   sshExec,
   METRICS_CMD,
   DOCKER_PS_CMD,
@@ -207,5 +208,60 @@ describe('sshExec', () => {
     });
     const result = await sshExec(FAKE_NODE, 'docker ps', noopLogger);
     expect(result.exitCode).toBe(127);
+  });
+
+  // FOLLOWUP-1: stderr truncation before logging
+  it('truncates large stderr to ≤2048 chars in nodes.ssh_failure warn (FOLLOWUP-1)', async () => {
+    const bigStderr = 'x'.repeat(8192);
+    mockRunCommand.mockResolvedValue({ exitCode: 255, stdout: '', stderr: bigStderr });
+    await sshExec(FAKE_NODE, 'true', noopLogger).catch(() => {});
+    const loggedObj = noopLogger.warn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(typeof loggedObj['stderr']).toBe('string');
+    expect((loggedObj['stderr'] as string).length).toBeLessThanOrEqual(2048);
+  });
+
+  it('truncates large stderr to ≤2048 chars in nodes.ssh_command_error warn (FOLLOWUP-1)', async () => {
+    const bigStderr = 'y'.repeat(8192);
+    mockRunCommand.mockResolvedValue({ exitCode: 1, stdout: '', stderr: bigStderr });
+    await sshExec(FAKE_NODE, 'true', noopLogger);
+    const loggedObj = noopLogger.warn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(typeof loggedObj['stderr']).toBe('string');
+    expect((loggedObj['stderr'] as string).length).toBeLessThanOrEqual(2048);
+  });
+
+  it('does not warn for exit 1 + docker-specific not-found (isDockerAbsent, FOLLOWUP-2)', async () => {
+    mockRunCommand.mockResolvedValue({
+      exitCode: 1,
+      stdout: '',
+      stderr: 'bash: docker: command not found',
+    });
+    await sshExec(FAKE_NODE, 'docker ps', noopLogger);
+    expect(noopLogger.warn).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isDockerAbsent — predicate unit tests (FOLLOWUP-2)
+// ---------------------------------------------------------------------------
+
+describe('isDockerAbsent', () => {
+  it('returns true for exit 127 regardless of stderr', () => {
+    expect(isDockerAbsent({ exitCode: 127, stdout: '', stderr: '' })).toBe(true);
+  });
+
+  it('returns true for non-zero exit + "docker: command not found"', () => {
+    expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: 'bash: docker: command not found' })).toBe(true);
+  });
+
+  it('returns true for non-zero exit + "docker: not found"', () => {
+    expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: 'docker: not found' })).toBe(true);
+  });
+
+  it('returns false for exit 0 even with "command not found" in stderr', () => {
+    expect(isDockerAbsent({ exitCode: 0, stdout: '', stderr: 'foo: command not found' })).toBe(false);
+  });
+
+  it('returns false for non-zero exit + unrelated stderr', () => {
+    expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: '/usr/bin/env: command not found' })).toBe(false);
   });
 });

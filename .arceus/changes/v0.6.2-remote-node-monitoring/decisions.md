@@ -73,3 +73,12 @@ Review 判 REQUEST_CHANGES，1 個存活 block finding 加數項 advisory。已�
 其餘已修的 advisory（不改變決策）：docker-absent 判定收斂為 exit 127／針對 docker 的 not-found（遠端 `~/.bashrc` 雜訊曾能讓活著的 docker 被誤報成未安裝）、df exit 1 容忍（單一壞 mount 不該讓整個節點顯示故障）、exit 127 不再刷 warn log、web 失效範圍收斂到 `nodeKeys.list()`、磁碟不再只顯示前三筆、docs 更正 HOSTKEY_CHANGED 訊息描述並補最小權限替代方案。
 
 **刻意不修**：`add()`/`remove()` 的 read-modify-write 競態（單一管理者面板，機率極低）— 留 `// ponytail:` 註記天花板與升級路徑（per-key lock），不建 mutex。
+
+### D9 續 — round 2 review（APPROVE，零 block）的 log 收斂
+
+Round 2 指出 D9-3 的威脅模型只補了一半：`maxOutputBytes` 保住 heap，但 `sshExec` 把遠端可控 stderr 全文寫進 log，10 秒輪詢下惡意節點可日灌數十 GB — log disk 成為同一份不可信輸入的無界水槽。已修：
+
+- stderr 進 logger 前截斷至 2 KB（每個記錄點皆同）。
+- docker-absent 判定收斂為單一來源 `isDockerAbsent()`（`ssh.ts` 匯出），同時供 200 回應與 warn 抑制 — 原本 warn 抑制只認 exit 127，漏掉第二個觸發條件，FIX-6 想消掉的噪音在該路徑仍在。
+- `parseDockerPsJson` 的壞行只記第一筆（片段截斷）＋剩餘數量彙總，避免 exit 0 灌入 MB 級非 JSON 時每行一次 pino 序列化。
+- spec F3 文字同步為實際判定規則。

@@ -255,6 +255,30 @@ describe('NodesService.getContainers', () => {
     expect(result.containers).toHaveLength(1);
     expect(result.containers[0]?.state).toBe('running');
   });
+
+  it('logs first bad line truncated + one aggregate warn for remaining bad lines (FOLLOWUP-3)', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    // 3 bad lines: first is a 500-char garbage string (should be truncated to 200),
+    // the other two trigger only an aggregate count warn.
+    const bigBadLine = 'B'.repeat(500);
+    mockSshExec.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: `${bigBadLine}\nnot-json-2\nnot-json-3`,
+      stderr: '',
+    });
+    vi.clearAllMocks();
+    await svc.getContainers(list[0]!.id);
+    // First warn: first bad line, truncated
+    const firstCall = noopLogger.warn.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(typeof firstCall['line']).toBe('string');
+    expect((firstCall['line'] as string).length).toBeLessThanOrEqual(200);
+    // Second warn: aggregate count of remaining bad lines (2)
+    const secondCall = noopLogger.warn.mock.calls[1]?.[0] as Record<string, unknown>;
+    expect(secondCall['count']).toBe(2);
+    // Exactly 2 warn calls total (not one per bad line)
+    expect(noopLogger.warn).toHaveBeenCalledTimes(2);
+  });
 });
 
 // ---------------------------------------------------------------------------

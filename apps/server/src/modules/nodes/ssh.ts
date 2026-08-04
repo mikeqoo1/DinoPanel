@@ -81,6 +81,25 @@ export function classifySshFailure(
 }
 
 // ---------------------------------------------------------------------------
+// isDockerAbsent — single source of truth for the docker-not-installed state
+// ---------------------------------------------------------------------------
+
+/** Returns true when the SSH result indicates docker is not installed on the
+ *  remote host (exit 127, OR non-zero exit with docker-specific not-found).
+ *  Used in getContainers for the 200 {dockerAvailable:false} response AND in
+ *  sshExec's warn-skip so the two never drift apart. */
+export function isDockerAbsent(result: CommandResult): boolean {
+  return (
+    result.exitCode === 127 ||
+    (result.exitCode !== 0 && /docker: (command )?not found/i.test(result.stderr))
+  );
+}
+
+// Max stderr bytes written to the log per warn call. The monitored node controls
+// this string; unbounded logging is the same OOM vector as unbounded heap growth.
+const STDERR_LOG_CAP = 2048;
+
+// ---------------------------------------------------------------------------
 // sshExec — throws for TOOL_MISSING / null (timeout) / 255; returns result otherwise
 // ---------------------------------------------------------------------------
 
@@ -104,21 +123,22 @@ export async function sshExec(
   }
 
   if (result.exitCode === null || result.exitCode === 255) {
-    // raw stderr to server log only
+    // Truncate stderr before logging — the monitored node controls this string and
+    // could push megabytes per poll into the panel log (same threat as heap OOM).
     logger.warn(
-      { exitCode: result.exitCode, host: node.host, stderr: result.stderr },
+      { exitCode: result.exitCode, host: node.host, stderr: result.stderr.slice(0, STDERR_LOG_CAP) },
       'nodes.ssh_failure',
     );
     const classified = classifySshFailure(result.exitCode, result.stderr);
     throw new HttpException({ code: classified.code, message: classified.message }, classified.status);
   }
 
-  // exitCode 127 = docker not installed — expected node state (FIX-6: skip warn
-  // to avoid ~2880 log lines/day/tab when containers tab is open on a node
-  // without docker).
-  if (result.exitCode !== 0 && result.exitCode !== 127 && result.stderr) {
+  // Skip warn for docker-absent (isDockerAbsent covers exit 127 and docker-specific
+  // not-found) — both are expected node states, not errors. Logging them would
+  // produce ~2880+ lines/day/tab on a node without docker.
+  if (result.exitCode !== 0 && !isDockerAbsent(result) && result.stderr) {
     logger.warn(
-      { exitCode: result.exitCode, host: node.host, stderr: result.stderr },
+      { exitCode: result.exitCode, host: node.host, stderr: result.stderr.slice(0, STDERR_LOG_CAP) },
       'nodes.ssh_command_error',
     );
   }

@@ -11,7 +11,7 @@ import {
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
-import { DOCKER_PS_CMD, METRICS_CMD, sshExec } from './ssh';
+import { DOCKER_PS_CMD, METRICS_CMD, isDockerAbsent, sshExec } from './ssh';
 import { parseDockerPsJson, parseMetricsOutput } from './remote-parsers';
 
 // ponytail: no Unavailable-driver layer — ssh availability is per-request/per-node,
@@ -147,10 +147,8 @@ export class NodesService {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
     const result = await sshExec(node, DOCKER_PS_CMD, this.logger);
-    // docker absent: exit 127, OR non-zero exit with docker-specific not-found in stderr.
-    // Never trigger on exit 0 — unrelated ~/.bashrc noise like "foo: command not found"
-    // on a SUCCESSFUL docker ps must not mask real container data.
-    if (result.exitCode === 127 || (result.exitCode !== 0 && /docker: (command )?not found/i.test(result.stderr))) {
+    // Single source of truth for docker-absent — same predicate as sshExec's warn-skip.
+    if (isDockerAbsent(result)) {
       return { dockerAvailable: false, containers: [] };
     }
     if (result.exitCode !== 0) {
@@ -163,9 +161,25 @@ export class NodesService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-    const containers = parseDockerPsJson(result.stdout, (line, err) =>
-      this.logger.warn({ line, err }, 'nodes.docker_ps_parse_error'),
-    );
+    // Log the first bad line only (truncated), then one aggregate count for the rest.
+    // A hostile node returning megabytes of non-JSON stdout could otherwise trigger
+    // tens of thousands of pino serializations per poll + a log flood.
+    let badLineCount = 0;
+    const containers = parseDockerPsJson(result.stdout, (line, err) => {
+      if (badLineCount === 0) {
+        this.logger.warn(
+          { line: line.slice(0, 200), err },
+          'nodes.docker_ps_parse_error',
+        );
+      }
+      badLineCount++;
+    });
+    if (badLineCount > 1) {
+      this.logger.warn(
+        { count: badLineCount - 1 },
+        'nodes.docker_ps_parse_error_aggregate',
+      );
+    }
     return { dockerAvailable: true, containers };
   }
 }
