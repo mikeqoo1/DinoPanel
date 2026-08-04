@@ -39,4 +39,4 @@
 - [x] T-18 新增 `scripts/smoke-nodes-234.sh`（慣例同 `smoke-toolbox-234.sh`/`smoke-backups-234.sh`）：S1 註冊 235 + test ok、S2 metrics 形狀（jq 驗 `cpu.usage`/`mem.total`/`uptimeSec`）、S3 containers 形狀（state ∈ enum）、S4 註冊 192.0.2.1 打 metrics 驗 502 `NODES_UNREACHABLE`、結束清理測試節點（全程唯讀、非破壞性）。
 - [x] T-19 版本收尾：bump 4 個 package.json（root/`apps/server`/`apps/web`/`packages/shared`，0.6.1 → 0.6.2）；README 與 README_zh-TW 版本表補 v0.6.2 列。
 - [x] T-20 全量驗證：`pnpm typecheck && pnpm lint && pnpm test && pnpm build` 全綠（AC13）；確認 `apps/server/package.json`（除 version 外）與 `apps/server/drizzle/` 無 diff（AC8）。
-- [~] T-21 Release + 實機 smoke（Rocky 234）— release commit 已切、tarball 已送達 234、235 活體前置驗證已做（見 deploy-handoff.md）；**安裝 + ssh-copy-id + smoke 待維運**（需 root@234）：release commit `release(v0.6.2): remote node read-only monitoring`；部署後跑 `scripts/smoke-nodes-234.sh` 全過 + 手動驗證失效金鑰→auth-failed pill（AC14）；smoke 結果與 meta `status: completed` 記入 change folder。
+- [x] T-21 Release + 實機 smoke（Rocky 234）— release `753d416`；部署 234 成功（途中踩到 npm 12 封鎖 install scripts，根因與修復見 deploy-handoff.md）；root@234 → 235 金鑰已佈並驗證免密；smoke S1-S4 全過 + 手動驗 auth-failed / AC3 注入 / AC10 stderr 不外洩。見 smoke-pass.md

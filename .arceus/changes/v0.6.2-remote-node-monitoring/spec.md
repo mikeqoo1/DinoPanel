@@ -57,20 +57,20 @@
 
 ## 驗收條件 (AC)
 
-- [ ] AC1：`GET /api/nodes` 未登入回 401；登入後回傳陣列且通過 `remoteNodeSchema` 驗證。
-- [ ] AC2：`POST /api/nodes` 以 `{name:'rocky-235', host:'192.168.199.235', user:'root'}` 成功建立且 port 預設 22；同 `host:port` 再 POST 一次回 409 `NODES_DUPLICATE`；重啟 server 後 `GET /api/nodes` 仍包含該節點（KV 持久化）。
-- [ ] AC3：`POST /api/nodes` 以 `host: "-oProxyCommand=touch /tmp/pwn"` 或 `user: "a;b"` 皆回 400（zod 拒絕），且無任何命令被執行。
-- [ ] AC4：對可達節點 `POST /api/nodes/:id/test` 回 `{ok:true, latencyMs>0}`；對不可達假 IP（192.0.2.1）回 502 且 `code === 'NODES_UNREACHABLE'`，在 ConnectTimeout(5s)+緩衝內回應不掛死。
-- [ ] AC5：`GET /api/nodes/:id/metrics` 回傳通過 `remoteNodeMetricsSchema`：`cpu.usage` 介於 0–100、`mem.used <= mem.total`、`disks` 至少含 mount `/` 且每筆 `fstype` 非空、`uptimeSec > 0`。
-- [ ] AC6：`GET /api/nodes/:id/containers` 每筆 `state` 皆屬 `ContainerState` enum；遠端無 docker 時回 200 `{dockerAvailable:false, containers:[]}`（mock exit 127 測試）。
-- [ ] AC7：`grep -rE 'docker (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/` 零命中（唯讀保證，遠端命令全為唯讀常數）。
-- [ ] AC8：不新增任何 npm 依賴（`apps/server/package.json` 除 version bump 外 diff 為空）、不新增任何 drizzle migration（`apps/server/drizzle/` diff 為空）。
-- [ ] AC9：錯誤分類單元測試全過：mock exit 255 + `Connection refused`→`NODES_UNREACHABLE`；+ `Permission denied (publickey)`→`NODES_AUTH_FAILED`；+ `REMOTE HOST IDENTIFICATION HAS CHANGED`→`NODES_HOSTKEY_CHANGED`（message 含 known_hosts 提示）；mock `exitCode === null`→`NODES_TIMEOUT`。
-- [ ] AC10：stderr 不外洩斷言：所有錯誤回應 body 內不含 mock stderr 內容（測試明確斷言），raw stderr 僅出現在 server log。
-- [ ] AC11：parser 單元測試涵蓋 `/proc/stat` 差分、`/proc/meminfo`、`df -PTB1`（含 fstype 欄、多磁碟、swap=0 fixture）、docker ps JSON 行解析（未知 state fallback、壞行跳過+其餘保留）；`buildSshArgs` golden 測試（選項順序、port、`--` 位置、`LC_ALL=C` 前綴）。
-- [ ] AC12：web `/nodes` 頁經 sidebar 可達；metrics query `refetchInterval: 10_000`、containers query `refetchInterval: 30_000`，皆 `retry: false`（程式碼可查）；`i18n-parity.test.ts` 通過。
-- [ ] AC13：`pnpm typecheck && pnpm lint && pnpm test && pnpm build` 全綠（既有 464 測試零回歸，總數 > 464）。
-- [ ] AC14（實機 smoke）：Rocky 234 部署後 `scripts/smoke-nodes-234.sh` 對 235 全過（S1 註冊+test、S2 metrics 形狀 jq 驗證、S3 containers 形狀、S4 假 IP 錯誤形狀、結束清理測試節點）；手動驗證暫時失效金鑰後 UI 顯示 auth-failed pill 而非崩潰。
+- [x] AC1：`GET /api/nodes` 未登入回 401；登入後回傳陣列且通過 `remoteNodeSchema` 驗證。
+- [x] AC2（部分實機）：`POST /api/nodes` 以 `{name:'rocky-235', host:'192.168.199.235', user:'root'}` 成功建立且 port 預設 22；同 `host:port` 再 POST 一次回 409 `NODES_DUPLICATE` — 兩者實機過。**「重啟 server 後仍存在」未實機驗證**（不願為此再中斷一次生產服務）；KV 持久化機制與 PMM credentials 相同且有單元測試覆蓋。
+- [x] AC3：`POST /api/nodes` 以 `host: "-oProxyCommand=touch /tmp/pwn"` 或 `user: "a;b"` 皆回 400（zod 拒絕），且無任何命令被執行。
+- [x] AC4：對可達節點 `POST /api/nodes/:id/test` 回 `{ok:true, latencyMs>0}`；對不可達假 IP（192.0.2.1）回 502 且 `code === 'NODES_UNREACHABLE'`，在 ConnectTimeout(5s)+緩衝內回應不掛死。
+- [x] AC5：`GET /api/nodes/:id/metrics` 回傳通過 `remoteNodeMetricsSchema`：`cpu.usage` 介於 0–100、`mem.used <= mem.total`、`disks` 至少含 mount `/` 且每筆 `fstype` 非空、`uptimeSec > 0`。
+- [x] AC6：`GET /api/nodes/:id/containers` 每筆 `state` 皆屬 `ContainerState` enum；遠端無 docker 時回 200 `{dockerAvailable:false, containers:[]}`（mock exit 127 測試）。
+- [x] AC7：`grep -rE 'docker (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/` 零命中（唯讀保證，遠端命令全為唯讀常數）。
+- [x] AC8：不新增任何 npm 依賴（`apps/server/package.json` 除 version bump 外 diff 為空）、不新增任何 drizzle migration（`apps/server/drizzle/` diff 為空）。
+- [x] AC9：錯誤分類單元測試全過：mock exit 255 + `Connection refused`→`NODES_UNREACHABLE`；+ `Permission denied (publickey)`→`NODES_AUTH_FAILED`；+ `REMOTE HOST IDENTIFICATION HAS CHANGED`→`NODES_HOSTKEY_CHANGED`（message 含 known_hosts 提示）；mock `exitCode === null`→`NODES_TIMEOUT`。
+- [x] AC10：stderr 不外洩斷言：所有錯誤回應 body 內不含 mock stderr 內容（測試明確斷言），raw stderr 僅出現在 server log。
+- [x] AC11：parser 單元測試涵蓋 `/proc/stat` 差分、`/proc/meminfo`、`df -PTB1`（含 fstype 欄、多磁碟、swap=0 fixture）、docker ps JSON 行解析（未知 state fallback、壞行跳過+其餘保留）；`buildSshArgs` golden 測試（選項順序、port、`--` 位置、`LC_ALL=C` 前綴）。
+- [x] AC12：web `/nodes` 頁經 sidebar 可達；metrics query `refetchInterval: 10_000`、containers query `refetchInterval: 30_000`，皆 `retry: false`（程式碼可查）；`i18n-parity.test.ts` 通過。
+- [x] AC13：`pnpm typecheck && pnpm lint && pnpm test && pnpm build` 全綠（既有 464 測試零回歸，總數 > 464）。
+- [x] AC14（實機 smoke）：Rocky 234 部署後 `scripts/smoke-nodes-234.sh` 對 235 全過（S1 註冊+test+409、S2 metrics 形狀 jq 驗證、S3 containers 形狀 15 個容器 state 皆合法、S4 假 IP 502 `NODES_UNREACHABLE`、結束清理測試節點）。auth-failed 以**無金鑰使用者**驗（刻意不動 235 生產的 `authorized_keys`）→ 502 `NODES_AUTH_FAILED` 且 body 無 stderr 外洩。**UI 四種 pill 的目視渲染未逐一人工檢查**（僅驗 API 契約 + 前端有測試覆蓋）。見 `smoke-pass.md`。
 
 ## 技術假設
 
