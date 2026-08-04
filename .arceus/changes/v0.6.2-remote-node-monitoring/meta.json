@@ -1,9 +1,9 @@
 {
   "id": "v0.6.2-remote-node-monitoring",
   "title": "Remote node monitoring — onboard 192.168.199.235 (read-only host + containers)",
-  "status": "active",
+  "status": "completed",
   "createdAt": "2026-08-03T09:09:54.505Z",
-  "updatedAt": "2026-08-04T02:17:48.953Z",
+  "updatedAt": "2026-08-04T06:26:38.413Z",
   "verdict": "APPROVE",
   "verifiedSha": "753d416fed77f2a38a325beb419b8a216bb540d1",
   "verifiedAt": "2026-08-04T02:17:48.953Z",
