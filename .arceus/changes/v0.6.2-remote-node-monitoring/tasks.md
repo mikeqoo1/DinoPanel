@@ -9,22 +9,22 @@
 
 ## Phase 2 — server：節點註冊
 
-- [ ] T-3 新增 `apps/server/src/modules/nodes/nodes.service.ts`：以 drizzle 讀寫 `settings` key `nodes.list`（JSON 陣列，upsert 用 `onConflictDoUpdate` target `settings.key`，慣例同 `monitoring.service.ts`）；`list()` / `add()`（`crypto.randomUUID()` 產 id；同 `host:port` 已存在丟 409 `NODES_DUPLICATE`）/ `remove(id)`。
-- [ ] T-4 新增 `nodes.controller.ts`（`GET/POST /api/nodes`、`DELETE /api/nodes/:id`、`POST /api/nodes/:id/test`，body 以 `createNodeSchema` 驗證）與 `nodes.module.ts`，並於 `apps/server/src/app.module.ts` imports 掛載。
-- [ ] T-5 新增 `apps/server/src/modules/nodes/__tests__/nodes.service.test.ts`：CRUD 持久化（mock db）、id 唯一、重複 `host:port` 回 409、`nodes.list` 壞 JSON 時回空陣列不崩潰。
+- [x] T-3 新增 `apps/server/src/modules/nodes/nodes.service.ts`：以 drizzle 讀寫 `settings` key `nodes.list`（JSON 陣列，upsert 用 `onConflictDoUpdate` target `settings.key`，慣例同 `monitoring.service.ts`）；`list()` / `add()`（`crypto.randomUUID()` 產 id；同 `host:port` 已存在丟 409 `NODES_DUPLICATE`）/ `remove(id)`。
+- [x] T-4 新增 `nodes.controller.ts`（`GET/POST /api/nodes`、`DELETE /api/nodes/:id`、`POST /api/nodes/:id/test`，body 以 `createNodeSchema` 驗證）與 `nodes.module.ts`，並於 `apps/server/src/app.module.ts` imports 掛載。
+- [x] T-5 新增 `apps/server/src/modules/nodes/__tests__/nodes.service.test.ts`：CRUD 持久化（mock db）、id 唯一、重複 `host:port` 回 409、`nodes.list` 壞 JSON 時回空陣列不崩潰。
 
 ## Phase 3 — server：SSH 執行 + 錯誤分類 + 遠端 metrics
 
-- [ ] T-6 新增 `apps/server/src/modules/nodes/ssh.ts`：純函式 `buildSshArgs(node, remoteCmd)`（`['-o','BatchMode=yes','-o','ConnectTimeout=5','-o','StrictHostKeyChecking=accept-new','-p',String(node.port),`${node.user}@${node.host}`,'--',remoteCmd]`）；純函式 `classifySshFailure(exitCode, stderr)`（`null`→`NODES_TIMEOUT` 504；255 依 stderr 樣式→`NODES_AUTH_FAILED`/`NODES_HOSTKEY_CHANGED`/`NODES_UNREACHABLE` 皆 502，message 為固定短句、HOSTKEY_CHANGED 含 known_hosts 提示）；`sshExec(node, remoteCmd)` 呼叫 `runCommand('ssh', ...)`，`CommandError` rethrow `commandErrorToHttp(err,'NODES')`，raw stderr 只 `Logger.warn`。常數 `METRICS_CMD`/`DOCKER_PS_CMD` 定義於此（`export LC_ALL=C;` 開頭），禁止插值。
-- [ ] T-7 實作 `POST /api/nodes/:id/test`（remoteCmd = `true`，量測並回 `latencyMs`）。
-- [ ] T-8 新增 `apps/server/src/modules/nodes/remote-parsers.ts`：純函式 `parseProcStatDelta()`、`parseMeminfo()`、`parseLoadavg()`、`parseUptime()`、`parseDfPTB1()`（含 fstype 欄）、`parseDockerPsJson()`（壞行丟棄+warn、未知 state fallback `dead`）— 純函式不碰 I/O。
-- [ ] T-9 實作 `GET /api/nodes/:id/metrics`：單次 `sshExec` 執行 `METRICS_CMD`（`__DINO__` 分隔；含 `sleep 1` 雙取樣 `/proc/stat`），組裝 `RemoteNodeMetrics`。
-- [ ] T-10 新增測試：`__tests__/ssh.test.ts`（`buildSshArgs` golden：選項順序/port/`--` 位置/LC_ALL 前綴，覆蓋 AC11；`classifySshFailure` 全分支：255+refused→UNREACHABLE、255+Permission denied→AUTH_FAILED、255+HOST IDENTIFICATION→HOSTKEY_CHANGED、null→TIMEOUT，覆蓋 AC9；錯誤回應不含 stderr 內容斷言，覆蓋 AC10）；`__tests__/remote-parsers.test.ts`（Rocky 真實輸出 fixture：多磁碟、swap=0、截斷輸出，覆蓋 AC5/AC11）。
+- [x] T-6 新增 `apps/server/src/modules/nodes/ssh.ts`：純函式 `buildSshArgs(node, remoteCmd)`（`['-o','BatchMode=yes','-o','ConnectTimeout=5','-o','StrictHostKeyChecking=accept-new','-p',String(node.port),`${node.user}@${node.host}`,'--',remoteCmd]`）；純函式 `classifySshFailure(exitCode, stderr)`（`null`→`NODES_TIMEOUT` 504；255 依 stderr 樣式→`NODES_AUTH_FAILED`/`NODES_HOSTKEY_CHANGED`/`NODES_UNREACHABLE` 皆 502，message 為固定短句、HOSTKEY_CHANGED 含 known_hosts 提示）；`sshExec(node, remoteCmd)` 呼叫 `runCommand('ssh', ...)`，`CommandError` rethrow `commandErrorToHttp(err,'NODES')`，raw stderr 只 `Logger.warn`。常數 `METRICS_CMD`/`DOCKER_PS_CMD` 定義於此（`export LC_ALL=C;` 開頭），禁止插值。
+- [x] T-7 實作 `POST /api/nodes/:id/test`（remoteCmd = `true`，量測並回 `latencyMs`）。
+- [x] T-8 新增 `apps/server/src/modules/nodes/remote-parsers.ts`：純函式 `parseProcStatDelta()`、`parseMeminfo()`、`parseLoadavg()`、`parseUptime()`、`parseDfPTB1()`（含 fstype 欄）、`parseDockerPsJson()`（壞行丟棄+warn、未知 state fallback `dead`）— 純函式不碰 I/O。
+- [x] T-9 實作 `GET /api/nodes/:id/metrics`：單次 `sshExec` 執行 `METRICS_CMD`（`__DINO__` 分隔；含 `sleep 1` 雙取樣 `/proc/stat`），組裝 `RemoteNodeMetrics`。
+- [x] T-10 新增測試：`__tests__/ssh.test.ts`（`buildSshArgs` golden：選項順序/port/`--` 位置/LC_ALL 前綴，覆蓋 AC11；`classifySshFailure` 全分支：255+refused→UNREACHABLE、255+Permission denied→AUTH_FAILED、255+HOST IDENTIFICATION→HOSTKEY_CHANGED、null→TIMEOUT，覆蓋 AC9；錯誤回應不含 stderr 內容斷言，覆蓋 AC10）；`__tests__/remote-parsers.test.ts`（Rocky 真實輸出 fixture：多磁碟、swap=0、截斷輸出，覆蓋 AC5/AC11）。
 
 ## Phase 4 — server：遠端容器
 
-- [ ] T-11 實作 `GET /api/nodes/:id/containers`：`sshExec(node, DOCKER_PS_CMD)` → `parseDockerPsJson()` → `{dockerAvailable:true, containers}`；exit 127 / stderr 含 `command not found` → 200 `{dockerAvailable:false, containers:[]}`（與 metrics 為獨立 ssh 呼叫，互不影響）。
-- [ ] T-12 新增測試：多行 JSON 解析、空清單、壞行丟棄其餘保留、docker 缺席 200 形狀（AC6）、state enum 驗證；並跑 `grep -rE 'docker (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/` 確認零命中（AC7）。
+- [x] T-11 實作 `GET /api/nodes/:id/containers`：`sshExec(node, DOCKER_PS_CMD)` → `parseDockerPsJson()` → `{dockerAvailable:true, containers}`；exit 127 / stderr 含 `command not found` → 200 `{dockerAvailable:false, containers:[]}`（與 metrics 為獨立 ssh 呼叫，互不影響）。
+- [x] T-12 新增測試：多行 JSON 解析、空清單、壞行丟棄其餘保留、docker 缺席 200 形狀（AC6）、state enum 驗證；並跑 `grep -rE 'docker (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/` 確認零命中（AC7）。
 
 ## Phase 5 — web：/nodes 頁
 
