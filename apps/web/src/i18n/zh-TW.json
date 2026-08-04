@@ -18,6 +18,7 @@
     "backups": "備份",
     "system": "系統",
     "toolbox": "工具箱",
+    "nodes": "遠端節點",
     "settings": "設定",
     "logout": "登出"
   },
@@ -818,6 +819,58 @@
       "error_generic": "顯示密碼失敗。",
       "field_label": "密碼",
       "countdown": "{{seconds}} 秒後隱藏"
+    }
+  },
+  "nodes": {
+    "title": "遠端節點",
+    "add": "新增節點",
+    "empty": "尚未新增遠端節點，點「新增節點」開始。",
+    "col_name": "名稱",
+    "col_host": "主機",
+    "col_user": "使用者",
+    "col_port": "Port",
+    "col_actions": "操作",
+    "test": "測試連線",
+    "delete": "移除",
+    "delete_confirm": "確定移除節點「{{name}}」？此操作不可復原。",
+    "latency": "{{ms}}ms",
+    "metrics": {
+      "title": "節點指標",
+      "cpu": "CPU",
+      "load": "負載平均",
+      "mem": "記憶體",
+      "disk": "磁碟",
+      "uptime": "運行時間"
+    },
+    "containers": {
+      "title": "容器",
+      "no_docker": "此節點未安裝 Docker。",
+      "empty": "無容器。",
+      "col_name": "名稱",
+      "col_image": "映像",
+      "col_state": "狀態",
+      "col_status": "狀態描述"
+    },
+    "dialog": {
+      "title": "新增遠端節點",
+      "name_label": "名稱",
+      "host_label": "主機（hostname 或 IPv4）",
+      "user_label": "SSH 使用者",
+      "port_label": "Port",
+      "hint_title": "新增節點前",
+      "hint_body": "請確保面板伺服器的 SSH 金鑰已佈至遠端主機，在本機執行一次：",
+      "hint_copy_id": "ssh-copy-id {{user}}@{{host}}",
+      "hint_default": "ssh-copy-id root@<host>",
+      "add": "新增節點",
+      "added": "節點已新增"
+    },
+    "error": {
+      "NODES_UNREACHABLE": "無法連線 — 請確認 IP 與網路",
+      "NODES_AUTH_FAILED": "SSH 認證失敗 — 請執行 ssh-copy-id",
+      "NODES_HOSTKEY_CHANGED": "主機金鑰已變更 — 請更新 known_hosts",
+      "NODES_TIMEOUT": "連線逾時",
+      "NODES_TOOL_MISSING": "面板伺服器缺少 ssh 指令",
+      "NODES_DUPLICATE": "此 host:port 已存在相同節點"
     }
   },
   "toolbox": {

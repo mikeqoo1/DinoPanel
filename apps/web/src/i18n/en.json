@@ -18,6 +18,7 @@
     "backups": "Backups",
     "system": "System",
     "toolbox": "Toolbox",
+    "nodes": "Remote Nodes",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -818,6 +819,58 @@
       "error_generic": "Failed to reveal password.",
       "field_label": "Password",
       "countdown": "Hides in {{seconds}}s"
+    }
+  },
+  "nodes": {
+    "title": "Remote Nodes",
+    "add": "Add node",
+    "empty": "No remote nodes yet — click Add node to register one.",
+    "col_name": "Name",
+    "col_host": "Host",
+    "col_user": "User",
+    "col_port": "Port",
+    "col_actions": "Actions",
+    "test": "Test",
+    "delete": "Remove",
+    "delete_confirm": "Remove node \"{{name}}\"? This cannot be undone.",
+    "latency": "{{ms}}ms",
+    "metrics": {
+      "title": "Node metrics",
+      "cpu": "CPU",
+      "load": "Load avg",
+      "mem": "Memory",
+      "disk": "Disks",
+      "uptime": "Uptime"
+    },
+    "containers": {
+      "title": "Containers",
+      "no_docker": "Docker is not installed on this node.",
+      "empty": "No containers.",
+      "col_name": "Name",
+      "col_image": "Image",
+      "col_state": "State",
+      "col_status": "Status"
+    },
+    "dialog": {
+      "title": "Add remote node",
+      "name_label": "Name",
+      "host_label": "Host (hostname or IPv4)",
+      "user_label": "SSH user",
+      "port_label": "Port",
+      "hint_title": "Before adding this node",
+      "hint_body": "Make sure the panel server's SSH key is trusted by the remote host. Run once from this server:",
+      "hint_copy_id": "ssh-copy-id {{user}}@{{host}}",
+      "hint_default": "ssh-copy-id root@<host>",
+      "add": "Add node",
+      "added": "Node added"
+    },
+    "error": {
+      "NODES_UNREACHABLE": "Unreachable — check IP and network",
+      "NODES_AUTH_FAILED": "Auth failed — run ssh-copy-id",
+      "NODES_HOSTKEY_CHANGED": "Host key changed — update known_hosts",
+      "NODES_TIMEOUT": "Connection timed out",
+      "NODES_TOOL_MISSING": "ssh not found on panel server",
+      "NODES_DUPLICATE": "A node with this host:port already exists"
     }
   },
   "toolbox": {

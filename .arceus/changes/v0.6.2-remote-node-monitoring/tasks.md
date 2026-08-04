@@ -28,10 +28,10 @@
 
 ## Phase 5 — web：/nodes 頁
 
-- [ ] T-13 新增 `apps/web/src/hooks/use-nodes.ts`：keys object + `useNodes()`、`useAddNode()`/`useRemoveNode()`/`useTestNode()`（useMutation + invalidateQueries，慣例同 `use-toolbox.ts`）、`useNodeMetrics(id)` 帶 `refetchInterval: 10_000`、`useNodeContainers(id)` 帶 `refetchInterval: 30_000`，皆 `retry: false`（AC12）。
-- [ ] T-14 新增 `apps/web/src/routes/nodes/nodes-page.tsx`：節點清單＋新增 dialog（內嵌 `ssh-copy-id root@<host>` 指引文案）＋刪除/測試鈕（test 顯示 latencyMs）；選定節點顯示狀態卡（CPU%/loadAvg/mem/disks/uptime）與容器表格；query error 依錯誤碼渲染狀態 pill（unreachable/auth-failed/hostkey-changed/timeout），`dockerAvailable:false` 顯示「未安裝 Docker」空狀態。
-- [ ] T-15 掛載：`App.tsx` lazy Route `/nodes`（`AuthGuard` 內）、`sidebar.tsx` items 加 `nav.nodes` 項（Lucide `Server` 系 icon）。
-- [ ] T-16 i18n：`en.json` 與 `zh-TW.json` 同步加 `nav.nodes` + `nodes.*` 全部 key（含各錯誤碼文案）；跑 `apps/web` workspace 測試確認 `i18n-parity.test.ts` 綠（AC12）。
+- [x] T-13 新增 `apps/web/src/hooks/use-nodes.ts`：keys object + `useNodes()`、`useAddNode()`/`useRemoveNode()`/`useTestNode()`（useMutation + invalidateQueries，慣例同 `use-toolbox.ts`）、`useNodeMetrics(id)` 帶 `refetchInterval: 10_000`、`useNodeContainers(id)` 帶 `refetchInterval: 30_000`，皆 `retry: false`（AC12）。
+- [x] T-14 新增 `apps/web/src/routes/nodes/nodes-page.tsx`：節點清單＋新增 dialog（內嵌 `ssh-copy-id root@<host>` 指引文案）＋刪除/測試鈕（test 顯示 latencyMs）；選定節點顯示狀態卡（CPU%/loadAvg/mem/disks/uptime）與容器表格；query error 依錯誤碼渲染狀態 pill（unreachable/auth-failed/hostkey-changed/timeout），`dockerAvailable:false` 顯示「未安裝 Docker」空狀態。
+- [x] T-15 掛載：`App.tsx` lazy Route `/nodes`（`AuthGuard` 內）、`sidebar.tsx` items 加 `nav.nodes` 項（Lucide `Server` 系 icon）。
+- [x] T-16 i18n：`en.json` 與 `zh-TW.json` 同步加 `nav.nodes` + `nodes.*` 全部 key（含各錯誤碼文案）；跑 `apps/web` workspace 測試確認 `i18n-parity.test.ts` 綠（AC12）。
 
 ## Phase 6 — 文件 + smoke 腳本 + release 收尾
 
