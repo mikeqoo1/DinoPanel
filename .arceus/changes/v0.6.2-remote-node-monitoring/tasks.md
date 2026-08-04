@@ -35,8 +35,8 @@
 
 ## Phase 6 — 文件 + smoke 腳本 + release 收尾
 
-- [ ] T-17 新增 `docs/nodes.md`：onboarding 一行流（234 上 `ssh-keygen -t ed25519` → `ssh-copy-id root@192.168.199.235` → 面板註冊）、TOFU/`accept-new` 政策與指紋變更處置（known_hosts）、錯誤碼一覽（`NODES_UNREACHABLE`/`NODES_AUTH_FAILED`/`NODES_HOSTKEY_CHANGED`/`NODES_TIMEOUT`/`NODES_TOOL_MISSING`）、明確標注「唯讀，無任何遠端操作」。
-- [ ] T-18 新增 `scripts/smoke-nodes-234.sh`（慣例同 `smoke-toolbox-234.sh`/`smoke-backups-234.sh`）：S1 註冊 235 + test ok、S2 metrics 形狀（jq 驗 `cpu.usage`/`mem.total`/`uptimeSec`）、S3 containers 形狀（state ∈ enum）、S4 註冊 192.0.2.1 打 metrics 驗 502 `NODES_UNREACHABLE`、結束清理測試節點（全程唯讀、非破壞性）。
+- [x] T-17 新增 `docs/nodes.md`：onboarding 一行流（234 上 `ssh-keygen -t ed25519` → `ssh-copy-id root@192.168.199.235` → 面板註冊）、TOFU/`accept-new` 政策與指紋變更處置（known_hosts）、錯誤碼一覽（`NODES_UNREACHABLE`/`NODES_AUTH_FAILED`/`NODES_HOSTKEY_CHANGED`/`NODES_TIMEOUT`/`NODES_TOOL_MISSING`）、明確標注「唯讀，無任何遠端操作」。
+- [x] T-18 新增 `scripts/smoke-nodes-234.sh`（慣例同 `smoke-toolbox-234.sh`/`smoke-backups-234.sh`）：S1 註冊 235 + test ok、S2 metrics 形狀（jq 驗 `cpu.usage`/`mem.total`/`uptimeSec`）、S3 containers 形狀（state ∈ enum）、S4 註冊 192.0.2.1 打 metrics 驗 502 `NODES_UNREACHABLE`、結束清理測試節點（全程唯讀、非破壞性）。
 - [ ] T-19 版本收尾：bump 4 個 package.json（root/`apps/server`/`apps/web`/`packages/shared`，0.6.1 → 0.6.2）；README 與 README_zh-TW 版本表補 v0.6.2 列。
 - [ ] T-20 全量驗證：`pnpm typecheck && pnpm lint && pnpm test && pnpm build` 全綠（AC13）；確認 `apps/server/package.json`（除 version 外）與 `apps/server/drizzle/` 無 diff（AC8）。
 - [ ] T-21 Release + 實機 smoke（Rocky 234）：release commit `release(v0.6.2): remote node read-only monitoring`；部署後跑 `scripts/smoke-nodes-234.sh` 全過 + 手動驗證失效金鑰→auth-failed pill（AC14）；smoke 結果與 meta `status: completed` 記入 change folder。
