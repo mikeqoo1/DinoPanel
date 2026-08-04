@@ -4,8 +4,8 @@
 
 ## Phase 1 — 共用 schema（packages/shared）
 
-- [ ] T-1 新增 `packages/shared/src/schemas/nodes.ts`：`remoteNodeSchema`（id/name/host/port/user）、`createNodeSchema`（host 拒前導 `-`、hostname/IPv4 regex；user `^[a-z_][a-z0-9_.-]*$`；port int 1–65535 default 22）、`remoteNodeMetricsSchema`（disks 含 fstype）、`remoteContainerSchema`（import `containerStateSchema` 自 `./containers`）、`remoteContainersResponseSchema`（dockerAvailable + containers）；於 `packages/shared/src/schemas/index.ts` 加 `export * from './nodes.js';`（注意：是 schemas/index.ts 這個 per-schema barrel，非 src/index.ts）。
-- [ ] T-2 新增 `packages/shared/src/schemas/__tests__/nodes.test.ts`：合法輸入通過；`host: "-oProxyCommand=x"`、`user: "a;b"`、`port: 0` 皆被拒（對應 AC3 的 schema 層）。
+- [x] T-1 新增 `packages/shared/src/schemas/nodes.ts`：`remoteNodeSchema`（id/name/host/port/user）、`createNodeSchema`（host 拒前導 `-`、hostname/IPv4 regex；user `^[a-z_][a-z0-9_.-]*$`；port int 1–65535 default 22）、`remoteNodeMetricsSchema`（disks 含 fstype）、`remoteContainerSchema`（import `containerStateSchema` 自 `./containers`）、`remoteContainersResponseSchema`（dockerAvailable + containers）；於 `packages/shared/src/schemas/index.ts` 加 `export * from './nodes.js';`（注意：是 schemas/index.ts 這個 per-schema barrel，非 src/index.ts）。
+- [x] T-2 新增 `packages/shared/src/schemas/__tests__/nodes.test.ts`：合法輸入通過；`host: "-oProxyCommand=x"`、`user: "a;b"`、`port: 0` 皆被拒（對應 AC3 的 schema 層）。
 
 ## Phase 2 — server：節點註冊
 
