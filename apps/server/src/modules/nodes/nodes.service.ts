@@ -2,11 +2,12 @@ import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { Logger } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
-import type {
-  CreateNode,
-  RemoteContainersResponse,
-  RemoteNode,
-  RemoteNodeMetrics,
+import {
+  remoteNodeSchema,
+  type CreateNode,
+  type RemoteContainersResponse,
+  type RemoteNode,
+  type RemoteNodeMetrics,
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
@@ -32,12 +33,27 @@ export class NodesService {
       .where(eq(settings.key, NODES_KEY))
       .limit(1);
     if (!rows[0]?.value) return [];
+    let parsed: unknown;
     try {
-      return JSON.parse(rows[0].value) as RemoteNode[];
+      parsed = JSON.parse(rows[0].value);
     } catch {
       this.logger.warn({ key: NODES_KEY }, 'nodes.list_parse_error — returning empty');
       return [];
     }
+    if (!Array.isArray(parsed)) {
+      this.logger.warn({ key: NODES_KEY, type: typeof parsed }, 'nodes.list_not_array — returning empty');
+      return [];
+    }
+    // Validate each stored entry — drops any that fail host/user/port constraints
+    // so a corrupted or tampered KV row never reaches ssh argv.
+    return parsed.flatMap((entry) => {
+      const r = remoteNodeSchema.safeParse(entry);
+      if (!r.success) {
+        this.logger.warn({ entry, error: r.error.message }, 'nodes.list_invalid_entry — dropped');
+        return [];
+      }
+      return [r.data];
+    });
   }
 
   private async writeList(nodes: RemoteNode[]): Promise<void> {
@@ -56,6 +72,9 @@ export class NodesService {
   }
 
   async add(input: CreateNode): Promise<RemoteNode[]> {
+    // ponytail: unserialized read-modify-write; two concurrent POSTs can both pass
+    // the duplicate check. Single-admin panel makes this low-probability — use a
+    // per-key serialized writer or mutex if multi-writer concurrency ever matters.
     const nodes = await this.readList();
     if (nodes.some((n) => n.host === input.host && n.port === input.port)) {
       throw new HttpException(
@@ -107,7 +126,11 @@ export class NodesService {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
     const result = await sshExec(node, METRICS_CMD, this.logger);
-    if (result.exitCode !== 0) {
+    // GNU df exits 1 on any statfs failure (stale NFS / dead FUSE) while still
+    // printing valid rows for healthy filesystems. Tolerate this: if parsing
+    // yields at least one disk row and non-zero mem.total the data is usable.
+    const metrics = parseMetricsOutput(result.stdout);
+    if (result.exitCode !== 0 && !(metrics.mem.total > 0 && metrics.disks.length > 0)) {
       this.logger.warn(
         { node: id, exitCode: result.exitCode },
         'nodes.metrics_command_failed',
@@ -117,15 +140,17 @@ export class NodesService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-    return parseMetricsOutput(result.stdout);
+    return metrics;
   }
 
   async getContainers(id: string): Promise<RemoteContainersResponse> {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
     const result = await sshExec(node, DOCKER_PS_CMD, this.logger);
-    // docker absent on remote: exit 127 or stderr 'command not found' → not an error
-    if (result.exitCode === 127 || /command not found/i.test(result.stderr)) {
+    // docker absent: exit 127, OR non-zero exit with docker-specific not-found in stderr.
+    // Never trigger on exit 0 — unrelated ~/.bashrc noise like "foo: command not found"
+    // on a SUCCESSFUL docker ps must not mask real container data.
+    if (result.exitCode === 127 || (result.exitCode !== 0 && /docker: (command )?not found/i.test(result.stderr))) {
       return { dockerAvailable: false, containers: [] };
     }
     if (result.exitCode !== 0) {

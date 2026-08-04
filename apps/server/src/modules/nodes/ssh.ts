@@ -29,6 +29,11 @@ export const DOCKER_PS_CMD = "export LC_ALL=C; docker ps -a --format '{{json .}}
 // ---------------------------------------------------------------------------
 
 export function buildSshArgs(node: RemoteNode, remoteCmd: string): string[] {
+  // `--` MUST come before the destination, not after. OpenSSH parses arguments
+  // left-to-right: anything after `--` is treated as non-option (hostname first,
+  // then remote command). If `--` follows the hostname, an option-shaped hostname
+  // such as `-oProxyCommand=…` is parsed as an option and executed — confirmed on
+  // OpenSSH_9.6p1. This is the layer-2 injection guard (layer 1 = HOST_REGEX).
   return [
     '-o',
     'BatchMode=yes',
@@ -38,8 +43,8 @@ export function buildSshArgs(node: RemoteNode, remoteCmd: string): string[] {
     'StrictHostKeyChecking=accept-new',
     '-p',
     String(node.port),
-    `${node.user}@${node.host}`,
     '--',
+    `${node.user}@${node.host}`,
     remoteCmd,
   ];
 }
@@ -86,7 +91,9 @@ export async function sshExec(
 ): Promise<CommandResult> {
   let result: CommandResult;
   try {
-    result = await runCommand('ssh', buildSshArgs(node, remoteCmd));
+    result = await runCommand('ssh', buildSshArgs(node, remoteCmd), {
+      maxOutputBytes: 4 * 1024 * 1024,
+    });
   } catch (err) {
     if (err instanceof CommandError) {
       // raw stderr (if any) to server log only — not forwarded to client
@@ -106,7 +113,10 @@ export async function sshExec(
     throw new HttpException({ code: classified.code, message: classified.message }, classified.status);
   }
 
-  if (result.exitCode !== 0 && result.stderr) {
+  // exitCode 127 = docker not installed — expected node state (FIX-6: skip warn
+  // to avoid ~2880 log lines/day/tab when containers tab is open on a node
+  // without docker).
+  if (result.exitCode !== 0 && result.exitCode !== 127 && result.stderr) {
     logger.warn(
       { exitCode: result.exitCode, host: node.host, stderr: result.stderr },
       'nodes.ssh_command_error',

@@ -30,15 +30,19 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('buildSshArgs', () => {
-  it('produces args in exact spec order with -- before remoteCmd', () => {
+  it('produces args in exact spec order with -- BEFORE the destination (AC11, security)', () => {
+    // `--` must precede the hostname, not follow it. OpenSSH parses left-to-right:
+    // after `--`, the next token is the hostname. If `--` comes after the hostname,
+    // an option-shaped hostname (e.g. `-oProxyCommand=…`) is parsed as an option
+    // and EXECUTED — confirmed on OpenSSH_9.6p1. HOST_REGEX is layer 1; `--` is layer 2.
     const args = buildSshArgs(FAKE_NODE, 'true');
     expect(args).toEqual([
       '-o', 'BatchMode=yes',
       '-o', 'ConnectTimeout=5',
       '-o', 'StrictHostKeyChecking=accept-new',
       '-p', '22',
-      'root@192.168.1.100',
       '--',
+      'root@192.168.1.100',
       'true',
     ]);
   });
@@ -50,11 +54,16 @@ describe('buildSshArgs', () => {
     expect(args[pIdx + 1]).toBe('2222');
   });
 
-  it('places -- before remoteCmd (injection guard layer 2)', () => {
+  it('-- comes before the destination (not after) — prevents option-shaped hostname execution', () => {
+    // SSH parses `ssh [options] -- destination [command]`, not
+    // `ssh [options] destination -- command`. The destination must follow `--`.
     const args = buildSshArgs(FAKE_NODE, 'any-remote-cmd');
     const dashIdx = args.indexOf('--');
     expect(dashIdx).toBeGreaterThan(0);
-    expect(args[dashIdx + 1]).toBe('any-remote-cmd');
+    // destination is immediately after `--`
+    expect(args[dashIdx + 1]).toBe('root@192.168.1.100');
+    // remote command is immediately after destination
+    expect(args[dashIdx + 2]).toBe('any-remote-cmd');
   });
 
   it('METRICS_CMD starts with export LC_ALL=C;', () => {

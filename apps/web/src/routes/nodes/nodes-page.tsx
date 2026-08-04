@@ -83,7 +83,7 @@ function MetricsSection({ nodeId }: { nodeId: string }) {
         </div>
         <div>
           <div className="text-xs text-muted-foreground">{t('nodes.metrics.disk')}</div>
-          {data.disks.slice(0, 3).map((d) => (
+          {data.disks.map((d) => (
             <div key={d.mount} className="font-mono text-xs">
               {d.mount}: {formatBytes(d.used)}/{formatBytes(d.total)}
             </div>

@@ -78,6 +78,28 @@ describe('commandErrorToHttp', () => {
   });
 });
 
+describe('runCommand — maxOutputBytes cap (FIX-3)', () => {
+  it('rejects with COMMAND_FAILED when combined output exceeds maxOutputBytes', async () => {
+    // Write 2 KB total; cap at 1 KB — must be killed and rejected before completion.
+    const result = runCommand(
+      process.execPath,
+      ['-e', `const c='x'.repeat(512); for(let i=0;i<10;i++) process.stdout.write(c);`],
+      { maxOutputBytes: 1024 },
+    );
+    await expect(result).rejects.toMatchObject({ name: 'CommandError', kind: 'COMMAND_FAILED' });
+  });
+
+  it('resolves normally when output is within the cap', async () => {
+    const result = await runCommand(
+      process.execPath,
+      ['-e', `process.stdout.write('hi')`],
+      { maxOutputBytes: 1024 },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('hi');
+  });
+});
+
 describe('probeCommand', () => {
   it('returns false for a missing binary (never throws)', async () => {
     await expect(probeCommand(MISSING_BIN, [])).resolves.toBe(false);

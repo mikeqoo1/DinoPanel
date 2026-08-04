@@ -23,8 +23,10 @@ export function useAddNode() {
     mutationFn: async (vars: { name: string; host: string; user: string; port?: number }) =>
       (await api.post<RemoteNode[]>('/nodes', vars)).data,
     onSuccess: (data) => {
+      // setQueryData stores the fresh list returned by POST — no further
+      // invalidation needed. Invalidating nodeKeys.all would also prefix-match
+      // metrics/containers queries and trigger extra ssh sessions per action.
       qc.setQueryData(nodeKeys.list(), data);
-      qc.invalidateQueries({ queryKey: nodeKeys.all });
     },
   });
 }
@@ -35,7 +37,8 @@ export function useRemoveNode() {
     mutationFn: async (id: string) => {
       await api.delete(`/nodes/${id}`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: nodeKeys.all }),
+    // Narrow to list only — avoids triggering metrics/containers refetches on remove.
+    onSuccess: () => qc.invalidateQueries({ queryKey: nodeKeys.list() }),
   });
 }
 

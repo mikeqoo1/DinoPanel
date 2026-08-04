@@ -74,6 +74,28 @@ describe('NodesService.list', () => {
     expect(nodes).toEqual([]);
     expect(noopLogger.warn).toHaveBeenCalled();
   });
+
+  // FIX-2: non-array stored values must never reach ssh argv
+  it.each([['{}'], ['null'], ['42']])(
+    'returns [] and warns when stored value is non-array (%s)',
+    async (json) => {
+      vi.clearAllMocks();
+      const nodes = await makeService(json).list();
+      expect(nodes).toEqual([]);
+      expect(noopLogger.warn).toHaveBeenCalled();
+    },
+  );
+
+  it('drops a stored entry whose host starts with "-" (injection guard)', async () => {
+    // A host like "-oProxyCommand=x" would be passed to ssh if not validated.
+    // HOST_REGEX rejects leading "-", so the entry is silently dropped.
+    const valid = { id: 'good', name: 'ok', host: '192.168.1.100', port: 22, user: 'root' };
+    const exploit = { id: 'bad', name: 'bad', host: '-oProxyCommand=x', port: 22, user: 'root' };
+    const nodes = await makeService(JSON.stringify([valid, exploit])).list();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.id).toBe('good');
+    expect(noopLogger.warn).toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -181,16 +203,40 @@ describe('NodesService.getContainers', () => {
     expect(result.containers).toEqual([]);
   });
 
-  it('returns { dockerAvailable: false } when stderr contains "command not found" (AC6)', async () => {
+  it('returns { dockerAvailable: false } for non-zero exit + docker-specific not-found in stderr (AC6)', async () => {
+    // Must NOT trigger on unrelated "command not found" from ~/.bashrc noise on a
+    // successful (exit 0) docker ps — only on docker-specific stderr with non-zero exit.
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
     mockSshExec.mockResolvedValueOnce({
       exitCode: 1,
       stdout: '',
-      stderr: '/usr/bin/env: command not found',
+      stderr: 'bash: docker: command not found',
     });
     const result = await svc.getContainers(list[0]!.id);
     expect(result.dockerAvailable).toBe(false);
+  });
+
+  it('does NOT return dockerAvailable:false when exit is 0 despite unrelated "command not found" in stderr', async () => {
+    // Unrelated ~/.bashrc noise like "foo: command not found" on a SUCCESSFUL docker ps
+    // must not mask real container data.
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    const line = JSON.stringify({
+      ID: 'abc',
+      Names: 'nginx',
+      Image: 'nginx:latest',
+      State: 'running',
+      Status: 'Up 1 hour',
+    });
+    mockSshExec.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: line,
+      stderr: 'foo: command not found',
+    });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result.dockerAvailable).toBe(true);
+    expect(result.containers).toHaveLength(1);
   });
 
   it('parses docker ps JSON lines on exit 0', async () => {
@@ -208,6 +254,54 @@ describe('NodesService.getContainers', () => {
     expect(result.dockerAvailable).toBe(true);
     expect(result.containers).toHaveLength(1);
     expect(result.containers[0]?.state).toBe('running');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getMetrics — df partial failure tolerance (FIX-5)
+// ---------------------------------------------------------------------------
+
+// Minimal but valid METRICS_CMD stdout: two /proc/stat snapshots + supporting sections.
+const STAT = `cpu  100 0 50 800 10 0 5 0 0 0\n`;
+const LOADAVG = `0.1 0.2 0.3 1/100 999\n`;
+const MEMINFO = `MemTotal: 8192000 kB\nMemFree: 0 kB\nMemAvailable: 4096000 kB\n`;
+const UPTIME = `3600.0 7200.0\n`;
+const DF_VALID = `Filesystem  Type  1B-blocks  Used  Available  Use%  Mounted on\n/dev/sda1   xfs   10000000   5000000   5000000   50%  /\n`;
+const METRICS_STDOUT = [STAT, LOADAVG, MEMINFO, UPTIME, STAT, DF_VALID].join('\n__DINO__\n');
+
+describe('NodesService.getMetrics', () => {
+  it('returns metrics on exit 0', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: METRICS_STDOUT, stderr: '' });
+    const m = await svc.getMetrics(list[0]!.id);
+    expect(m.mem.total).toBeGreaterThan(0);
+    expect(m.disks.length).toBeGreaterThan(0);
+  });
+
+  it('tolerates df exit 1 when stdout still has valid rows (FIX-5)', async () => {
+    // GNU df exits 1 on stale NFS / dead FUSE but prints valid rows for healthy
+    // filesystems. The whole node must not report 500 when disk data is present.
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({
+      exitCode: 1,
+      stdout: METRICS_STDOUT,
+      stderr: 'df: /mnt/nfs: Stale file handle',
+    });
+    const m = await svc.getMetrics(list[0]!.id);
+    expect(m.mem.total).toBeGreaterThan(0);
+    expect(m.disks.length).toBeGreaterThan(0);
+    expect(m.disks[0]?.mount).toBe('/');
+  });
+
+  it('throws NODES_COMMAND_FAILED when exit is non-zero and stdout has no usable data', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: 'some error' });
+    const err = await svc.getMetrics(list[0]!.id).catch((e) => e) as HttpException;
+    expect(err).toBeInstanceOf(HttpException);
+    expect((err.getResponse() as Record<string, unknown>)['code']).toBe('NODES_COMMAND_FAILED');
   });
 });
 

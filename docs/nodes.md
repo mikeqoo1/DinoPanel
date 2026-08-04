@@ -45,6 +45,19 @@ The panel stores only: `id` (UUID), `name`, `host`, `port`, `user`.
 > Deferred: password auth and custom key paths — pending a SecretsService
 > (see `.arceus/changes/v0.6.2-remote-node-monitoring/decisions.md` D2).
 
+### Least-privilege note
+
+`root` is the documented default because it has no permission barriers for
+reading `/proc` or running `docker ps`. For a less-trusted host, consider:
+
+- A non-root user in the `docker` group (`usermod -aG docker dinopanel`),
+  which covers `docker ps` without full root.
+- An `authorized_keys` entry with `command="…",restrict` pinned to the
+  exact read-only commands the panel issues (see `METRICS_CMD` /
+  `DOCKER_PS_CMD` in `apps/server/src/modules/nodes/ssh.ts`). This
+  prevents any other command from running under the registered key, even
+  if the panel host is compromised.
+
 ## TOFU policy
 
 SSH uses `StrictHostKeyChecking=accept-new`. On the first connection to a
@@ -64,8 +77,10 @@ ssh-keygen -R 192.168.199.235
 # The next panel request auto-accepts and records the new key.
 ```
 
-The `NODES_HOSTKEY_CHANGED` error message includes the path to the
-`known_hosts` file and the offending line number.
+The `NODES_HOSTKEY_CHANGED` error message contains a short remediation
+hint mentioning `~/.ssh/known_hosts` but does **not** include the file
+path or offending line number — SSH stderr is logged server-side only
+and never forwarded to the client.
 
 ## Error codes
 

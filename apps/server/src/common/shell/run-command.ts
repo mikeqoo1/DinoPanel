@@ -48,6 +48,14 @@ export interface RunCommandOptions {
    * path it is what lets mutating commands succeed.
    */
   sudo?: boolean;
+  /**
+   * Opt-in output cap (bytes, stdout+stderr combined). When set, the child
+   * is killed and the promise rejects with CommandError('COMMAND_FAILED')
+   * the moment accumulated output exceeds this limit. Default undefined =
+   * unlimited (all existing callers unchanged). Pass for remote/untrusted
+   * sources that could OOM the panel by streaming volume.
+   */
+  maxOutputBytes?: number;
 }
 
 export function runCommand(
@@ -62,8 +70,30 @@ export function runCommand(
     const child = spawn(bin, argv, { timeout });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (b: Buffer) => (stdout += b.toString('utf8')));
-    child.stderr.on('data', (b: Buffer) => (stderr += b.toString('utf8')));
+    const maxBytes = opts.maxOutputBytes;
+    let outputBytes = 0;
+    let capExceeded = false;
+    const onData =
+      maxBytes === undefined
+        ? null
+        : (dest: 'stdout' | 'stderr', b: Buffer) => {
+            outputBytes += b.length;
+            if (!capExceeded && outputBytes > maxBytes) {
+              capExceeded = true;
+              child.kill();
+              reject(new CommandError('COMMAND_FAILED', 'output cap exceeded'));
+              return true;
+            }
+            return capExceeded;
+          };
+    child.stdout.on('data', (b: Buffer) => {
+      if (onData?.('stdout', b)) return;
+      stdout += b.toString('utf8');
+    });
+    child.stderr.on('data', (b: Buffer) => {
+      if (onData?.('stderr', b)) return;
+      stderr += b.toString('utf8');
+    });
     child.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ENOENT') {
         reject(new CommandError('TOOL_MISSING', `${bin}: not installed`));

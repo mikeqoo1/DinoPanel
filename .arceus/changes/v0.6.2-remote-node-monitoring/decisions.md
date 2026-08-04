@@ -61,3 +61,15 @@
 2. **`StrictHostKeyChecking=accept-new` TOFU 核可**（內網環境）— D1 維持不變。
 3. **重複 `host:port` 註冊本版就擋**：service 層檢查，409 `NODES_DUPLICATE`。
 4. **輪詢間隔分流**：metrics 10s、containers 30s（容器變動頻率低，減半 ssh 次數）。
+
+## D9 — 對抗式 review 修補（2026-08-04，append-only 記錄）
+
+Review 判 REQUEST_CHANGES，1 個存活 block finding 加數項 advisory。已修並記錄其中三項需要留痕的：
+
+1. **`--` 位置（block／安全）**：原實作把 end-of-options 放在 `user@host` **之後**，第二層注入防護實際失效。實證（OpenSSH_9.6p1）：`ssh -o BatchMode=yes -p 22 '-oProxyCommand=/bin/echo X' -- true` **會執行** ProxyCommand（面板以 root 跑 → 本機 RCE）；`ssh … -p 22 -- '-oProxyCommand=…' true` 被拒（`hostname contains invalid characters`）。改為 `--` 在 destination 之前，golden test 一併鎖住新順序並註記原因。spec F2／T-6 原本誤植成 host 之後（與 F5 自相矛盾），已依 F5 安全條款更正。
+2. **KV 讀取端重新驗證（安全）**：`readList()` 原本 `JSON.parse(...) as RemoteNode[]` 直接信任 settings blob，而 host/user/port 會流進 ssh argv — 註冊時的 zod 成為系統唯一防線。改為收斂到單一來源：`remoteNodeSchema` 的 host/user/port 改用與 `createNodeSchema` 同強度的約束，讀取時逐筆驗證、不合法丟棄並 warn；非陣列 JSON 回空陣列而非拋 TypeError（原本會落到未捕捉 500，違反 F4）。
+3. **輸出上限（安全，共用層）**：`runCommand` 的 stdout/stderr 是無上限字串累加 — nodes 是第一個餵入遠端不可信輸出的呼叫者，被監控節點可用巨量 stdout 打爆面板（被監控者不該能殺死監控者）。在共用層加 **opt-in** `maxOutputBytes`（預設 undefined＝維持既有行為，約 10 個既有呼叫者零影響），`sshExec` 傳 4 MiB。
+
+其餘已修的 advisory（不改變決策）：docker-absent 判定收斂為 exit 127／針對 docker 的 not-found（遠端 `~/.bashrc` 雜訊曾能讓活著的 docker 被誤報成未安裝）、df exit 1 容忍（單一壞 mount 不該讓整個節點顯示故障）、exit 127 不再刷 warn log、web 失效範圍收斂到 `nodeKeys.list()`、磁碟不再只顯示前三筆、docs 更正 HOSTKEY_CHANGED 訊息描述並補最小權限替代方案。
+
+**刻意不修**：`add()`/`remove()` 的 read-modify-write 競態（單一管理者面板，機率極低）— 留 `// ponytail:` 註記天花板與升級路徑（per-key lock），不建 mutex。

@@ -14,20 +14,32 @@ const HOST_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 // lowercase letters, digits, underscores, dots or hyphens.
 const USER_REGEX = /^[a-z_][a-z0-9_.-]*$/;
 
+// Shared field definitions — one source of truth for both stored data and
+// API input so that a compromised DB row cannot supply a value that bypasses
+// the injection guards.
+const hostField = z
+  .string()
+  .min(1)
+  .regex(HOST_REGEX, 'Invalid hostname/IPv4 (must not start with "-")');
+const userField = z
+  .string()
+  .regex(USER_REGEX, 'Invalid username (expected ^[a-z_][a-z0-9_.-]*$)');
+const portField = z.number().int().min(1).max(65535);
+
 export const remoteNodeSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  host: z.string(),
-  port: z.number().int(),
-  user: z.string(),
+  name: z.string().min(1).max(64),
+  host: hostField,
+  port: portField,
+  user: userField,
 });
 export type RemoteNode = z.infer<typeof remoteNodeSchema>;
 
 export const createNodeSchema = z.object({
   name: z.string().min(1).max(64),
-  host: z.string().min(1).regex(HOST_REGEX, 'Invalid hostname/IPv4 (must not start with "-")'),
-  user: z.string().regex(USER_REGEX, 'Invalid username (expected ^[a-z_][a-z0-9_.-]*$)'),
-  port: z.number().int().min(1).max(65535).default(22),
+  host: hostField,
+  user: userField,
+  port: portField.default(22),
 });
 export type CreateNode = z.infer<typeof createNodeSchema>;
 

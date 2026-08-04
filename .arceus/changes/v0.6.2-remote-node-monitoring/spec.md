@@ -19,7 +19,7 @@
 - 實作：**單次** `runCommand('ssh', buildSshArgs(node, METRICS_CMD))` 執行固定常數遠端命令批次（`export LC_ALL=C;` 開頭固定 locale、`__DINO__` 分隔段落）：
   `cat /proc/stat; cat /proc/loadavg; cat /proc/meminfo; cat /proc/uptime; sleep 1; cat /proc/stat; df -PTB1 -x tmpfs -x devtmpfs -x overlay`
 - CPU usage 由兩次 `/proc/stat` 取樣差分計算（0–100）；mem 由 `MemTotal`/`MemAvailable` 推得 used/total/free；disks 由 `df -PTB1` 解析 `{mount,fstype,used,total}`（`-T` 提供 fstype 欄，對齊 v0.6.1 磁碟去噪先例）；uptime 由 `/proc/uptime` 取整數秒。
-- SSH 固定參數（`buildSshArgs` 純函式組裝）：`-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -p <port> <user>@<host> -- <常數命令>`（`--` end-of-options 為第二層注入防護）。
+- SSH 固定參數（`buildSshArgs` 純函式組裝）：`-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -p <port> -- <user>@<host> <常數命令>`（`--` 在 destination **之前** — 見 F5 與 D9；原草稿此行誤植於 host 之後，已依 F5 安全條款更正）。
 
 ### F3 — 遠端容器狀態
 - `GET /api/nodes/:id/containers` → `{ dockerAvailable: boolean, containers: RemoteContainer[] }`。
@@ -39,7 +39,9 @@
 
 ### F5 — 信任邊界驗證（不可簡化）
 - zod schema 驗證註冊輸入：`host` 符合 hostname/IPv4 格式且**不得以 `-` 開頭**；`user` 符合 `^[a-z_][a-z0-9_.-]*$`；`port` 為 1–65535 整數；`name` 非空字串 ≤64 字。
-- ssh argv 中 host 之前放 `--` end-of-options（OpenSSH 在 host 位置後仍解析選項；`--` 由 client 消化，與 zod 拒前導 `-` 疊成雙層防護）。
+- ssh argv 中 host 之前放 `--` end-of-options（OpenSSH 在 host 位置後仍解析選項；`--` 由 client 消化，與 zod 拒前導 `-` 疊成雙層防護）。**實證**（OpenSSH_9.6p1）：`ssh -p 22 '-oProxyCommand=/bin/echo X' -- true` 會執行 ProxyCommand；`ssh -p 22 -- '-oProxyCommand=…' true` 則被拒（`hostname contains invalid characters`）。
+- 節點清單自 settings KV 讀出時**逐筆以 `remoteNodeSchema` 重新驗證**（同 `createNodeSchema` 強度的 host/user/port 約束），不合法者丟棄並 warn — KV blob 是信任邊界，寫入時的驗證不能是唯一防線（D9）。
+- `sshExec` 對 `runCommand` 傳入 `maxOutputBytes` 上限（4 MiB）：被監控節點不得以巨量 stdout 打爆面板行程（D9）。
 - 遠端執行的命令字串一律為模組內常數（`METRICS_CMD` / `DOCKER_PS_CMD`），**不得**插入任何使用者輸入。
 
 ### F6 — 共用 schema
