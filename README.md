@@ -11,16 +11,19 @@ web UI. Designed as an independent clean-room reimplementation
 inspired by best-in-class panels, deliberately trimmed to what one
 maintainer can actually own.
 
-> **Status:** Pre-1.0, actively developed. Through **v0.6** the panel
+> **Status:** Pre-1.0, actively developed. Through **v0.6.2** the panel
 > handles containers, websites + ACME SSL, **databases (MySQL /
 > MariaDB / PostgreSQL / Redis / MongoDB) with PMM PromQL summary
 > cards**, **logical database backups + restore (on-demand or
 > scheduled, keep-last-N retention, restore-in-place)**, firewall,
-> scheduler, log centre, and a **host toolbox (NTP / time-sync,
-> Fail2Ban, disk usage + curated cleaners)**. Validated end-to-end on
-> Rocky Linux 9.4 production-class hardware (Xeon Gold 5218, 600+ days
-> uptime); v0.5.0 backups smoke-tested on the same box. Next milestone
-> is v0.7 (account security).
+> scheduler, log centre, a **host toolbox (NTP / time-sync,
+> Fail2Ban, disk usage + curated cleaners, systemd service
+> management)**, and **remote node read-only monitoring (agentless SSH
+> — CPU / memory / disk / uptime + Docker container list/state; no
+> remote mutations)**. Validated end-to-end on Rocky Linux 9.4
+> production-class hardware (Xeon Gold 5218, 600+ days uptime);
+> v0.5.0 backups smoke-tested on the same box. Next milestone is v0.7
+> (account security).
 
 ## Features
 
@@ -119,6 +122,14 @@ maintainer can actually own.
   contract, and raw host stderr never reaches the client in production.
   See [`docs/toolbox.md`](./docs/toolbox.md)
 
+### Remote Node Monitoring (v0.6.2)
+
+- Register a remote host over agentless SSH (key-based auth, no agent
+  required on the remote)
+- Read-only host metrics: CPU / memory / disk / uptime — polled on demand
+- Docker container list + state on the remote host (no mutations)
+- See [`docs/nodes.md`](./docs/nodes.md)
+
 ## Roadmap
 
 | Version | Scope | Status |
@@ -139,6 +150,7 @@ maintainer can actually own.
 | v0.5.0  | Database backups + restore — logical dumps (mysql/mariadb/postgresql/redis/mongodb), local storage, on-demand + scheduled (`db_backup` task), keep-last-N retention, restore-in-place | ✅ shipped (smoke S1–S4 on Rocky 234) |
 | v0.6.0  | Toolbox — NTP / time-sync, Fail2Ban (extended in-place under firewall), disk usage + curated cleaners (journald / package-cache / docker-prune; tmp-sweep dropped as unsafe). Swap-write + Supervisor follow as v0.6.x patches | ✅ shipped (Rocky 234 smoke S1–S3; fail2ban not installed → S4 n/a) |
 | v0.6.1  | Supervisor = systemd `.service` management (Services tab: list/status + start/stop/restart/enable/disable, tiered protected-units guard so you can't stop the panel/sshd/firewalld) + disk-table de-noise (`df -T` fstype filter hides docker-overlay/pseudo mounts behind a toggle) | ✅ shipped (Rocky 234 smoke S1–S3 + services guard verified live) |
+| v0.6.2  | Remote node read-only monitoring — register a remote host over agentless SSH, read-only host metrics (CPU / memory / disk / uptime) and Docker container list/state; no remote mutations. See [`docs/nodes.md`](./docs/nodes.md) | ✅ shipped |
 | v0.7.0  | Account security — TOTP MFA + recovery codes, login session management, IP allow-list, SSH config management (sshd port / root-login / keys). Adds a `SecretsService` (also encrypts the v0.4 plaintext DB passwords). Passkey / WebAuthn gated on a TLS deployment | planned |
 | v0.8.0  | Alerts & notifications — monitoring thresholds (CPU / RAM / disk), notification channels (email / webhook), alert history (driven by the existing scheduler) | planned |
 | v0.9.0  | Remote backups + panel snapshot — S3 / MinIO-compatible backup targets, full panel snapshot backup / restore (settings + DB + site conf) | planned |
@@ -177,7 +189,7 @@ pnpm dev
 pnpm typecheck
 pnpm lint
 
-# Run unit tests (438 total — server + web + shared suites)
+# Run unit tests (551 total — server + web + shared suites)
 pnpm test
 
 # Build production bundle
@@ -234,6 +246,7 @@ release/              # Built tarballs (gitignored content)
 - [Backups](./docs/backups.md) — logical dumps, retention, scheduled + restore-in-place
 - [Firewall](./docs/firewall.md) — ufw / firewalld drivers, rollback safeguard
 - [Toolbox](./docs/toolbox.md) — NTP, Fail2Ban, disk usage + cleaners, sudoers
+- [Nodes](./docs/nodes.md) — remote node registration, agentless SSH, read-only metrics + containers
 - [Scheduler](./docs/scheduler.md) — cron jobs, runners, dogfooded purge
 - [Logs](./docs/logs.md) — five log sources, retention, audit interceptor
 - [Deployment](./docs/deployment.md) — production install + upgrade flow

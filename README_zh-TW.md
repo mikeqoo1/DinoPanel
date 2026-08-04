@@ -6,7 +6,7 @@
 
 DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面集中管理檔案、終端機、容器、自動申請 SSL 的網站、防火牆、排程任務與日誌中心等。整個專案為獨立的 clean-room reimplementation，靈感取自業界一流的管理面板，但範圍刻意修剪到一個維護者能持續產出的程度。
 
-> **狀態：** Pre-1.0，持續開發中。截至 **v0.6** 已涵蓋容器、網站 + ACME SSL、**資料庫（MySQL / MariaDB / PostgreSQL / Redis / MongoDB）+ PMM PromQL 摘要卡**、**資料庫備份 + 還原（隨需或排程、keep-last-N 保留、原地還原）**、防火牆、排程、日誌中心，以及**主機工具箱（NTP / 時間同步、Fail2Ban、磁碟用量 + 策展型清理）**。已在 Rocky Linux 9.4 production-class 機器（Xeon Gold 5218、600+ 天 uptime）完成端到端 smoke 驗證；v0.5.0 備份也在同台機器 smoke 過。下一站 v0.7（帳號安全）。
+> **狀態：** Pre-1.0，持續開發中。截至 **v0.6.2** 已涵蓋容器、網站 + ACME SSL、**資料庫（MySQL / MariaDB / PostgreSQL / Redis / MongoDB）+ PMM PromQL 摘要卡**、**資料庫備份 + 還原（隨需或排程、keep-last-N 保留、原地還原）**、防火牆、排程、日誌中心、**主機工具箱（NTP / 時間同步、Fail2Ban、磁碟用量 + 策展型清理、systemd 服務管理）**，以及**遠端節點唯讀監控（agentless SSH — CPU / 記憶體 / 磁碟 / uptime + Docker 容器清單/狀態；不對遠端執行寫入操作）**。已在 Rocky Linux 9.4 production-class 機器（Xeon Gold 5218、600+ 天 uptime）完成端到端 smoke 驗證；v0.5.0 備份也在同台機器 smoke 過。下一站 v0.7（帳號安全）。
 
 ## 功能
 
@@ -70,6 +70,13 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 - **磁碟** — `df` 檔案系統用量 + 對封閉 root allowlist 的 `du` 逐目錄分解，加上策展型 tool-owned 清理（journald vacuum / 套件快取 clean / docker prune — 無任意路徑刪除）
 - 主機 binary 缺席時各工具優雅降級（503 / availability 旗標）；寫入型操作走單一 `sudo -n` NOPASSWD 合約，且原始 host stderr 在 production 不會回到前端。詳見 [`docs/toolbox.md`](./docs/toolbox.md)
 
+### 遠端節點監控（v0.6.2）
+
+- 透過 agentless SSH（金鑰驗證，遠端主機不需安裝 agent）註冊遠端主機
+- 唯讀主機指標：CPU / 記憶體 / 磁碟 / uptime — 隨需查詢
+- 遠端主機的 Docker 容器清單 + 狀態（不對遠端執行寫入操作）
+- 詳見 [`docs/nodes.md`](./docs/nodes.md)
+
 ## 路線圖
 
 | 版本 | 範圍 | 狀態 |
@@ -83,6 +90,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.5.0 | 資料庫備份 + 還原 — 邏輯 dump（5 引擎）、本機儲存、隨需 + 排程（`db_backup`）、keep-last-N 保留、原地還原 | ✅ 已 ship（Rocky 234 smoke S1–S4 過） |
 | v0.6.0 | 工具箱 — NTP / 時間同步、Fail2Ban（原地擴充 firewall 模組）、磁碟用量 + 策展型清理（journald / 套件快取 / docker prune；tmp-sweep 因不安全已砍）。Swap 寫入 + Supervisor 走 v0.6.x patch | ✅ 已 ship（Rocky 234 smoke S1–S3 過；該機未裝 fail2ban → S4 略） |
 | v0.6.1 | Supervisor = systemd `.service` 管理（服務分頁：列出/狀態 + start/stop/restart/enable/disable，分級保護清單，停不掉面板自己/sshd/firewalld）+ 磁碟表去噪（`df -T` fstype 過濾，docker overlay/pseudo 預設隱藏 + toggle） | ✅ 已 ship（Rocky 234 smoke S1–S3 + 服務護欄活驗過） |
+| v0.6.2 | 遠端節點唯讀監控 — 透過 agentless SSH 註冊遠端主機，唯讀主機指標（CPU / 記憶體 / 磁碟 / uptime）與 Docker 容器清單/狀態；不對遠端執行寫入操作。詳見 [`docs/nodes.md`](./docs/nodes.md) | ✅ 已 ship |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
@@ -120,7 +128,7 @@ pnpm dev
 pnpm typecheck
 pnpm lint
 
-# 跑單元測試（server 313 + web 26 + shared）
+# 跑單元測試（共 551 — server + web + shared）
 pnpm test
 
 # 建置 production bundle
@@ -171,6 +179,7 @@ release/              # 打好的 tarball（內容 gitignored）
 - [備份](./docs/backups.md) — 邏輯 dump、保留、排程 + 原地還原
 - [防火牆](./docs/firewall.md) — ufw / firewalld driver、rollback 保險
 - [工具箱](./docs/toolbox.md) — NTP、Fail2Ban、磁碟用量 + 清理、sudoers
+- [遠端節點](./docs/nodes.md) — 節點註冊、agentless SSH、唯讀指標 + 容器
 - [排程](./docs/scheduler.md) — cron 任務、runner、內建 purge dogfood
 - [日誌](./docs/logs.md) — 五個日誌來源、保留策略、audit interceptor
 - [部署](./docs/deployment.md) — 生產環境安裝 + 升級流程
