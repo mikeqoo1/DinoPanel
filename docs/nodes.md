@@ -122,7 +122,9 @@ SSH are fixed read-only constants defined in the server source:
 
 - **Metrics**: reads `/proc/stat` (twice, 1 s apart for CPU delta),
   `/proc/loadavg`, `/proc/meminfo`, `/proc/uptime`, and
-  `df -PTB1 -x tmpfs -x devtmpfs -x overlay`.
+  `df -PTB1`. Pseudo filesystems (tmpfs, efivarfs, overlay, …) are filtered out
+  using the same shared predicate as the local disk tab, so both tables hide the
+  same things.
 - **Containers**: `docker ps -a --format '{{json .}}'`
 
 No `start`, `stop`, `restart`, `rm`, `exec`, or `systemctl` command is

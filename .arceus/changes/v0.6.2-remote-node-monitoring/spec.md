@@ -17,8 +17,8 @@
 ### F2 — 遠端主機狀態
 - `GET /api/nodes/:id/metrics` → `RemoteNodeMetrics`（slim schema，見 F6）。
 - 實作：**單次** `runCommand('ssh', buildSshArgs(node, METRICS_CMD))` 執行固定常數遠端命令批次（`export LC_ALL=C;` 開頭固定 locale、`__DINO__` 分隔段落）：
-  `cat /proc/stat; cat /proc/loadavg; cat /proc/meminfo; cat /proc/uptime; sleep 1; cat /proc/stat; df -PTB1 -x tmpfs -x devtmpfs -x overlay`
-- CPU usage 由兩次 `/proc/stat` 取樣差分計算（0–100）；mem 由 `MemTotal`/`MemAvailable` 推得 used/total/free；disks 由 `df -PTB1` 解析 `{mount,fstype,used,total}`（`-T` 提供 fstype 欄，對齊 v0.6.1 磁碟去噪先例）；uptime 由 `/proc/uptime` 取整數秒。
+  `cat /proc/stat; cat /proc/loadavg; cat /proc/meminfo; cat /proc/uptime; sleep 1; cat /proc/stat; df -PTB1`
+- CPU usage 由兩次 `/proc/stat` 取樣差分計算（0–100）；mem 由 `MemTotal`/`MemAvailable` 推得 used/total/free；disks 由 `df -PTB1` 解析 `{mount,fstype,used,total}`（`-T` 提供 fstype 欄）；pseudo fs 以共用 `isRealFilesystem()` 濾除而非 `df -x` 清單 — 真機 235 的 `efivarfs` 曾漏過硬寫的 `-x`，而本機磁碟表一直有隱藏它，遠端與本機必須同一份判斷；uptime 由 `/proc/uptime` 取整數秒。
 - SSH 固定參數（`buildSshArgs` 純函式組裝）：`-o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -p <port> -- <user>@<host> <常數命令>`（`--` 在 destination **之前** — 見 F5 與 D9；原草稿此行誤植於 host 之後，已依 F5 安全條款更正）。
 
 ### F3 — 遠端容器狀態

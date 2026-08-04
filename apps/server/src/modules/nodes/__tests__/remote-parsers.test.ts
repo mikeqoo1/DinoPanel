@@ -62,6 +62,16 @@ const DF_PTB1 = `Filesystem             Type      1B-blocks       Used  Availabl
 /dev/sda1              xfs        534773760   206471168   328302592  39% /boot
 `;
 
+// Verbatim `df -PTB1` from the real remote node 192.168.199.235 (Rocky, xfs on
+// LVM + md RAID /boot). Note efivarfs — a pseudo fs that no `-x` flag caught.
+const DF_REAL_235 = `Filesystem          Type         1-blocks         Used    Available Capacity Mounted on
+efivarfs            efivarfs       524288        65022       454146      13% /sys/firmware/efi/efivars
+/dev/mapper/rl-root xfs      782736117760 402359894016 380376223744      52% /
+/dev/mapper/rl-home xfs      160982630400  99390509056  61592121344      62% /home
+/dev/md126p2        xfs        1063256064    620400640    442855424      59% /boot
+/dev/md126p1        vfat        627900416      7397376    620503040       2% /boot/efi
+`;
+
 // df with a swap=0-size entry (edge case for parseDfPTB1)
 const DF_WITH_ZERO_SIZE = `Filesystem             Type      1B-blocks       Used  Available Use% Mounted on
 /dev/mapper/rl-root    xfs      18253611008 6420340736 11833270272  36% /
@@ -188,12 +198,20 @@ describe('parseDfPTB1', () => {
     expect(parseDfPTB1(DF_PTB1)).toHaveLength(2);
   });
 
-  it('zero-size filesystem is parsed correctly', () => {
+  it('pseudo filesystems are dropped via the shared predicate', () => {
     const rows = parseDfPTB1(DF_WITH_ZERO_SIZE);
-    const tmpfs = rows.find((r) => r.mount === '/dev/shm');
-    expect(tmpfs).toBeDefined();
-    expect(tmpfs?.total).toBe(0);
-    expect(tmpfs?.used).toBe(0);
+    expect(rows.find((r) => r.mount === '/dev/shm')).toBeUndefined();
+    expect(rows.map((r) => r.mount)).toEqual(['/']);
+  });
+
+  // Captured from the real 192.168.199.235 before v0.6.2 shipped: efivarfs slips
+  // past `df -x tmpfs -x devtmpfs -x overlay` but the local disk tab has always
+  // hidden it, so remote and local must agree (one shared predicate, not two lists).
+  it('real 235 output — efivarfs dropped, xfs/vfat kept', () => {
+    const rows = parseDfPTB1(DF_REAL_235);
+    expect(rows.map((r) => r.mount)).toEqual(['/', '/home', '/boot', '/boot/efi']);
+    expect(rows.some((r) => r.fstype === 'efivarfs')).toBe(false);
+    expect(rows.find((r) => r.mount === '/')?.total).toBe(782736117760);
   });
 
   it('returns [] for empty input', () => {

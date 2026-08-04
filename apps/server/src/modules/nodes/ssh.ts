@@ -20,7 +20,7 @@ export interface SshLogger {
 // ---------------------------------------------------------------------------
 
 export const METRICS_CMD =
-  'export LC_ALL=C; cat /proc/stat; echo __DINO__; cat /proc/loadavg; echo __DINO__; cat /proc/meminfo; echo __DINO__; cat /proc/uptime; echo __DINO__; sleep 1; cat /proc/stat; echo __DINO__; df -PTB1 -x tmpfs -x devtmpfs -x overlay';
+  'export LC_ALL=C; cat /proc/stat; echo __DINO__; cat /proc/loadavg; echo __DINO__; cat /proc/meminfo; echo __DINO__; cat /proc/uptime; echo __DINO__; sleep 1; cat /proc/stat; echo __DINO__; df -PTB1';
 
 export const DOCKER_PS_CMD = "export LC_ALL=C; docker ps -a --format '{{json .}}'";
 

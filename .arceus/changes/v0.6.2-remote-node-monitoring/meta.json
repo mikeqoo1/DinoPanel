@@ -3,5 +3,10 @@
   "title": "Remote node monitoring — onboard 192.168.199.235 (read-only host + containers)",
   "status": "active",
   "createdAt": "2026-08-03T09:09:54.505Z",
-  "updatedAt": "2026-08-04T00:58:52.314Z"
+  "updatedAt": "2026-08-04T02:17:48.953Z",
+  "verdict": "APPROVE",
+  "verifiedSha": "753d416fed77f2a38a325beb419b8a216bb540d1",
+  "verifiedAt": "2026-08-04T02:17:48.953Z",
+  "verifiedBase": "origin/main",
+  "verificationBinaryVersion": "check-spec v0.1.0-2-gbee34ec-dirty (commit bee34ec, built 2026-05-26T03:45:57Z)"
 }

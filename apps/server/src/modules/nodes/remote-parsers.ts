@@ -1,4 +1,4 @@
-import { containerStateSchema } from '@dinopanel/shared';
+import { containerStateSchema, isRealFilesystem } from '@dinopanel/shared';
 import type { RemoteContainer, RemoteNodeMetrics } from '@dinopanel/shared';
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,12 @@ export function parseUptime(uptime: string): number {
 /**
  * Parses `df -PTB1` output (header + data lines).
  * Columns: Filesystem Type 1B-blocks Used Available Use% Mounted
+ *
+ * Pseudo filesystems are dropped via the shared {@link isRealFilesystem}
+ * predicate rather than `df -x` flags, so the remote table hides exactly what
+ * the local disk tab hides (v0.6.1 de-noise). A hardcoded `-x` list drifts:
+ * `efivarfs` on the real 235 slipped past `-x tmpfs -x devtmpfs -x overlay`
+ * while the local table had been hiding it all along.
  */
 export function parseDfPTB1(
   df: string,
@@ -72,6 +78,7 @@ export function parseDfPTB1(
     const used = parseInt(cols[3] ?? '0', 10);
     const mount = cols[6] ?? '';
     if (!mount || !fstype) continue;
+    if (!isRealFilesystem(fstype)) continue;
     result.push({ mount, fstype, used, total });
   }
   return result;
