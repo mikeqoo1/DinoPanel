@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import * as si from 'systeminformation';
 import { Logger } from 'nestjs-pino';
 import { Subject } from 'rxjs';
-import type { MetricsSnapshot, ProcessInfo, SystemInfo } from '@dinopanel/shared';
+import { isRealFilesystem, type MetricsSnapshot, type ProcessInfo, type SystemInfo } from '@dinopanel/shared';
 
 const POLL_INTERVAL_MS = 1000;
 
@@ -158,7 +158,7 @@ export class SystemService implements OnModuleInit, OnApplicationShutdown {
         swapTotal: mem.swaptotal,
       },
       disks: fsSize
-        .filter((d) => !d.mount.startsWith('/snap') && !d.mount.startsWith('/run'))
+        .filter((d) => isRealFilesystem(d.type) && !d.mount.startsWith('/snap') && !d.mount.startsWith('/run'))
         .map((d) => ({ mount: d.mount, used: d.used, total: d.size })),
       net: { rx: netAgg.rx, tx: netAgg.tx, rxRate, txRate },
       diskIo: { readRate, writeRate },

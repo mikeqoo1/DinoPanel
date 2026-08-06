@@ -64,7 +64,16 @@ export function DashboardPage() {
           icon={<HardDrive className="h-4 w-4 text-muted-foreground" />}
           label={t('dashboard.disk')}
           value={primaryDisk ? formatPercent(diskPct) : '—'}
-          sub={primaryDisk ? `${formatBytes(primaryDisk.used)} / ${formatBytes(primaryDisk.total)}` : null}
+          sub={
+            latest && latest.disks.length > 0
+              ? latest.disks.map((d) => (
+                  <div key={d.mount} className="font-mono">
+                    {d.mount}: {d.total > 0 ? formatPercent((d.used / d.total) * 100) : '—'} ·{' '}
+                    {formatBytes(d.used)} / {formatBytes(d.total)}
+                  </div>
+                ))
+              : null
+          }
         />
         <MetricCard
           icon={<Network className="h-4 w-4 text-muted-foreground" />}
@@ -135,7 +144,7 @@ interface MetricCardProps {
   icon: React.ReactNode;
   label: string;
   value: string;
-  sub: string | null;
+  sub: React.ReactNode;
   data?: number[];
   color?: string;
   yMax?: number;
@@ -151,7 +160,7 @@ function MetricCard({ icon, label, value, sub, data, color, yMax, format }: Metr
       </CardHeader>
       <CardContent className="space-y-1">
         <div className="text-2xl font-bold tabular-nums">{value}</div>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+        {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
         {data && data.length > 0 && (
           <div className="mt-2">
             <MetricChart data={data} color={color} yMax={yMax} format={format} height={56} />
