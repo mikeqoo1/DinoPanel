@@ -22,7 +22,7 @@ describe('createNodeSchema — trust-boundary validation', () => {
     const result = createNodeSchema.safeParse({
       name: 'my-node',
       host: 'server.example.com',
-      user: 'deploy_user',
+      user: '110084-mike',
       port: 2222,
     });
     expect(result.success).toBe(true);
@@ -35,7 +35,7 @@ describe('createNodeSchema — trust-boundary validation', () => {
   });
 
   it('rejects user with shell-special characters', () => {
-    for (const user of ['a;b', 'root$', 'foo bar', 'UPPER', 'a@b']) {
+    for (const user of ['a;b', 'root$', 'foo bar', 'UPPER', 'a@b', '-oProxyCommand=x']) {
       expect(createNodeSchema.safeParse({ name: 'n', host: '127.0.0.1', user }).success).toBe(false);
     }
   });

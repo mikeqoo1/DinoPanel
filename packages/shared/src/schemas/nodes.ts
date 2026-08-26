@@ -10,9 +10,10 @@ import { containerStateSchema } from './containers.js';
 // end-of-options in buildSshArgs is the second layer).
 const HOST_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 
-// POSIX-portable username: lowercase letter or underscore start, then
-// lowercase letters, digits, underscores, dots or hyphens.
-const USER_REGEX = /^[a-z_][a-z0-9_.-]*$/;
+// Username: lowercase letter, digit or underscore start (real-world accounts like
+// `110084-mike` exist), then lowercase letters, digits, underscores, dots or
+// hyphens. Never starts with "-" so it cannot be misread as an SSH option.
+const USER_REGEX = /^[a-z0-9_][a-z0-9_.-]*$/;
 
 // Shared field definitions — one source of truth for both stored data and
 // API input so that a compromised DB row cannot supply a value that bypasses
@@ -23,7 +24,7 @@ const hostField = z
   .regex(HOST_REGEX, 'Invalid hostname/IPv4 (must not start with "-")');
 const userField = z
   .string()
-  .regex(USER_REGEX, 'Invalid username (expected ^[a-z_][a-z0-9_.-]*$)');
+  .regex(USER_REGEX, 'Invalid username (expected ^[a-z0-9_][a-z0-9_.-]*$)');
 const portField = z.number().int().min(1).max(65535);
 
 export const remoteNodeSchema = z.object({
