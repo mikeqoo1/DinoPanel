@@ -844,7 +844,7 @@
     },
     "containers": {
       "title": "容器",
-      "no_docker": "此節點未安裝 Docker。",
+      "no_docker": "此節點未安裝 Docker 或 Podman。",
       "empty": "無容器。",
       "col_name": "名稱",
       "col_image": "映像",

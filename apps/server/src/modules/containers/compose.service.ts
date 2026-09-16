@@ -33,6 +33,8 @@ const COMPOSE_FILE_CANDIDATES = [
 @Injectable()
 export class ComposeService implements OnModuleInit {
   private isV2Available = false;
+  /** `docker compose` or `podman compose` — whichever answered `version` at boot. */
+  private composeBin: 'docker' | 'podman' = 'docker';
 
   constructor(
     @Inject(DOCKER) private readonly docker: Dockerode,
@@ -41,15 +43,20 @@ export class ComposeService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    try {
-      await execFileAsync('docker', ['compose', 'version'], { timeout: 3000 });
-      this.isV2Available = true;
-      this.logger.log('docker compose v2 detected');
-    } catch {
-      this.logger.warn(
-        'docker compose v2 not found — Compose features will be unavailable; install docker-compose-plugin',
-      );
+    for (const bin of ['docker', 'podman'] as const) {
+      try {
+        await execFileAsync(bin, ['compose', 'version'], { timeout: 3000 });
+        this.composeBin = bin;
+        this.isV2Available = true;
+        this.logger.log(`${bin} compose detected`);
+        return;
+      } catch {
+        // try next engine
+      }
     }
+    this.logger.warn(
+      'neither `docker compose` nor `podman compose` found — Compose features will be unavailable; install docker-compose-plugin or podman-compose',
+    );
   }
 
   private assertV2() {
@@ -265,7 +272,7 @@ export class ComposeService implements OnModuleInit {
     const filePath = await this.requireComposeFilePath(stack);
 
     return new Promise((resolve) => {
-      const child = spawn('docker', ['compose', '-f', filePath, 'config'], {
+      const child = spawn(this.composeBin, ['compose', '-f', filePath, 'config'], {
         cwd: stack.path,
         timeout: 15_000,
       });
@@ -307,7 +314,7 @@ export class ComposeService implements OnModuleInit {
     action: 'up' | 'down' | 'restart' | 'pull',
   ): ChildProcess {
     const args = actionArgs(action);
-    return spawn('docker', ['compose', ...args], {
+    return spawn(this.composeBin, ['compose', ...args], {
       cwd: stackPath,
     });
   }

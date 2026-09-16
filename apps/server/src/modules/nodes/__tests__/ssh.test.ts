@@ -6,7 +6,7 @@ import {
   isDockerAbsent,
   sshExec,
   METRICS_CMD,
-  DOCKER_PS_CMD,
+  CONTAINER_PS_CMD,
 } from '../ssh';
 import { runCommand, CommandError } from '../../../common/shell/run-command';
 import type * as RunCommandModule from '../../../common/shell/run-command';
@@ -71,8 +71,23 @@ describe('buildSshArgs', () => {
     expect(METRICS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
   });
 
-  it('DOCKER_PS_CMD starts with export LC_ALL=C;', () => {
-    expect(DOCKER_PS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
+  it('CONTAINER_PS_CMD starts with export LC_ALL=C;', () => {
+    expect(CONTAINER_PS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
+  });
+
+  it('CONTAINER_PS_CMD tries docker ps first, then falls back to podman ps', () => {
+    const docker = CONTAINER_PS_CMD.indexOf("docker ps -a --format '{{json .}}'");
+    const podman = CONTAINER_PS_CMD.indexOf("podman ps -a --format '{{json .}}'");
+    expect(docker).toBeGreaterThan(-1);
+    expect(podman).toBeGreaterThan(docker);
+  });
+
+  it('CONTAINER_PS_CMD exits 127 when neither engine is installed', () => {
+    expect(CONTAINER_PS_CMD).toMatch(/exit 127/);
+  });
+
+  it('CONTAINER_PS_CMD contains no mutation verbs (read-only guarantee, AC7)', () => {
+    expect(CONTAINER_PS_CMD).not.toMatch(/(docker|podman) (start|stop|restart|rm|exec|run|kill|pull)/);
   });
 });
 
@@ -255,6 +270,10 @@ describe('isDockerAbsent', () => {
 
   it('returns true for non-zero exit + "docker: not found"', () => {
     expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: 'docker: not found' })).toBe(true);
+  });
+
+  it('returns true for non-zero exit + "podman: command not found"', () => {
+    expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: 'bash: podman: command not found' })).toBe(true);
   });
 
   it('returns false for exit 0 even with "command not found" in stderr', () => {

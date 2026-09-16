@@ -22,7 +22,11 @@ export interface SshLogger {
 export const METRICS_CMD =
   'export LC_ALL=C; cat /proc/stat; echo __DINO__; cat /proc/loadavg; echo __DINO__; cat /proc/meminfo; echo __DINO__; cat /proc/uptime; echo __DINO__; sleep 1; cat /proc/stat; echo __DINO__; df -PTB1';
 
-export const DOCKER_PS_CMD = "export LC_ALL=C; docker ps -a --format '{{json .}}'";
+// Docker first, Podman second (Rocky/Alma ship podman by default). Neither → exit 127,
+// which isDockerAbsent() already treats as "no container engine" (200 dockerAvailable:false).
+export const CONTAINER_PS_CMD =
+  "export LC_ALL=C; if command -v docker >/dev/null 2>&1; then docker ps -a --format '{{json .}}'; " +
+  "elif command -v podman >/dev/null 2>&1; then podman ps -a --format '{{json .}}'; else exit 127; fi";
 
 // ---------------------------------------------------------------------------
 // buildSshArgs — pure function, exact arg order per spec/T-6
@@ -84,14 +88,15 @@ export function classifySshFailure(
 // isDockerAbsent — single source of truth for the docker-not-installed state
 // ---------------------------------------------------------------------------
 
-/** Returns true when the SSH result indicates docker is not installed on the
- *  remote host (exit 127, OR non-zero exit with docker-specific not-found).
+/** Returns true when the SSH result indicates no container engine (docker or
+ *  podman) is installed on the remote host (exit 127, OR non-zero exit with an
+ *  engine-specific not-found).
  *  Used in getContainers for the 200 {dockerAvailable:false} response AND in
  *  sshExec's warn-skip so the two never drift apart. */
 export function isDockerAbsent(result: CommandResult): boolean {
   return (
     result.exitCode === 127 ||
-    (result.exitCode !== 0 && /docker: (command )?not found/i.test(result.stderr))
+    (result.exitCode !== 0 && /(docker|podman): (command )?not found/i.test(result.stderr))
   );
 }
 

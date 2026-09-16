@@ -62,7 +62,7 @@ export function mapDockerError(err: unknown, op: string): never {
   if (nodeErr?.code === 'ENOENT' || nodeErr?.code === 'ECONNREFUSED' || nodeErr?.code === 'EACCES') {
     throw new ServiceUnavailableException({
       code: 'DOCKER_UNREACHABLE',
-      message: 'Docker daemon is not reachable',
+      message: 'Container engine (Docker/Podman) is not reachable',
     });
   }
 

@@ -11,7 +11,7 @@ import {
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
-import { DOCKER_PS_CMD, METRICS_CMD, isDockerAbsent, sshExec } from './ssh';
+import { CONTAINER_PS_CMD, METRICS_CMD, isDockerAbsent, sshExec } from './ssh';
 import { parseDockerPsJson, parseMetricsOutput } from './remote-parsers';
 
 // ponytail: no Unavailable-driver layer — ssh availability is per-request/per-node,
@@ -146,7 +146,7 @@ export class NodesService {
   async getContainers(id: string): Promise<RemoteContainersResponse> {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
-    const result = await sshExec(node, DOCKER_PS_CMD, this.logger);
+    const result = await sshExec(node, CONTAINER_PS_CMD, this.logger);
     // Single source of truth for docker-absent — same predicate as sshExec's warn-skip.
     if (isDockerAbsent(result)) {
       return { dockerAvailable: false, containers: [] };

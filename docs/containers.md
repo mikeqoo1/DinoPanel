@@ -18,9 +18,18 @@ The containers module (v0.2) adds Docker management to DinoPanel. It covers five
 
 **In-place compose files.** Compose stacks keep their `docker-compose.yml` / `compose.yaml` files at their original paths (no centralized storage). Stack discovery reads the `com.docker.compose.project` and `com.docker.compose.working_dir` container labels at runtime, then merges with rows in the `compose_stacks` SQLite table (registered stacks).
 
-**Docker Compose v2 only.** The module calls `docker compose` (space, not hyphen — the v2 plugin). If the plugin is absent the `ComposeService` marks itself unavailable and all compose endpoints return `503 COMPOSE_UNAVAILABLE`.
+**Compose v2 syntax only.** The module calls `docker compose` (space, not hyphen — the v2 plugin), or `podman compose` when `docker compose` is not installed. If neither answers `compose version` at boot the `ComposeService` marks itself unavailable and all compose endpoints return `503 COMPOSE_UNAVAILABLE`.
 
-**Socket path.** Configurable via `DOCKER_SOCKET_PATH` env var; defaults to `/var/run/docker.sock`.
+**Socket path.** `DOCKER_SOCKET_PATH` env var wins when set. Otherwise the first existing socket is used, in order: `/var/run/docker.sock`, `/run/podman/podman.sock`, `$XDG_RUNTIME_DIR/podman/podman.sock`. Nothing found → docker default (so the usual `DOCKER_UNREACHABLE` 503 fires).
+
+**Podman (v0.6.6).** Podman's Docker-compatible REST API is served by `podman.socket`, so dockerode works against it unchanged. On a Podman-only host:
+
+```bash
+systemctl enable --now podman.socket          # rootful: /run/podman/podman.sock
+dnf install -y podman-compose                  # gives `podman compose` something to delegate to
+```
+
+Caveats: rootless Podman (`systemctl --user enable --now podman.socket`) only exposes that user's containers; `podman compose` delegates to `podman-compose` or `docker-compose`, and stack discovery relies on the `com.docker.compose.*` labels that podman-compose sets for compatibility. Verified against podman 6.1 (see `.arceus/changes/v0.6.6-podman-support/`).
 
 ---
 
@@ -354,11 +363,11 @@ All container routes are lazy-loaded as separate chunks via `React.lazy`. The ma
 
 | Env var | Default | Description |
 |---|---|---|
-| `DOCKER_SOCKET_PATH` | `/var/run/docker.sock` | Path to the Docker daemon Unix socket |
+| `DOCKER_SOCKET_PATH` | auto-detect (`/var/run/docker.sock` → `/run/podman/podman.sock` → `$XDG_RUNTIME_DIR/podman/podman.sock`) | Docker-compatible API Unix socket; set to bypass detection |
 
-The socket path is injected as a NestJS provider token `DOCKER` (defined in `docker.token.ts`) so it can be replaced in tests.
+The socket is resolved by `resolveSocketPath()` (`docker-socket.ts`) and injected as a NestJS provider token `DOCKER` (defined in `docker.token.ts`) so it can be replaced in tests.
 
-**Docker Compose v2 detection.** On `ContainersModule` init, the server runs `docker compose version` with a 3 s timeout. If it exits 0, compose features are enabled. If not, all compose endpoints return `503 COMPOSE_UNAVAILABLE`.
+**Compose detection.** On `ContainersModule` init, the server runs `docker compose version`, then `podman compose version`, each with a 3 s timeout. The first that exits 0 becomes the compose binary for `validate` and stack actions. If neither does, all compose endpoints return `503 COMPOSE_UNAVAILABLE`.
 
 ---
 
@@ -375,14 +384,14 @@ DinoPanel must be able to read/write the Docker socket. Two approaches:
 
 ## Troubleshooting
 
-### `DOCKER_UNREACHABLE` — cannot connect to Docker daemon
+### `DOCKER_UNREACHABLE` — cannot connect to the container engine
 
 Symptoms: All container/image/network/volume endpoints return 503.
 
 Checks:
-1. Is Docker running? `systemctl status docker`
-2. Does the DinoPanel process have socket access? `ls -la /var/run/docker.sock` → should be accessible by root or `docker` group.
-3. Is the socket path correct? Check `DOCKER_SOCKET_PATH` env var; default is `/var/run/docker.sock`.
+1. Is the engine running? `systemctl status docker` or `systemctl status podman.socket`
+2. Does the DinoPanel process have socket access? `ls -la /var/run/docker.sock /run/podman/podman.sock` → should be accessible by root or `docker` group.
+3. Is the socket path correct? Set `DOCKER_SOCKET_PATH` explicitly to bypass auto-detection.
 
 Fix:
 ```bash

@@ -249,6 +249,15 @@ const LINE_UNKNOWN_STATE = JSON.stringify({
 
 const LINE_BAD_JSON = 'not valid json at all {{{';
 
+// `podman ps -a --format '{{json .}}'` shape: `Id` (not `ID`), `Names` is an array.
+const LINE_PODMAN = JSON.stringify({
+  Id: 'cafe0123beef',
+  Names: ['gitlab-runner'],
+  Image: 'docker.io/gitlab/gitlab-runner:latest',
+  State: 'running',
+  Status: 'Up 5 hours',
+});
+
 describe('parseDockerPsJson', () => {
   it('parses multiple valid lines', () => {
     expect(parseDockerPsJson(`${LINE_RUNNING}\n${LINE_EXITED}`)).toHaveLength(2);
@@ -276,6 +285,14 @@ describe('parseDockerPsJson', () => {
     );
     expect(containers).toHaveLength(2);
     expect(onBadLine).toHaveBeenCalledOnce();
+  });
+
+  it('parses a podman-shaped line (Id + Names array) like a docker line', () => {
+    const containers = parseDockerPsJson(LINE_PODMAN);
+    expect(containers).toHaveLength(1);
+    expect(containers[0]?.id).toBe('cafe0123beef');
+    expect(containers[0]?.name).toBe('gitlab-runner');
+    expect(containers[0]?.state).toBe('running');
   });
 
   it('empty / whitespace-only output returns []', () => {

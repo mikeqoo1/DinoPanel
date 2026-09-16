@@ -1,9 +1,10 @@
 # Remote Nodes (v0.6.2)
 
 The Nodes module registers remote Linux hosts and shows live read-only
-metrics (CPU, memory, disks, uptime) and Docker container state.
+metrics (CPU, memory, disks, uptime) and container state (Docker or Podman).
 No agent is installed on the remote host — the panel SSHs in on demand
-using the system `ssh` binary and reads `/proc` files and `docker ps`.
+using the system `ssh` binary and reads `/proc` files and `docker ps`
+(falling back to `podman ps` when `docker` is not on the PATH — v0.6.6).
 
 ## Onboarding a node
 
@@ -48,13 +49,15 @@ The panel stores only: `id` (UUID), `name`, `host`, `port`, `user`.
 ### Least-privilege note
 
 `root` is the documented default because it has no permission barriers for
-reading `/proc` or running `docker ps`. For a less-trusted host, consider:
+reading `/proc` or running `docker ps` / `podman ps`. For a less-trusted host, consider:
 
 - A non-root user in the `docker` group (`usermod -aG docker dinopanel`),
-  which covers `docker ps` without full root.
+  which covers `docker ps` without full root. **Podman has no equivalent**:
+  a non-root user only sees its *own* rootless containers, so root-owned
+  Podman containers are invisible unless the registered user is root.
 - An `authorized_keys` entry with `command="…",restrict` pinned to the
   exact read-only commands the panel issues (see `METRICS_CMD` /
-  `DOCKER_PS_CMD` in `apps/server/src/modules/nodes/ssh.ts`). This
+  `CONTAINER_PS_CMD` in `apps/server/src/modules/nodes/ssh.ts`). This
   prevents any other command from running under the registered key, even
   if the panel host is compromised.
 
@@ -125,13 +128,18 @@ SSH are fixed read-only constants defined in the server source:
   `df -PTB1`. Pseudo filesystems (tmpfs, efivarfs, overlay, …) are filtered out
   using the same shared predicate as the local disk tab, so both tables hide the
   same things.
-- **Containers**: `docker ps -a --format '{{json .}}'`
+- **Containers**: `docker ps -a --format '{{json .}}'` if `docker` is on the
+  PATH, else `podman ps -a --format '{{json .}}'`, else `exit 127`. Both engines
+  emit the same `Id` / `Names` / `Image` / `State` / `Status` keys, so one parser
+  serves both. Podman-only states (`stopping`, `stopped`, …) fall back to `dead`.
 
 No `start`, `stop`, `restart`, `rm`, `exec`, or `systemctl` command is
 ever issued to a remote node. This is enforced at the source level
-(AC7: `grep -rE 'docker (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/`
-yields zero hits).
+(AC7: `grep -rE '(docker|podman) (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/`
+yields zero hits) and by a unit test on `CONTAINER_PS_CMD`.
 
-`docker` not being installed on the remote host is an expected state,
-not an error — the panel returns `{ dockerAvailable: false, containers: [] }`
-and the UI renders "Docker not installed" rather than an error block.
+Neither `docker` nor `podman` being installed on the remote host is an expected
+state, not an error — the panel returns `{ dockerAvailable: false, containers: [] }`
+(the field name is kept for API compatibility; it now means "a container engine
+is available") and the UI renders "Neither Docker nor Podman is installed" rather
+than an error block.

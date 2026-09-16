@@ -353,3 +353,48 @@ describe('ComposeService', () => {
     expect(result.errors!.some((e) => e.message.includes('services is required'))).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Engine detection (v0.6.6 Podman support)
+// ---------------------------------------------------------------------------
+
+describe('ComposeService engine detection', () => {
+  beforeEach(() => {
+    vi.mocked(cp.execFile).mockReset();
+    vi.mocked(cp.spawn).mockReset();
+  });
+
+  function execFileByBin(available: Record<string, boolean>) {
+    vi.mocked(cp.execFile).mockImplementation(((bin: string) =>
+      available[bin]
+        ? Promise.resolve({ stdout: 'version', stderr: '' })
+        : Promise.reject(Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }))) as never);
+  }
+
+  it('CS-10 — uses `docker compose` when available', async () => {
+    execFileByBin({ docker: true, podman: true });
+    const { svc } = makeService(makeDockerMock(), makeDbMock(), false);
+    await svc.onModuleInit();
+    vi.mocked(cp.spawn).mockReturnValue(makeMockChild('', '', 0) as never);
+    svc.spawnAction('/srv/stack', 'down');
+    expect(cp.spawn).toHaveBeenCalledWith('docker', ['compose', 'down'], expect.anything());
+  });
+
+  it('CS-11 — falls back to `podman compose` when `docker compose` is missing', async () => {
+    execFileByBin({ docker: false, podman: true });
+    const { svc } = makeService(makeDockerMock(), makeDbMock(), false);
+    await svc.onModuleInit();
+    vi.mocked(cp.spawn).mockReturnValue(makeMockChild('', '', 0) as never);
+    svc.spawnAction('/srv/stack', 'down');
+    expect(cp.spawn).toHaveBeenCalledWith('podman', ['compose', 'down'], expect.anything());
+  });
+
+  it('CS-12 — neither engine → Compose stays unavailable (COMPOSE_UNAVAILABLE)', async () => {
+    execFileByBin({ docker: false, podman: false });
+    const { svc } = makeService(makeDockerMock(), makeDbMock(), false);
+    await svc.onModuleInit();
+    await expect(svc.listStacks()).rejects.toMatchObject({
+      response: { code: 'COMPOSE_UNAVAILABLE' },
+    });
+  });
+});

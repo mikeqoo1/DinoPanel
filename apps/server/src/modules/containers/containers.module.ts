@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import Dockerode from 'dockerode';
 import { AuthModule } from '../auth/auth.module';
 import { DOCKER } from './docker.token';
+import { resolveSocketPath } from './docker-socket';
 import { ContainersService } from './containers.service';
 import { ContainersController } from './containers.controller';
 import { LogsGateway } from './logs.gateway';
@@ -26,9 +27,7 @@ export { DOCKER } from './docker.token';
     {
       provide: DOCKER,
       useFactory: (): Dockerode =>
-        new Dockerode({
-          socketPath: process.env.DOCKER_SOCKET_PATH ?? '/var/run/docker.sock',
-        }),
+        new Dockerode({ socketPath: resolveSocketPath() }),
     },
     ContainersService,
     LogsGateway,

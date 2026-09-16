@@ -844,7 +844,7 @@
     },
     "containers": {
       "title": "Containers",
-      "no_docker": "Docker is not installed on this node.",
+      "no_docker": "Neither Docker nor Podman is installed on this node.",
       "empty": "No containers.",
       "col_name": "Name",
       "col_image": "Image",

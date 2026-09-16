@@ -1,0 +1,8 @@
+{
+  "id": "v0.6.6-podman-support",
+  "title": "Podman support — remote nodes fall back to podman ps; local containers module auto-detects podman.sock + podman compose",
+  "status": "completed",
+  "createdAt": "2026-09-16T08:58:23.247Z",
+  "updatedAt": "2026-09-16T08:58:23.247Z",
+  "previousChange": "v0.6.3-deploy-native-bindings"
+}
