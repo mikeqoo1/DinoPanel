@@ -15,7 +15,7 @@
 - [x] T-6 release cut v0.6.6（4 個 package.json bump）。
 - [x] T-7a 部署 234（v0.6.5 → v0.6.6，upgrade 模式、DB 備份、verify 過）；14 台節點實跑 `CONTAINER_PS_CMD`；
       ConeX-dev1 純 Podman 模擬 exit 0 / 無引擎 exit 127（見 smoke-pass.md）。
-- [ ] T-7b 面板 HTTP 層 smoke：`DP_USER=… DP_PASS=… bash scripts/smoke-podman-nodes-234.sh`（需 234 admin 密碼）。
+- [x] T-7b 面板 HTTP 層 smoke：`scripts/smoke-podman-nodes-234.sh` 對 234 跑過，14 台結果與 root 直跑一致（8×200 / 6×500 conex 權限）。
 - [ ] T-7c（另案）conex 6 台 docker socket permission denied → 500 `NODES_COMMAND_FAILED`；
       `usermod -aG docker conex` 或面板加獨立 error code。
 - [ ] T-7d 面板裝在純 Podman 主機上 compose up/down（沒有這種環境，擱置）。

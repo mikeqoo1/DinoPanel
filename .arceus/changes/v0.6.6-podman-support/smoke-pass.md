@@ -37,8 +37,10 @@ npm 12 預檢命中並由 tarball 預編譯檔修復 better-sqlite3 / node-pty�
 暫存目錄，經 root@234 的 SSH 執行同一條命令 → exit 0、3 行 `{{json .}}`（running=2 exited=1，
 與 `podman ps -a | wc -l` 一致）；PATH 只含 bash → exit 127；正常 PATH → docker 15 個。**AC1 真機成立。**
 
-**未驗**：面板 HTTP 層（`GET /api/nodes/:id/containers`）— 234 admin 密碰不在手上；`scripts/smoke-podman-nodes-234.sh`
-已備好，`DP_USER/DP_PASS` 帶入即可跑。
+**面板 HTTP 層（`scripts/smoke-podman-nodes-234.sh`，admin 登入 `:9999`）**：與 root 直跑逐台一致 —
+235 / ConeX-dev1 / ConeX-dev2 / foreman / pmk1 / pmk2 / test1 / test2 → 200 `dockerAvailable:true`，
+容器數 17 / 15 / 0 / 9 / 2 / 1 / 55 / 43，state 全在 enum 內；quote-1~3 + app-qa1~3（conex）→ 500 `NODES_COMMAND_FAILED`。
+無任何節點回 `dockerAvailable:false`（fleet 全有 docker）。
 
 **順手發現（另案）**：6 台 conex 節點是「docker 有裝但 socket 無權限」，`isDockerAbsent` 不認 → 面板回 500
 `NODES_COMMAND_FAILED`，UI 看不出是權限問題。修法二選一：operator 端 `usermod -aG docker conex`；
