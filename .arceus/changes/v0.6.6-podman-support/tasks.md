@@ -13,5 +13,9 @@
       C dockerode 對 `podman.sock` info/list/label-filter/inspect/images/networks/volumes；
       E2E 編好的 server 指 podman.sock，containers/compose/images/networks/volumes 全 200。
 - [x] T-6 release cut v0.6.6（4 個 package.json bump）。
-- [ ] T-7（operator）找一台真正純 Podman 的遠端主機註冊進 /nodes 看容器頁；面板裝在 Podman 主機上
-      跑 compose up/down 一次。本機沒有純 Podman 環境，這兩條沒驗。
+- [x] T-7a 部署 234（v0.6.5 → v0.6.6，upgrade 模式、DB 備份、verify 過）；14 台節點實跑 `CONTAINER_PS_CMD`；
+      ConeX-dev1 純 Podman 模擬 exit 0 / 無引擎 exit 127（見 smoke-pass.md）。
+- [ ] T-7b 面板 HTTP 層 smoke：`DP_USER=… DP_PASS=… bash scripts/smoke-podman-nodes-234.sh`（需 234 admin 密碼）。
+- [ ] T-7c（另案）conex 6 台 docker socket permission denied → 500 `NODES_COMMAND_FAILED`；
+      `usermod -aG docker conex` 或面板加獨立 error code。
+- [ ] T-7d 面板裝在純 Podman 主機上 compose up/down（沒有這種環境，擱置）。
