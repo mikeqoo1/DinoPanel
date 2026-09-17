@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronRight, ServerOff, ShieldAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, KeyRound, ServerOff, ShieldAlert } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -122,28 +122,42 @@ function ContainersSection({ node }: { node: RemoteNode }) {
     );
   }
 
-  const engineLabel = data.engine ? ENGINE_LABEL[data.engine] : null;
-
-  if (data.permissionDenied) {
+  if (data.sudoFailed) {
     return (
       <Card className="flex items-center gap-2 p-4 text-sm text-yellow-700 dark:text-yellow-400">
         <ShieldAlert className="h-4 w-4 shrink-0" />
-        {t('nodes.containers.permission_denied', { user: node.user, engine: engineLabel ?? 'docker' })}
+        {t('nodes.containers.sudo_failed', { user: node.user })}
       </Card>
     );
   }
 
+  const denied = data.engines.filter((e) => e.permissionDenied);
+  const okEngines = Array.from(new Set(data.engines.filter((e) => e.ok).map((e) => e.engine)));
+
   return (
     <Card className="overflow-x-auto">
-      <div className="flex items-center gap-2 p-3 text-sm font-medium">
+      <div className="flex flex-wrap items-center gap-2 p-3 text-sm font-medium">
         {t('nodes.containers.title')}
-        {engineLabel && <Badge variant="outline">{engineLabel}</Badge>}
+        {okEngines.map((e) => (
+          <Badge key={e} variant="outline">{ENGINE_LABEL[e]}</Badge>
+        ))}
       </div>
+      {denied.length > 0 && (
+        <div className="flex items-start gap-2 border-t px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {denied
+              .map((e) => t('nodes.containers.engine_denied', { engine: ENGINE_LABEL[e.engine], user: e.owner }))
+              .join(' · ')}
+          </span>
+        </div>
+      )}
       <table className="w-full text-sm">
         <thead className="bg-muted/40 text-left">
           <tr>
             <th className="p-3 font-medium">{t('nodes.containers.col_name')}</th>
             <th className="p-3 font-medium">{t('nodes.containers.col_image')}</th>
+            <th className="p-3 font-medium">{t('nodes.containers.col_engine')}</th>
             <th className="p-3 font-medium">{t('nodes.containers.col_state')}</th>
             <th className="p-3 font-medium">{t('nodes.containers.col_status')}</th>
           </tr>
@@ -151,15 +165,19 @@ function ContainersSection({ node }: { node: RemoteNode }) {
         <tbody>
           {data.containers.length === 0 ? (
             <tr>
-              <td colSpan={4} className="p-3 text-muted-foreground">
+              <td colSpan={5} className="p-3 text-muted-foreground">
                 {t('nodes.containers.empty')}
               </td>
             </tr>
           ) : (
             data.containers.map((c) => (
-              <tr key={c.id} className="border-t align-top">
+              <tr key={`${c.engine}:${c.owner}:${c.id}`} className="border-t align-top">
                 <td className="p-3 font-mono text-xs">{c.name}</td>
                 <td className="p-3 font-mono text-xs">{c.image}</td>
+                <td className="p-3 text-xs">
+                  <Badge variant="outline">{ENGINE_LABEL[c.engine]}</Badge>
+                  <span className="ml-1 font-mono text-muted-foreground">{c.owner}</span>
+                </td>
                 <td className="p-3">
                   <Badge variant={c.state === 'running' ? 'success' : c.state === 'exited' || c.state === 'dead' ? 'muted' : 'secondary'}>
                     {c.state}
@@ -184,17 +202,25 @@ function AddNodeDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [host, setHost] = useState('');
   const [user, setUser] = useState('root');
   const [port, setPort] = useState('22');
+  const [sudoPassword, setSudoPassword] = useState('');
 
   const reset = () => {
     setName('');
     setHost('');
     setUser('root');
     setPort('22');
+    setSudoPassword('');
   };
 
   const submit = async () => {
     try {
-      await add.mutateAsync({ name: name.trim(), host: host.trim(), user: user.trim(), port: parseInt(port, 10) || 22 });
+      await add.mutateAsync({
+        name: name.trim(),
+        host: host.trim(),
+        user: user.trim(),
+        port: parseInt(port, 10) || 22,
+        ...(sudoPassword ? { sudoPassword } : {}),
+      });
       toast.success(t('nodes.dialog.added'));
       reset();
       onClose();
@@ -243,6 +269,18 @@ function AddNodeDialog({ open, onClose }: { open: boolean; onClose: () => void }
               <Input id="node-port" value={port} onChange={(e) => setPort(e.target.value)} placeholder="22" type="number" min={1} max={65535} />
             </div>
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="node-sudo">{t('nodes.dialog.sudo_label')}</Label>
+            <Input
+              id="node-sudo"
+              type="password"
+              autoComplete="off"
+              value={sudoPassword}
+              onChange={(e) => setSudoPassword(e.target.value)}
+              disabled={user.trim() === 'root'}
+            />
+            <p className="text-xs text-muted-foreground">{t('nodes.dialog.sudo_hint')}</p>
+          </div>
         </div>
 
         <DialogFooter>
@@ -283,7 +321,11 @@ export function NodesPage() {
     e.stopPropagation();
     try {
       const res = await test.mutateAsync(id);
-      setTestResult((prev) => ({ ...prev, [id]: res.latencyMs }));
+      const label =
+        res.sudoOk === undefined
+          ? res.latencyMs
+          : t(res.sudoOk ? 'nodes.test_sudo_ok' : 'nodes.test_sudo_bad', { ms: res.latencyMs });
+      setTestResult((prev) => ({ ...prev, [id]: label }));
     } catch {
       setTestResult((prev) => ({ ...prev, [id]: '✗' }));
       // single failure, no toast storm — just show in row
@@ -352,7 +394,14 @@ export function NodesPage() {
                     onClick={() => handleSelect(node)}
                     className={`cursor-pointer border-t transition-colors hover:bg-muted/40 ${selectedId === node.id ? 'bg-muted/60' : ''}`}
                   >
-                    <td className="p-3 font-medium">{node.name}</td>
+                    <td className="p-3 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        {node.name}
+                        {node.hasSudo && (
+                          <KeyRound className="h-3.5 w-3.5 text-muted-foreground" aria-label={t('nodes.sudo_badge')} />
+                        )}
+                      </span>
+                    </td>
                     <td className="p-3 font-mono text-xs">{node.host}</td>
                     <td className="p-3 font-mono text-xs">{node.user}</td>
                     <td className="p-3 font-mono text-xs">{node.port}</td>

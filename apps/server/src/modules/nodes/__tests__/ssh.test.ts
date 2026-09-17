@@ -4,11 +4,11 @@ import {
   buildSshArgs,
   classifySshFailure,
   isDockerAbsent,
-  isEnginePermissionDenied,
+  isSudoFailed,
   sshExec,
+  wrapRemote,
   METRICS_CMD,
-  CONTAINER_PS_CMD,
-  ENGINE_MARKER,
+  CONTAINERS_CMD,
 } from '../ssh';
 import { runCommand, CommandError } from '../../../common/shell/run-command';
 import type * as RunCommandModule from '../../../common/shell/run-command';
@@ -73,35 +73,47 @@ describe('buildSshArgs', () => {
     expect(METRICS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
   });
 
-  it('CONTAINER_PS_CMD starts with export LC_ALL=C;', () => {
-    expect(CONTAINER_PS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
+  it('CONTAINERS_CMD starts with export LC_ALL=C;', () => {
+    expect(CONTAINERS_CMD.startsWith('export LC_ALL=C;')).toBe(true);
   });
 
-  it('CONTAINER_PS_CMD tries docker ps first, then falls back to podman ps', () => {
-    const docker = CONTAINER_PS_CMD.indexOf("docker ps -a --format '{{json .}}'");
-    const podman = CONTAINER_PS_CMD.indexOf("podman ps -a --format '{{json .}}'");
-    expect(docker).toBeGreaterThan(-1);
-    expect(podman).toBeGreaterThan(docker);
+  it('CONTAINERS_CMD lists BOTH engines when present and enumerates rootless podman per user as root', () => {
+    expect(CONTAINERS_CMD).toContain('docker ps -a');
+    expect(CONTAINERS_CMD).toContain('podman ps -a');
+    expect(CONTAINERS_CMD).toContain('/run/user/');
+    expect(CONTAINERS_CMD).toContain('sudo -n -u');
   });
 
-  it('CONTAINER_PS_CMD announces the engine on its own line before the ps output', () => {
-    expect(ENGINE_MARKER).toBe('__DINO_ENGINE__=');
-    const dockerMark = CONTAINER_PS_CMD.indexOf(`echo ${ENGINE_MARKER}docker;`);
-    const dockerPs = CONTAINER_PS_CMD.indexOf('docker ps -a');
-    const podmanMark = CONTAINER_PS_CMD.indexOf(`echo ${ENGINE_MARKER}podman;`);
-    const podmanPs = CONTAINER_PS_CMD.indexOf('podman ps -a');
-    expect(dockerMark).toBeGreaterThan(-1);
-    expect(dockerMark).toBeLessThan(dockerPs);
-    expect(podmanMark).toBeGreaterThan(-1);
-    expect(podmanMark).toBeLessThan(podmanPs);
+  it('CONTAINERS_CMD tags every line with engine + owner and exits 127 when no engine exists', () => {
+    expect(CONTAINERS_CMD).toMatch(/\\"engine\\"/);
+    expect(CONTAINERS_CMD).toMatch(/\\"owner\\"/);
+    expect(CONTAINERS_CMD).toMatch(/exit 127/);
   });
 
-  it('CONTAINER_PS_CMD exits 127 when neither engine is installed', () => {
-    expect(CONTAINER_PS_CMD).toMatch(/exit 127/);
+  it('CONTAINERS_CMD has no single quotes so it can be wrapped in bash -c \'…\'', () => {
+    expect(CONTAINERS_CMD).not.toContain("'");
   });
 
-  it('CONTAINER_PS_CMD contains no mutation verbs (read-only guarantee, AC7)', () => {
-    expect(CONTAINER_PS_CMD).not.toMatch(/(docker|podman) (start|stop|restart|rm|exec|run|kill|pull)/);
+  it('CONTAINERS_CMD contains no mutation verbs (read-only guarantee, AC7)', () => {
+    expect(CONTAINERS_CMD).not.toMatch(/(docker|podman) (start|stop|restart|rm|exec|run|kill|pull)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wrapRemote — bash -c wrapper, optionally elevated with sudo -S (password on stdin)
+// ---------------------------------------------------------------------------
+
+describe('wrapRemote', () => {
+  it('without sudo runs the script under bash -c', () => {
+    expect(wrapRemote('echo hi', false)).toBe("bash -c 'echo hi'");
+  });
+
+  it('with sudo prepends sudo -S -k (stdin password, no cached timestamp, empty prompt); password never in argv', () => {
+    expect(wrapRemote('echo hi', true)).toBe(`sudo -S -k -p "" bash -c 'echo hi'`);
+  });
+
+  it('refuses a script containing a single quote (would break the wrapper)', () => {
+    expect(() => wrapRemote("echo 'x'", false)).toThrow();
   });
 });
 
@@ -258,17 +270,6 @@ describe('sshExec', () => {
     expect((loggedObj['stderr'] as string).length).toBeLessThanOrEqual(2048);
   });
 
-  it('does not warn for exit 1 + engine socket permission denied (expected node state)', async () => {
-    const logger = { warn: vi.fn() };
-    mockRunCommand.mockResolvedValue({
-      exitCode: 1,
-      stdout: '',
-      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
-    });
-    await sshExec(FAKE_NODE, 'cmd', logger);
-    expect(logger.warn).not.toHaveBeenCalled();
-  });
-
   it('does not warn for exit 1 + docker-specific not-found (isDockerAbsent, FOLLOWUP-2)', async () => {
     mockRunCommand.mockResolvedValue({
       exitCode: 1,
@@ -277,6 +278,51 @@ describe('sshExec', () => {
     });
     await sshExec(FAKE_NODE, 'docker ps', noopLogger);
     expect(noopLogger.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('sshExec — sudo password transport', () => {
+  beforeEach(() => mockRunCommand.mockReset());
+
+  it('forwards opts.input to runCommand so the password travels over stdin only', async () => {
+    mockRunCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
+    await sshExec(FAKE_NODE, 'cmd', { warn: vi.fn() }, { input: 'pw\n' });
+    const [, args, opts] = mockRunCommand.mock.calls[0]!;
+    expect(opts).toMatchObject({ input: 'pw\n' });
+    expect(args.join(' ')).not.toContain('pw');
+  });
+
+  it('does not warn when sudo rejected the password (expected node state)', async () => {
+    const logger = { warn: vi.fn() };
+    mockRunCommand.mockResolvedValue({ exitCode: 1, stdout: '', stderr: 'sudo: 1 incorrect password attempt' });
+    await sshExec(FAKE_NODE, 'cmd', logger, { input: 'bad\n' });
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isSudoFailed — sudo -S rejected the stored password (or asked for one we did not send)
+// ---------------------------------------------------------------------------
+
+describe('isSudoFailed', () => {
+  it('true for exit 1 + "incorrect password attempt"', () => {
+    expect(isSudoFailed({ exitCode: 1, stdout: '', stderr: 'Sorry, try again.\nsudo: 1 incorrect password attempt' })).toBe(true);
+  });
+
+  it('true for exit 1 + "a password is required"', () => {
+    expect(isSudoFailed({ exitCode: 1, stdout: '', stderr: 'sudo: a password is required' })).toBe(true);
+  });
+
+  it('true for exit 1 + "is not in the sudoers file"', () => {
+    expect(isSudoFailed({ exitCode: 1, stdout: '', stderr: 'conex is not in the sudoers file.' })).toBe(true);
+  });
+
+  it('false for exit 0', () => {
+    expect(isSudoFailed({ exitCode: 0, stdout: '', stderr: 'sudo: a password is required' })).toBe(false);
+  });
+
+  it('false for non-zero exit with unrelated stderr', () => {
+    expect(isSudoFailed({ exitCode: 1, stdout: '', stderr: 'permission denied while trying to connect to the Docker daemon socket' })).toBe(false);
   });
 });
 
@@ -310,34 +356,3 @@ describe('isDockerAbsent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// isEnginePermissionDenied — engine installed but the SSH user cannot use its socket
-// ---------------------------------------------------------------------------
-
-describe('isEnginePermissionDenied', () => {
-  it('true for exit 1 + docker daemon socket permission denied', () => {
-    expect(isEnginePermissionDenied({
-      exitCode: 1, stdout: '',
-      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.51/containers/json?all=1": dial unix /var/run/docker.sock: connect: permission denied',
-    })).toBe(true);
-  });
-
-  it('true for exit 125 + podman-style "permission denied"', () => {
-    expect(isEnginePermissionDenied({
-      exitCode: 125, stdout: '',
-      stderr: 'Error: unable to connect to Podman socket: Get "http://d/v5.0.0/libpod/_ping": dial unix /run/podman/podman.sock: connect: permission denied',
-    })).toBe(true);
-  });
-
-  it('false for exit 0 even if stderr mentions permission denied', () => {
-    expect(isEnginePermissionDenied({ exitCode: 0, stdout: '', stderr: 'permission denied' })).toBe(false);
-  });
-
-  it('false for exit 127 (that is isDockerAbsent territory)', () => {
-    expect(isEnginePermissionDenied({ exitCode: 127, stdout: '', stderr: 'permission denied' })).toBe(false);
-  });
-
-  it('false for non-zero exit with unrelated stderr', () => {
-    expect(isEnginePermissionDenied({ exitCode: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon. Is the docker daemon running?' })).toBe(false);
-  });
-});

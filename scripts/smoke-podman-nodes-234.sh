@@ -32,10 +32,12 @@ curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/nodes" \
         avail="$(jq -r '.dockerAvailable' <<<"$json")"
         count="$(jq -r '.containers | length' <<<"$json")"
         states="$(jq -r '[.containers[].state] | group_by(.) | map("\(.[0])=\(length)") | join(",")' <<<"$json")"
-        # v0.6.7: engine name + permissionDenied; pre-0.6.7 servers lack both fields
-        engine="$(jq -r '.engine // (if .dockerAvailable then "yes" else "none" end)' <<<"$json")"
-        denied="$(jq -r 'if .permissionDenied == true then " PERMISSION_DENIED" else "" end' <<<"$json")"
-        printf '%-24s %-17s %-12s %-6s %-8s %s %s%s\n' "$name" "$host" "$user" "$code" "$engine" "$count" "$states" "$denied"
+        # v0.6.8: engines[] (engine/owner/ok/permissionDenied) + sudoFailed; rows carry engine+owner
+        engine="$(jq -r '[.engines[] | select(.ok) | .engine] | unique | join("+") | if . == "" then (if .dockerAvailable then "-" else "none" end) else . end' <<<"$json")"
+        denied="$(jq -r '[.engines[] | select(.permissionDenied) | "\(.engine)/\(.owner) DENIED"] | join(",") | if . == "" then "" else " " + . end' <<<"$json")"
+        sudo="$(jq -r 'if .sudoFailed == true then " SUDO_FAILED" else "" end' <<<"$json")"
+        owners="$(jq -r '[.containers[] | "\(.engine)/\(.owner)"] | group_by(.) | map("\(.[0])=\(length)") | join(",")' <<<"$json")"
+        printf '%-24s %-17s %-12s %-6s %-8s %s %s %s%s%s\n' "$name" "$host" "$user" "$code" "$engine" "$count" "$states" "$owners" "$denied" "$sudo"
       else
         printf '%-24s %-17s %-12s %-6s %-8s %s\n' "$name" "$host" "$user" "$code" "-" "$(jq -r '.code // .message // empty' <<<"$json" 2>/dev/null | head -1)"
       fi

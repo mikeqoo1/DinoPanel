@@ -1,4 +1,10 @@
-import { containerStateSchema, isRealFilesystem } from '@dinopanel/shared';
+import {
+  containerStateSchema,
+  isRealFilesystem,
+  containerEngineSchema,
+  type ContainerEngine,
+  type RemoteEngineStatus,
+} from '@dinopanel/shared';
 import type { RemoteContainer, RemoteNodeMetrics } from '@dinopanel/shared';
 
 // ---------------------------------------------------------------------------
@@ -84,37 +90,62 @@ export function parseDfPTB1(
   return result;
 }
 
+/** One `ps` record from docker or podman `--format '{{json .}}'` (podman: `Id`, `Names[]`). */
+function mapPsRecord(r: Record<string, unknown>, engine: ContainerEngine, owner: string): RemoteContainer {
+  const stateResult = containerStateSchema.safeParse(r['State']);
+  return {
+    id: String(r['ID'] ?? r['Id'] ?? ''),
+    name: String(r['Names'] ?? ''),
+    image: String(r['Image'] ?? ''),
+    state: stateResult.success ? stateResult.data : 'dead',
+    status: String(r['Status'] ?? ''),
+    engine,
+    owner,
+  };
+}
+
 /**
- * Parses `docker ps -a --format '{{json .}}'` output (one JSON object per line).
- * Bad lines are discarded (onBadLine called); unknown state values fall back to 'dead'.
+ * Parses CONTAINERS_CMD stdout (see ssh.ts): each line is either a wrapped container
+ * `{"engine","owner","c":{…}}` or an engine status `{"engine","owner","rc","err"}`.
+ * Bad / unknown lines are discarded (onBadLine called); unknown states fall back to 'dead'.
  */
-export function parseDockerPsJson(
+export function parseContainersOutput(
   output: string,
   onBadLine?: (line: string, err: unknown) => void,
-): RemoteContainer[] {
-  return output
-    .split('\n')
-    .filter((l) => l.trim())
-    .flatMap((line) => {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(line);
-      } catch (err) {
-        onBadLine?.(line, err);
-        return [];
-      }
-      if (!raw || typeof raw !== 'object') return [];
-      const r = raw as Record<string, unknown>;
-      const stateResult = containerStateSchema.safeParse(r['State']);
-      const container: RemoteContainer = {
-        id: String(r['ID'] ?? r['Id'] ?? ''),
-        name: String(r['Names'] ?? ''),
-        image: String(r['Image'] ?? ''),
-        state: stateResult.success ? stateResult.data : 'dead',
-        status: String(r['Status'] ?? ''),
-      };
-      return [container];
-    });
+): { engines: RemoteEngineStatus[]; containers: RemoteContainer[] } {
+  const engines: RemoteEngineStatus[] = [];
+  const containers: RemoteContainer[] = [];
+  for (const line of output.split('\n')) {
+    if (!line.trim()) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch (err) {
+      onBadLine?.(line, err);
+      continue;
+    }
+    const r = raw as Record<string, unknown> | null;
+    const engine = containerEngineSchema.safeParse(r?.['engine']);
+    const owner = typeof r?.['owner'] === 'string' ? r['owner'] : null;
+    if (!r || !engine.success || owner === null) {
+      onBadLine?.(line, new Error('not a container/status line'));
+      continue;
+    }
+    if (r['c'] && typeof r['c'] === 'object') {
+      containers.push(mapPsRecord(r['c'] as Record<string, unknown>, engine.data, owner));
+    } else if (typeof r['rc'] === 'number') {
+      const err = String(r['err'] ?? '');
+      engines.push({
+        engine: engine.data,
+        owner,
+        ok: r['rc'] === 0,
+        permissionDenied: r['rc'] !== 0 && /permission denied/i.test(err),
+      });
+    } else {
+      onBadLine?.(line, new Error('not a container/status line'));
+    }
+  }
+  return { engines, containers };
 }
 
 // ---------------------------------------------------------------------------

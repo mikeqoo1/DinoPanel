@@ -18,6 +18,14 @@ describe('runCommand', () => {
     });
   });
 
+  it('writes opts.input to the child stdin and closes it', async () => {
+    const result = await runCommand(process.execPath, ['-e', 'process.stdin.pipe(process.stdout)'], {
+      input: 'secret\n',
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('secret\n');
+  });
+
   it('captures stdout + exit code for a command that runs', async () => {
     const result = await runCommand(process.execPath, ['-e', 'process.stdout.write("hi")']);
     expect(result.exitCode).toBe(0);

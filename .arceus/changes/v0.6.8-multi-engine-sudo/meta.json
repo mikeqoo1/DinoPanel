@@ -1,0 +1,8 @@
+{
+  "id": "v0.6.8-multi-engine-sudo",
+  "title": "Remote nodes: list docker + podman together, rootless podman of every user via optional stored sudo password (encrypted, stdin-only)",
+  "status": "completed",
+  "createdAt": "2026-09-17T02:01:31.815Z",
+  "updatedAt": "2026-09-17T02:01:31.815Z",
+  "previousChange": "v0.6.7-engine-badge-permission"
+}

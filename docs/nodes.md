@@ -57,7 +57,7 @@ reading `/proc` or running `docker ps` / `podman ps`. For a less-trusted host, c
   Podman containers are invisible unless the registered user is root.
 - An `authorized_keys` entry with `command="…",restrict` pinned to the
   exact read-only commands the panel issues (see `METRICS_CMD` /
-  `CONTAINER_PS_CMD` in `apps/server/src/modules/nodes/ssh.ts`). This
+  `CONTAINERS_CMD` in `apps/server/src/modules/nodes/ssh.ts`). This
   prevents any other command from running under the registered key, even
   if the panel host is compromised.
 
@@ -128,26 +128,43 @@ SSH are fixed read-only constants defined in the server source:
   `df -PTB1`. Pseudo filesystems (tmpfs, efivarfs, overlay, …) are filtered out
   using the same shared predicate as the local disk tab, so both tables hide the
   same things.
-- **Containers**: `docker ps -a --format '{{json .}}'` if `docker` is on the
-  PATH, else `podman ps -a --format '{{json .}}'`, else `exit 127`. Both engines
-  emit the same `Id` / `Names` / `Image` / `State` / `Status` keys, so one parser
-  serves both. Podman-only states (`stopping`, `stopped`, …) fall back to `dead`.
-  The command first echoes `__DINO_ENGINE__=docker|podman` on its own line (v0.6.7);
-  the service strips it and returns it as `engine` so the UI can badge the card.
+- **Containers** (`CONTAINERS_CMD`, v0.6.8): runs **both** `docker ps -a` and `podman ps -a`
+  (whichever binaries exist) as the SSH user, and — when running as root — also `podman ps -a`
+  as every user with a runtime dir under `/run/user/*` (`sudo -n -u <user> env XDG_RUNTIME_DIR=…`),
+  because rootless Podman containers (e.g. Quadlet units with `User=`) are only visible to
+  their owner. Every container line is wrapped as `{"engine","owner","c":{…}}` and every engine
+  run ends with a status line `{"engine","owner","rc","err"}`. Only `ps` is ever invoked; the
+  script is passed via `bash -c '…'` and contains no single quotes. Neither engine → `exit 127`.
+
+### sudo password (optional, v0.6.8)
+
+A node registered with a non-root user only sees that user's containers. To list rootless
+Podman containers of *other* users without registering as root, give the node the user's sudo
+password when adding it. The panel then runs the inventory as
+`sudo -S -k -p "" bash -c '…'` with the password written to **stdin only** (never argv, env or
+logs); `-k` ignores cached timestamps so the stored password is validated on every run.
+`POST /nodes/:id/test` also probes it and returns `sudoOk`.
+
+Storage: AES-256-GCM in the same `nodes.list` settings row, key derived from `JWT_SECRET`
+via HKDF (`common/secrets/secrets.ts`). `GET /nodes` never returns it — only `hasSudo: true`.
+Rotating `JWT_SECRET` makes stored passwords undecryptable (`500 NODES_SUDO_UNREADABLE`):
+remove and re-add the node. There is no edit endpoint yet; to change a password, remove and
+re-add the node.
 
 No `start`, `stop`, `restart`, `rm`, `exec`, or `systemctl` command is
 ever issued to a remote node. This is enforced at the source level
 (AC7: `grep -rE '(docker|podman) (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/`
-yields zero hits) and by a unit test on `CONTAINER_PS_CMD`.
+yields zero hits) and by a unit test on `CONTAINERS_CMD`.
 
-Two node states are expected, not errors, and come back as `200`:
+Expected node states come back as `200` and are never logged per poll:
 
 | State | Response | UI |
 |---|---|---|
-| Neither `docker` nor `podman` installed (`exit 127`) | `{ dockerAvailable: false, engine: null, permissionDenied: false, containers: [] }` | "Neither Docker nor Podman is installed" |
-| Engine installed but the SSH user cannot open its socket (non-zero exit, stderr contains `permission denied`; typically the user is not in the `docker` group) | `{ dockerAvailable: true, engine, permissionDenied: true, containers: [] }` | amber card naming the user and engine (v0.6.7) |
+| Neither `docker` nor `podman` installed (`exit 127`) | `{ dockerAvailable: false, sudoFailed: false, engines: [], containers: [] }` | "Neither Docker nor Podman is installed" |
+| Stored sudo password rejected | `{ dockerAvailable: true, sudoFailed: true, engines: [], containers: [] }` | amber card: remove + re-add with the right password |
+| An engine exists but that user may not open its socket (e.g. not in the `docker` group) | that entry in `engines[]` has `ok: false, permissionDenied: true`; other engines still list | amber line under the card title naming engine + user |
 
-`dockerAvailable` is kept for compatibility and now means "an engine binary exists";
-`engine` says which one. Neither state is logged per poll (both predicates live in
-`ssh.ts` and are shared with `sshExec`'s warn-skip). The panel never changes the remote
-host to fix either — that is an operator decision.
+`dockerAvailable` is kept for compatibility and means "an engine binary exists". Each
+container row carries `engine` (`docker` / `podman`) and `owner` (the OS user whose `ps`
+listed it). The panel never changes the remote host to fix any of these states — that is an
+operator decision.

@@ -20,7 +20,7 @@ export function useNodes() {
 export function useAddNode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { name: string; host: string; user: string; port?: number }) =>
+    mutationFn: async (vars: { name: string; host: string; user: string; port?: number; sudoPassword?: string }) =>
       (await api.post<RemoteNode[]>('/nodes', vars)).data,
     onSuccess: (data) => {
       // setQueryData stores the fresh list returned by POST — no further
@@ -45,7 +45,7 @@ export function useRemoveNode() {
 export function useTestNode() {
   return useMutation({
     mutationFn: async (id: string) =>
-      (await api.post<{ ok: true; latencyMs: number }>(`/nodes/${id}/test`)).data,
+      (await api.post<{ ok: true; latencyMs: number; sudoOk?: boolean }>(`/nodes/${id}/test`)).data,
   });
 }
 

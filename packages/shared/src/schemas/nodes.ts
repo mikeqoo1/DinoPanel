@@ -33,6 +33,8 @@ export const remoteNodeSchema = z.object({
   host: hostField,
   port: portField,
   user: userField,
+  /** A sudo password is stored (encrypted) for this node — the password itself is never returned. */
+  hasSudo: z.boolean().optional(),
 });
 export type RemoteNode = z.infer<typeof remoteNodeSchema>;
 
@@ -41,6 +43,12 @@ export const createNodeSchema = z.object({
   host: hostField,
   user: userField,
   port: portField.default(22),
+  /**
+   * Optional sudo password for `user` (v0.6.8). Lets the panel run the read-only container
+   * inventory as root so rootless Podman containers of *other* users are listed too.
+   * Stored encrypted, sent to the node on stdin only.
+   */
+  sudoPassword: z.string().min(1).max(256).optional(),
 });
 export type CreateNode = z.infer<typeof createNodeSchema>;
 
@@ -75,25 +83,38 @@ export type RemoteNodeMetrics = z.infer<typeof remoteNodeMetricsSchema>;
 // Remote containers (slim — no ports/labels, not reusing containerSchema)
 // ---------------------------------------------------------------------------
 
+export const containerEngineSchema = z.enum(['docker', 'podman']);
+export type ContainerEngine = z.infer<typeof containerEngineSchema>;
+
 export const remoteContainerSchema = z.object({
   id: z.string(),
   name: z.string(),
   image: z.string(),
   state: containerStateSchema,
   status: z.string(),
+  /** Which engine listed it. */
+  engine: containerEngineSchema,
+  /** OS user whose `ps` produced it (rootless Podman is per-user; docker is the SSH/sudo user). */
+  owner: z.string(),
 });
 export type RemoteContainer = z.infer<typeof remoteContainerSchema>;
 
-export const containerEngineSchema = z.enum(['docker', 'podman']);
-export type ContainerEngine = z.infer<typeof containerEngineSchema>;
+/** Outcome of one `<engine> ps` run as one user. */
+export const remoteEngineStatusSchema = z.object({
+  engine: containerEngineSchema,
+  owner: z.string(),
+  ok: z.boolean(),
+  /** Engine exists but this user may not open its socket (e.g. not in the docker group). */
+  permissionDenied: z.boolean(),
+});
+export type RemoteEngineStatus = z.infer<typeof remoteEngineStatusSchema>;
 
 export const remoteContainersResponseSchema = z.object({
-  /** An engine binary exists on the node (kept for compat; see `engine`). */
+  /** At least one engine binary exists on the node (kept for compat). */
   dockerAvailable: z.boolean(),
-  /** Which engine answered; null when none is installed or the marker was missing. */
-  engine: containerEngineSchema.nullable(),
-  /** Engine exists but the SSH user cannot open its socket (e.g. not in the docker group). */
-  permissionDenied: z.boolean(),
+  /** The stored sudo password was rejected — nothing could be listed. */
+  sudoFailed: z.boolean(),
+  engines: z.array(remoteEngineStatusSchema),
   containers: z.array(remoteContainerSchema),
 });
 export type RemoteContainersResponse = z.infer<typeof remoteContainersResponseSchema>;

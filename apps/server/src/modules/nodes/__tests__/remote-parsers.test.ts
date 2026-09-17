@@ -5,7 +5,7 @@ import {
   parseLoadavg,
   parseUptime,
   parseDfPTB1,
-  parseDockerPsJson,
+  parseContainersOutput,
   parseMetricsOutput,
 } from '../remote-parsers';
 
@@ -220,92 +220,75 @@ describe('parseDfPTB1', () => {
 });
 
 // ---------------------------------------------------------------------------
-// parseDockerPsJson (AC6, AC11)
+// parseContainersOutput — CONTAINERS_CMD output: wrapped container lines + per-engine status lines
 // ---------------------------------------------------------------------------
 
-const LINE_RUNNING = JSON.stringify({
-  ID: 'abc123def456',
-  Names: 'nginx-proxy',
-  Image: 'nginx:1.25',
-  State: 'running',
-  Status: 'Up 3 days',
-});
+const wrap = (engine: string, owner: string, c: object) => JSON.stringify({ engine, owner, c });
+const status = (engine: string, owner: string, rc: number, err = '') => JSON.stringify({ engine, owner, rc, err });
 
-const LINE_EXITED = JSON.stringify({
-  ID: 'fed654cba321',
-  Names: 'redis-cache',
-  Image: 'redis:7',
-  State: 'exited',
-  Status: 'Exited (0) 2 hours ago',
-});
+const DOCKER_RUNNING = { ID: 'abc123def456', Names: 'nginx-proxy', Image: 'nginx:1.25', State: 'running', Status: 'Up 3 days' };
+const DOCKER_EXITED = { ID: 'fed654cba321', Names: 'redis-cache', Image: 'redis:7', State: 'exited', Status: 'Exited (0) 2 hours ago' };
+// podman shape: `Id` (not `ID`), `Names` is an array
+const PODMAN_CONEXD = { Id: 'cafe0123beef', Names: ['conex-postgres'], Image: 'localhost/conex-postgres:18', State: 'running', Status: 'healthy' };
 
-const LINE_UNKNOWN_STATE = JSON.stringify({
-  ID: 'aaa111bbb222',
-  Names: 'mystery',
-  Image: 'alpine:latest',
-  State: 'zombie',
-  Status: 'some weird state',
-});
-
-const LINE_BAD_JSON = 'not valid json at all {{{';
-
-// `podman ps -a --format '{{json .}}'` shape: `Id` (not `ID`), `Names` is an array.
-const LINE_PODMAN = JSON.stringify({
-  Id: 'cafe0123beef',
-  Names: ['gitlab-runner'],
-  Image: 'docker.io/gitlab/gitlab-runner:latest',
-  State: 'running',
-  Status: 'Up 5 hours',
-});
-
-describe('parseDockerPsJson', () => {
-  it('parses multiple valid lines', () => {
-    expect(parseDockerPsJson(`${LINE_RUNNING}\n${LINE_EXITED}`)).toHaveLength(2);
+describe('parseContainersOutput', () => {
+  it('collects containers from several engine/owner runs and tags each row', () => {
+    const out = [
+      wrap('docker', 'root', DOCKER_RUNNING),
+      wrap('docker', 'root', DOCKER_EXITED),
+      status('docker', 'root', 0),
+      status('podman', 'root', 0),
+      wrap('podman', 'conexd', PODMAN_CONEXD),
+      status('podman', 'conexd', 0),
+    ].join('\n');
+    const r = parseContainersOutput(out);
+    expect(r.containers).toHaveLength(3);
+    expect(r.containers[0]).toMatchObject({ id: 'abc123def456', name: 'nginx-proxy', state: 'running', engine: 'docker', owner: 'root' });
+    expect(r.containers[2]).toMatchObject({ id: 'cafe0123beef', name: 'conex-postgres', state: 'running', engine: 'podman', owner: 'conexd' });
+    expect(r.engines).toEqual([
+      { engine: 'docker', owner: 'root', ok: true, permissionDenied: false },
+      { engine: 'podman', owner: 'root', ok: true, permissionDenied: false },
+      { engine: 'podman', owner: 'conexd', ok: true, permissionDenied: false },
+    ]);
   });
 
-  it('maps ID/Names/Image/State/Status correctly', () => {
-    const containers = parseDockerPsJson(LINE_RUNNING);
-    expect(containers[0]?.id).toBe('abc123def456');
-    expect(containers[0]?.name).toBe('nginx-proxy');
-    expect(containers[0]?.image).toBe('nginx:1.25');
-    expect(containers[0]?.state).toBe('running');
-    expect(containers[0]?.status).toBe('Up 3 days');
+  it('marks an engine permissionDenied from its status line (docker socket refused for the SSH user)', () => {
+    const out = [
+      status('docker', 'conex', 1, 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock'),
+      status('podman', 'conex', 0),
+    ].join('\n');
+    const r = parseContainersOutput(out);
+    expect(r.engines[0]).toEqual({ engine: 'docker', owner: 'conex', ok: false, permissionDenied: true });
+    expect(r.engines[1]?.ok).toBe(true);
+    expect(r.containers).toEqual([]);
   });
 
-  it('unknown state falls back to "dead", does not throw (AC6)', () => {
-    const containers = parseDockerPsJson(LINE_UNKNOWN_STATE);
-    expect(containers[0]?.state).toBe('dead');
+  it('a failed engine with an unrelated error is ok:false, permissionDenied:false', () => {
+    const r = parseContainersOutput(status('docker', 'root', 1, 'Cannot connect to the Docker daemon'));
+    expect(r.engines[0]).toEqual({ engine: 'docker', owner: 'root', ok: false, permissionDenied: false });
   });
 
-  it('bad JSON line is discarded, rest preserved; onBadLine called once (AC11)', () => {
+  it('unknown container state falls back to "dead"; unknown engine name lines are discarded via onBadLine', () => {
     const onBadLine = vi.fn();
-    const containers = parseDockerPsJson(
-      `${LINE_RUNNING}\n${LINE_BAD_JSON}\n${LINE_EXITED}`,
+    const r = parseContainersOutput(
+      [wrap('docker', 'root', { ...DOCKER_RUNNING, State: 'zombie' }), wrap('lxc', 'root', DOCKER_RUNNING), 'not json {{{'].join('\n'),
       onBadLine,
     );
-    expect(containers).toHaveLength(2);
-    expect(onBadLine).toHaveBeenCalledOnce();
+    expect(r.containers).toHaveLength(1);
+    expect(r.containers[0]?.state).toBe('dead');
+    expect(onBadLine).toHaveBeenCalledTimes(2);
   });
 
-  it('parses a podman-shaped line (Id + Names array) like a docker line', () => {
-    const containers = parseDockerPsJson(LINE_PODMAN);
-    expect(containers).toHaveLength(1);
-    expect(containers[0]?.id).toBe('cafe0123beef');
-    expect(containers[0]?.name).toBe('gitlab-runner');
-    expect(containers[0]?.state).toBe('running');
-  });
-
-  it('empty / whitespace-only output returns []', () => {
-    expect(parseDockerPsJson('')).toEqual([]);
-    expect(parseDockerPsJson('\n\n')).toEqual([]);
+  it('empty output → no engines, no containers', () => {
+    expect(parseContainersOutput('')).toEqual({ engines: [], containers: [] });
+    expect(parseContainersOutput('\n\n')).toEqual({ engines: [], containers: [] });
   });
 
   it('all ContainerState enum values are accepted', () => {
     const states = ['created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead'];
     for (const state of states) {
-      const line = JSON.stringify({ ID: 'x', Names: 'x', Image: 'x', State: state, Status: '' });
-      const containers = parseDockerPsJson(line);
-      expect(containers[0]?.state).toBe(state);
+      const r = parseContainersOutput(wrap('docker', 'root', { ID: 'x', Names: 'x', Image: 'x', State: state, Status: '' }));
+      expect(r.containers[0]?.state).toBe(state);
     }
   });
 });

@@ -40,7 +40,7 @@ export class NodesController {
   }
 
   @Post(':id/test')
-  test(@Param('id') id: string): Promise<{ ok: true; latencyMs: number }> {
+  test(@Param('id') id: string): Promise<{ ok: true; latencyMs: number; sudoOk?: boolean }> {
     return this.nodes.testNode(id);
   }
 

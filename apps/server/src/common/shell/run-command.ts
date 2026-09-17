@@ -56,6 +56,12 @@ export interface RunCommandOptions {
    * sources that could OOM the panel by streaming volume.
    */
   maxOutputBytes?: number;
+  /**
+   * Written to the child's stdin, then stdin is closed. Used to hand a secret
+   * (e.g. a remote `sudo -S` password) to a process without it touching argv,
+   * the environment or the process list.
+   */
+  input?: string;
 }
 
 export function runCommand(
@@ -68,6 +74,10 @@ export function runCommand(
     const bin = opts.sudo ? 'sudo' : cmd;
     const argv = opts.sudo ? ['-n', cmd, ...args] : args;
     const child = spawn(bin, argv, { timeout });
+    if (opts.input !== undefined) {
+      child.stdin.on('error', () => undefined); // EPIPE if the child exits early — harmless
+      child.stdin.end(opts.input);
+    }
     let stdout = '';
     let stderr = '';
     const maxBytes = opts.maxOutputBytes;

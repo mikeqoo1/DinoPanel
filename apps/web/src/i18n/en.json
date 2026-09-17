@@ -835,6 +835,9 @@
     "delete": "Remove",
     "delete_confirm": "Remove node \"{{name}}\"? This cannot be undone.",
     "latency": "{{ms}}ms",
+    "test_sudo_ok": "{{ms}}ms · sudo ✓",
+    "test_sudo_bad": "{{ms}}ms · sudo ✗",
+    "sudo_badge": "sudo password stored — lists rootless Podman containers of all users",
     "list_show": "Show list ({{count}})",
     "list_hide": "Hide list",
     "metrics": {
@@ -848,7 +851,9 @@
     "containers": {
       "title": "Containers",
       "no_docker": "Neither Docker nor Podman is installed on this node.",
-      "permission_denied": "{{engine}} is installed, but user {{user}} is not allowed to open its socket on this node.",
+      "sudo_failed": "The stored sudo password for {{user}} was rejected by this node. Remove the node and add it again with the correct password.",
+      "engine_denied": "{{engine}}: user {{user}} may not open its socket",
+      "col_engine": "Engine",
       "empty": "No containers.",
       "col_name": "Name",
       "col_image": "Image",
@@ -865,6 +870,8 @@
       "hint_body": "Make sure the panel server's SSH key is trusted by the remote host. Run once from this server:",
       "hint_copy_id": "ssh-copy-id {{user}}@{{host}}",
       "hint_default": "ssh-copy-id root@<host>",
+      "sudo_label": "sudo password (optional)",
+      "sudo_hint": "Lets the panel run the read-only container inventory as root, so rootless Podman containers owned by other users are listed. Stored encrypted; sent to the node on stdin only. Not needed for root.",
       "add": "Add node",
       "added": "Node added"
     },

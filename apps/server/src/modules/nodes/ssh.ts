@@ -22,16 +22,53 @@ export interface SshLogger {
 export const METRICS_CMD =
   'export LC_ALL=C; cat /proc/stat; echo __DINO__; cat /proc/loadavg; echo __DINO__; cat /proc/meminfo; echo __DINO__; cat /proc/uptime; echo __DINO__; sleep 1; cat /proc/stat; echo __DINO__; df -PTB1';
 
-/** First stdout line of CONTAINER_PS_CMD: `__DINO_ENGINE__=docker|podman`. */
-export const ENGINE_MARKER = '__DINO_ENGINE__=';
+/**
+ * Remote container inventory. Runs `docker ps` AND `podman ps` (whichever exist) as the
+ * SSH user, and — when running as root (natively or via sudo, see wrapRemote) — also
+ * `podman ps` as every user that has a runtime dir under /run/user (rootless Podman
+ * containers, e.g. Quadlet units with `User=`). Every container line is wrapped as
+ * `{"engine","owner","c":{…ps json…}}`; every engine run ends with a status line
+ * `{"engine","owner","rc","err"}` so a refused docker socket shows up as
+ * permissionDenied for that engine instead of failing the whole request.
+ *
+ * Read-only by construction: only `ps` is ever invoked (AC7 grep + unit test). No user
+ * input is interpolated. No single quotes — the whole script is passed via
+ * `bash -c '…'` (wrapRemote). Neither engine → exit 127 → isDockerAbsent().
+ */
+export const CONTAINERS_CMD = `export LC_ALL=C; cd /
+me=$(id -un)
+hd=0; hp=0
+command -v docker >/dev/null 2>&1 && hd=1
+command -v podman >/dev/null 2>&1 && hp=1
+[ $hd = 0 ] && [ $hp = 0 ] && exit 127
+exec 3>&1
+ps_as() {
+  eng=$1; own=$2; shift 2
+  err=$( { "$@" --format "{\\"engine\\":\\"$eng\\",\\"owner\\":\\"$own\\",\\"c\\":{{json .}}}"; } 2>&1 1>&3 ); rc=$?
+  printf "{\\"engine\\":\\"%s\\",\\"owner\\":\\"%s\\",\\"rc\\":%s,\\"err\\":\\"%s\\"}\\n" "$eng" "$own" "$rc" "$(printf "%s" "$err" | head -c 200 | tr -d "\\"\\\\\\\\" | tr "\\n" " ")"
+}
+[ $hd = 1 ] && ps_as docker "$me" docker ps -a
+[ $hp = 1 ] && ps_as podman "$me" podman ps -a
+if [ "$(id -u)" = 0 ] && [ $hp = 1 ]; then
+  for d in /run/user/*; do
+    uid=\${d##*/}; [ "$uid" = 0 ] && continue
+    u=$(id -nu "$uid" 2>/dev/null) || continue
+    h=$(getent passwd "$u" | cut -d: -f6)
+    ps_as podman "$u" sudo -n -u "$u" env XDG_RUNTIME_DIR="$d" HOME="$h" podman ps -a
+  done
+fi
+exit 0`;
 
-// Docker first, Podman second (Rocky/Alma ship podman by default). Neither → exit 127,
-// which isDockerAbsent() already treats as "no container engine" (200 dockerAvailable:false).
-// The marker line is echoed *before* ps runs so the engine is known even when ps fails
-// (e.g. socket permission denied → isEnginePermissionDenied).
-export const CONTAINER_PS_CMD =
-  `export LC_ALL=C; if command -v docker >/dev/null 2>&1; then echo ${ENGINE_MARKER}docker; docker ps -a --format '{{json .}}'; ` +
-  `elif command -v podman >/dev/null 2>&1; then echo ${ENGINE_MARKER}podman; podman ps -a --format '{{json .}}'; else exit 127; fi`;
+/**
+ * Wrap a remote script for the login shell. With `sudo`, elevate via `sudo -S -k -p ""`:
+ * the password is read from stdin (sshExec `input`), never argv; `-k` ignores any cached
+ * timestamp so the stored password is validated on every run.
+ */
+export function wrapRemote(script: string, sudo: boolean): string {
+  if (script.includes("'")) throw new Error('wrapRemote: script must not contain single quotes');
+  const inner = `bash -c '${script}'`;
+  return sudo ? `sudo -S -k -p "" ${inner}` : inner;
+}
 
 // ---------------------------------------------------------------------------
 // buildSshArgs — pure function, exact arg order per spec/T-6
@@ -106,18 +143,18 @@ export function isDockerAbsent(result: CommandResult): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// isEnginePermissionDenied — engine installed, but the SSH user cannot open its socket
+// isSudoFailed — the stored sudo password was rejected (or sudo wanted one we lack)
 // ---------------------------------------------------------------------------
 
-/** True when `docker ps` / `podman ps` ran but was refused at the socket
- *  (typically the user is not in the `docker` group). Expected node state, not an
- *  error: getContainers returns 200 { permissionDenied: true } and sshExec skips
- *  the warn log, mirroring isDockerAbsent. */
-export function isEnginePermissionDenied(result: CommandResult): boolean {
+/** True when `sudo -S` refused: wrong password, password required but none accepted,
+ *  or the user is not in sudoers. Expected node state (operator typo), not an error:
+ *  getContainers returns 200 { sudoFailed: true } and sshExec skips the warn log. */
+export function isSudoFailed(result: CommandResult): boolean {
   return (
     result.exitCode !== 0 &&
-    result.exitCode !== 127 &&
-    /permission denied/i.test(result.stderr)
+    /incorrect password attempt|Sorry, try again|a password is required|is not in the sudoers file|^sudo:/im.test(
+      result.stderr,
+    )
   );
 }
 
@@ -129,15 +166,22 @@ const STDERR_LOG_CAP = 2048;
 // sshExec — throws for TOOL_MISSING / null (timeout) / 255; returns result otherwise
 // ---------------------------------------------------------------------------
 
+export interface SshExecOptions {
+  /** Written to ssh's stdin (→ the remote command's stdin). Used for `sudo -S` passwords. */
+  input?: string;
+}
+
 export async function sshExec(
   node: RemoteNode,
   remoteCmd: string,
   logger: SshLogger,
+  opts: SshExecOptions = {},
 ): Promise<CommandResult> {
   let result: CommandResult;
   try {
     result = await runCommand('ssh', buildSshArgs(node, remoteCmd), {
       maxOutputBytes: 4 * 1024 * 1024,
+      ...(opts.input !== undefined ? { input: opts.input } : {}),
     });
   } catch (err) {
     if (err instanceof CommandError) {
@@ -165,7 +209,7 @@ export async function sshExec(
   if (
     result.exitCode !== 0 &&
     !isDockerAbsent(result) &&
-    !isEnginePermissionDenied(result) &&
+    !isSudoFailed(result) &&
     result.stderr
   ) {
     logger.warn(

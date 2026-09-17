@@ -8,33 +8,53 @@ import {
   type RemoteContainersResponse,
   type RemoteNode,
   type RemoteNodeMetrics,
-  type ContainerEngine,
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
+import { ConfigService } from '@nestjs/config';
+import { z } from 'zod';
+import type { AppConfig } from '../../config/configuration';
+import { decryptSecret, deriveSecretsKey, encryptSecret } from '../../common/secrets/secrets';
 import {
-  CONTAINER_PS_CMD,
-  ENGINE_MARKER,
+  CONTAINERS_CMD,
   METRICS_CMD,
   isDockerAbsent,
-  isEnginePermissionDenied,
+  isSudoFailed,
   sshExec,
+  wrapRemote,
 } from './ssh';
-import { parseDockerPsJson, parseMetricsOutput } from './remote-parsers';
+import { parseContainersOutput, parseMetricsOutput } from './remote-parsers';
 
 // ponytail: no Unavailable-driver layer — ssh availability is per-request/per-node,
 // not boot-probe-able; commandErrorToHttp(err,'NODES') covers TOOL_MISSING naturally (D6)
 
 const NODES_KEY = 'nodes.list';
 
+/** What actually sits in the KV blob: the public node + the encrypted sudo password. */
+const storedNodeSchema = remoteNodeSchema.omit({ hasSudo: true }).extend({
+  sudoPasswordEnc: z.string().optional(),
+});
+type StoredNode = z.infer<typeof storedNodeSchema>;
+
+function toPublic(n: StoredNode): RemoteNode {
+  const { sudoPasswordEnc, ...rest } = n;
+  return { ...rest, hasSudo: sudoPasswordEnc !== undefined };
+}
+
 @Injectable()
 export class NodesService {
+  private readonly secretsKey: Buffer;
+
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
     private readonly logger: Logger,
-  ) {}
+    config: ConfigService<{ app: AppConfig }>,
+  ) {
+    const app = config.get<AppConfig>('app', { infer: true });
+    this.secretsKey = deriveSecretsKey(app!.env.JWT_SECRET);
+  }
 
-  private async readList(): Promise<RemoteNode[]> {
+  private async readList(): Promise<StoredNode[]> {
     const rows = await this.db
       .select({ value: settings.value })
       .from(settings)
@@ -55,7 +75,7 @@ export class NodesService {
     // Validate each stored entry — drops any that fail host/user/port constraints
     // so a corrupted or tampered KV row never reaches ssh argv.
     return parsed.flatMap((entry) => {
-      const r = remoteNodeSchema.safeParse(entry);
+      const r = storedNodeSchema.safeParse(entry);
       if (!r.success) {
         this.logger.warn({ entry, error: r.error.message }, 'nodes.list_invalid_entry — dropped');
         return [];
@@ -64,7 +84,7 @@ export class NodesService {
     });
   }
 
-  private async writeList(nodes: RemoteNode[]): Promise<void> {
+  private async writeList(nodes: StoredNode[]): Promise<void> {
     const value = JSON.stringify(nodes);
     await this.db
       .insert(settings)
@@ -76,7 +96,7 @@ export class NodesService {
   }
 
   async list(): Promise<RemoteNode[]> {
-    return this.readList();
+    return (await this.readList()).map(toPublic);
   }
 
   async add(input: CreateNode): Promise<RemoteNode[]> {
@@ -90,10 +110,15 @@ export class NodesService {
         HttpStatus.CONFLICT,
       );
     }
-    const node: RemoteNode = { id: randomUUID(), ...input };
+    const { sudoPassword, ...rest } = input;
+    const node: StoredNode = {
+      id: randomUUID(),
+      ...rest,
+      ...(sudoPassword ? { sudoPasswordEnc: encryptSecret(sudoPassword, this.secretsKey) } : {}),
+    };
     nodes.push(node);
     await this.writeList(nodes);
-    return nodes;
+    return nodes.map(toPublic);
   }
 
   async remove(id: string): Promise<void> {
@@ -101,7 +126,7 @@ export class NodesService {
     await this.writeList(nodes.filter((n) => n.id !== id));
   }
 
-  private findNode(nodes: RemoteNode[], id: string): RemoteNode {
+  private findNode(nodes: StoredNode[], id: string): StoredNode {
     const node = nodes.find((n) => n.id === id);
     if (!node) {
       throw new HttpException(
@@ -112,7 +137,23 @@ export class NodesService {
     return node;
   }
 
-  async testNode(id: string): Promise<{ ok: true; latencyMs: number }> {
+  /** Decrypted sudo password + newline for stdin, or undefined when the node has none. */
+  private sudoInput(node: StoredNode): string | undefined {
+    if (node.sudoPasswordEnc === undefined) return undefined;
+    try {
+      return decryptSecret(node.sudoPasswordEnc, this.secretsKey) + '\n';
+    } catch {
+      throw new HttpException(
+        {
+          code: 'NODES_SUDO_UNREADABLE',
+          message: 'Stored sudo password cannot be decrypted (JWT_SECRET changed?). Remove and re-add the node.',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async testNode(id: string): Promise<{ ok: true; latencyMs: number; sudoOk?: boolean }> {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
     const start = Date.now();
@@ -127,7 +168,12 @@ export class NodesService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-    return { ok: true, latencyMs: Date.now() - start };
+    const latencyMs = Date.now() - start;
+    const input = this.sudoInput(node);
+    if (input === undefined) return { ok: true, latencyMs };
+    // Validate the stored password too (`-k` bypasses any cached sudo timestamp).
+    const probe = await sshExec(node, wrapRemote('true', true), this.logger, { input });
+    return { ok: true, latencyMs, sudoOk: probe.exitCode === 0 };
   }
 
   async getMetrics(id: string): Promise<RemoteNodeMetrics> {
@@ -154,15 +200,15 @@ export class NodesService {
   async getContainers(id: string): Promise<RemoteContainersResponse> {
     const nodes = await this.readList();
     const node = this.findNode(nodes, id);
-    const result = await sshExec(node, CONTAINER_PS_CMD, this.logger);
-    // Single source of truth for docker-absent — same predicate as sshExec's warn-skip.
+    const input = this.sudoInput(node);
+    const sudo = input !== undefined;
+    const result = await sshExec(node, wrapRemote(CONTAINERS_CMD, sudo), this.logger, sudo ? { input } : undefined);
+    // Expected node states → 200. Both predicates are shared with sshExec's warn-skip.
     if (isDockerAbsent(result)) {
-      return { dockerAvailable: false, engine: null, permissionDenied: false, containers: [] };
+      return { dockerAvailable: false, sudoFailed: false, engines: [], containers: [] };
     }
-    // First line is the engine marker echoed by CONTAINER_PS_CMD; strip it before parsing.
-    const { engine, rest } = splitEngineMarker(result.stdout);
-    if (isEnginePermissionDenied(result)) {
-      return { dockerAvailable: true, engine, permissionDenied: true, containers: [] };
+    if (sudo && isSudoFailed(result)) {
+      return { dockerAvailable: true, sudoFailed: true, engines: [], containers: [] };
     }
     if (result.exitCode !== 0) {
       this.logger.warn(
@@ -178,7 +224,7 @@ export class NodesService {
     // A hostile node returning megabytes of non-JSON stdout could otherwise trigger
     // tens of thousands of pino serializations per poll + a log flood.
     let badLineCount = 0;
-    const containers = parseDockerPsJson(rest, (line, err) => {
+    const { engines, containers } = parseContainersOutput(result.stdout, (line, err) => {
       if (badLineCount === 0) {
         this.logger.warn(
           { line: line.slice(0, 200), err },
@@ -193,16 +239,6 @@ export class NodesService {
         'nodes.docker_ps_parse_error_aggregate',
       );
     }
-    return { dockerAvailable: true, engine, permissionDenied: false, containers };
+    return { dockerAvailable: true, sudoFailed: false, engines, containers };
   }
-}
-
-/** Pull `__DINO_ENGINE__=<engine>` off the first stdout line; null if absent. */
-function splitEngineMarker(stdout: string): { engine: ContainerEngine | null; rest: string } {
-  const nl = stdout.indexOf('\n');
-  const first = nl === -1 ? stdout : stdout.slice(0, nl);
-  if (!first.startsWith(ENGINE_MARKER)) return { engine: null, rest: stdout };
-  const value = first.slice(ENGINE_MARKER.length).trim();
-  const engine = value === 'docker' || value === 'podman' ? value : null;
-  return { engine, rest: nl === -1 ? '' : stdout.slice(nl + 1) };
 }

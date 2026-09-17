@@ -835,6 +835,9 @@
     "delete": "移除",
     "delete_confirm": "確定移除節點「{{name}}」？此操作不可復原。",
     "latency": "{{ms}}ms",
+    "test_sudo_ok": "{{ms}}ms · sudo ✓",
+    "test_sudo_bad": "{{ms}}ms · sudo ✗",
+    "sudo_badge": "已儲存 sudo 密碼 — 會列出所有使用者的 rootless Podman 容器",
     "list_show": "顯示清單（{{count}}）",
     "list_hide": "隱藏清單",
     "metrics": {
@@ -848,7 +851,9 @@
     "containers": {
       "title": "容器",
       "no_docker": "此節點未安裝 Docker 或 Podman。",
-      "permission_denied": "此節點有安裝 {{engine}}，但帳號 {{user}} 無權存取其 socket。",
+      "sudo_failed": "此節點拒絕了 {{user}} 儲存的 sudo 密碼。請移除節點後用正確密碼重新新增。",
+      "engine_denied": "{{engine}}：帳號 {{user}} 無權存取其 socket",
+      "col_engine": "引擎",
       "empty": "無容器。",
       "col_name": "名稱",
       "col_image": "映像",
@@ -865,6 +870,8 @@
       "hint_body": "請確保面板伺服器的 SSH 金鑰已佈至遠端主機，在本機執行一次：",
       "hint_copy_id": "ssh-copy-id {{user}}@{{host}}",
       "hint_default": "ssh-copy-id root@<host>",
+      "sudo_label": "sudo 密碼（選填）",
+      "sudo_hint": "讓面板以 root 執行唯讀的容器盤點，才看得到其他帳號底下的 rootless Podman 容器。加密儲存，只經 stdin 送到節點。root 帳號不需要。",
       "add": "新增節點",
       "added": "節點已新增"
     },

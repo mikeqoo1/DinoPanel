@@ -68,59 +68,41 @@ describe('remoteNodeMetricsSchema — happy-path parse', () => {
   });
 });
 
-describe('remoteContainersResponseSchema — happy-path parse', () => {
-  it('parses dockerAvailable:true with containers', () => {
-    const result = remoteContainersResponseSchema.safeParse({
-      dockerAvailable: true,
-      engine: 'docker',
-      permissionDenied: false,
-      containers: [
-        { id: 'abc123', name: 'nginx', image: 'nginx:latest', state: 'running', status: 'Up 2 hours' },
-        { id: 'def456', name: 'db', image: 'postgres:15', state: 'exited', status: 'Exited (0) 1 day ago' },
-      ],
-    });
-    expect(result.success).toBe(true);
+describe('remoteContainersResponseSchema — happy-path parse (v0.6.8 shape)', () => {
+  const engines = [
+    { engine: 'docker', owner: 'root', ok: true, permissionDenied: false },
+    { engine: 'podman', owner: 'conexd', ok: true, permissionDenied: false },
+  ];
+  const containers = [
+    { id: 'abc123', name: 'nginx', image: 'nginx:latest', state: 'running', status: 'Up 2 hours', engine: 'docker', owner: 'root' },
+    { id: 'cafe', name: 'conex-postgres', image: 'x', state: 'running', status: 'healthy', engine: 'podman', owner: 'conexd' },
+  ];
+
+  it('parses engines + tagged containers', () => {
+    expect(remoteContainersResponseSchema.safeParse({ dockerAvailable: true, sudoFailed: false, engines, containers }).success).toBe(true);
   });
 
-  it('parses engine present but permissionDenied:true with empty containers (v0.6.7)', () => {
-    const result = remoteContainersResponseSchema.safeParse({
-      dockerAvailable: true,
-      engine: 'podman',
-      permissionDenied: true,
-      containers: [],
-    });
-    expect(result.success).toBe(true);
+  it('parses the no-engine state', () => {
+    expect(remoteContainersResponseSchema.safeParse({ dockerAvailable: false, sudoFailed: false, engines: [], containers: [] }).success).toBe(true);
   });
 
-  it('rejects an unknown engine name', () => {
-    const result = remoteContainersResponseSchema.safeParse({
-      dockerAvailable: true,
-      engine: 'lxc',
-      permissionDenied: false,
-      containers: [],
-    });
-    expect(result.success).toBe(false);
+  it('parses the sudo-failed state', () => {
+    expect(remoteContainersResponseSchema.safeParse({ dockerAvailable: true, sudoFailed: true, engines: [], containers: [] }).success).toBe(true);
   });
 
-  it('parses dockerAvailable:false with empty containers', () => {
-    const result = remoteContainersResponseSchema.safeParse({
-      dockerAvailable: false,
-      engine: null,
-      permissionDenied: false,
-      containers: [],
-    });
-    expect(result.success).toBe(true);
+  it('rejects a container without engine/owner tags or with an unknown engine', () => {
+    expect(remoteContainersResponseSchema.safeParse({ dockerAvailable: true, sudoFailed: false, engines: [], containers: [{ id: 'a', name: 'n', image: 'i', state: 'running', status: '' }] }).success).toBe(false);
+    expect(remoteContainersResponseSchema.safeParse({ dockerAvailable: true, sudoFailed: false, engines: [{ engine: 'lxc', owner: 'root', ok: true, permissionDenied: false }], containers: [] }).success).toBe(false);
+  });
+});
+
+describe('createNodeSchema — sudoPassword (v0.6.8)', () => {
+  it('is optional', () => {
+    expect(createNodeSchema.safeParse({ name: 'n', host: '10.0.0.1', user: 'mike' }).success).toBe(true);
   });
 
-  it('rejects unknown container state', () => {
-    const result = remoteContainersResponseSchema.safeParse({
-      dockerAvailable: true,
-      engine: 'docker',
-      permissionDenied: false,
-      containers: [
-        { id: 'x', name: 'x', image: 'x', state: 'unknown_state', status: 'x' },
-      ],
-    });
-    expect(result.success).toBe(false);
+  it('accepts a non-empty password and rejects an empty one', () => {
+    expect(createNodeSchema.safeParse({ name: 'n', host: '10.0.0.1', user: 'mike', sudoPassword: '110084' }).success).toBe(true);
+    expect(createNodeSchema.safeParse({ name: 'n', host: '10.0.0.1', user: 'mike', sudoPassword: '' }).success).toBe(false);
   });
 });

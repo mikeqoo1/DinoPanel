@@ -43,8 +43,17 @@ function makeDb(initialJson?: string) {
 
 const noopLogger = { warn: vi.fn(), log: vi.fn(), error: vi.fn(), debug: vi.fn() };
 
+const config = { get: () => ({ env: { JWT_SECRET: 'test-jwt-secret-'.repeat(3) }, isDev: true }) };
+
 function makeService(initialJson?: string) {
-  return new NodesService(makeDb(initialJson) as never, noopLogger as never);
+  return new NodesService(makeDb(initialJson) as never, noopLogger as never, config as never);
+}
+
+/** Read the raw KV blob back out of the db mock (to assert what was persisted). */
+async function rawStored(svc: NodesService): Promise<string> {
+  const db = (svc as unknown as { db: ReturnType<typeof makeDb> }).db;
+  const rows = await db.select().from().where().limit();
+  return rows[0]?.value ?? '';
 }
 
 const NODE_INPUT = { name: 'rocky-235', host: '192.168.199.235', user: 'root', port: 22 };
@@ -186,129 +195,162 @@ describe('NodesService.testNode', () => {
 });
 
 // ---------------------------------------------------------------------------
-// getContainers — docker absent detection (AC6)
+// sudo password — stored encrypted, never returned, hasSudo exposed (v0.6.8)
 // ---------------------------------------------------------------------------
 
-describe('NodesService.getContainers', () => {
-  it('returns { dockerAvailable: false } for exit 127 (AC6)', async () => {
+describe('NodesService sudo password storage', () => {
+  it('add() stores the password encrypted and list() only exposes hasSudo', async () => {
     const svc = makeService();
-    const list = await svc.add(NODE_INPUT);
-    mockSshExec.mockResolvedValueOnce({
-      exitCode: 127,
-      stdout: '',
-      stderr: 'bash: docker: command not found',
-    });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result.dockerAvailable).toBe(false);
-    expect(result.containers).toEqual([]);
+    const list = await svc.add({ ...NODE_INPUT, user: 'mike', sudoPassword: '110084' });
+    expect(list[0]).toMatchObject({ user: 'mike', hasSudo: true });
+    expect(JSON.stringify(list)).not.toContain('110084');
+    expect(JSON.stringify(list)).not.toContain('sudoPasswordEnc');
+    const raw = await rawStored(svc);
+    expect(raw).toContain('sudoPasswordEnc');
+    expect(raw).not.toContain('110084');
+    const again = await svc.list();
+    expect(again[0]).toMatchObject({ hasSudo: true });
+    expect(JSON.stringify(again)).not.toContain('sudoPasswordEnc');
   });
 
-  it('returns { dockerAvailable: false } for non-zero exit + docker-specific not-found in stderr (AC6)', async () => {
-    // Must NOT trigger on unrelated "command not found" from ~/.bashrc noise on a
-    // successful (exit 0) docker ps — only on docker-specific stderr with non-zero exit.
+  it('add() without a password → hasSudo:false and nothing encrypted persisted', async () => {
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
-    mockSshExec.mockResolvedValueOnce({
-      exitCode: 1,
-      stdout: '',
-      stderr: 'bash: docker: command not found',
-    });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result.dockerAvailable).toBe(false);
+    expect(list[0]).toMatchObject({ hasSudo: false });
+    expect(await rawStored(svc)).not.toContain('sudoPasswordEnc');
   });
 
-  it('does NOT return dockerAvailable:false when exit is 0 despite unrelated "command not found" in stderr', async () => {
-    // Unrelated ~/.bashrc noise like "foo: command not found" on a SUCCESSFUL docker ps
-    // must not mask real container data.
+  it('testNode() also validates the sudo password (sudo -S -k true) and reports sudoOk', async () => {
     const svc = makeService();
-    const list = await svc.add(NODE_INPUT);
-    const line = JSON.stringify({
-      ID: 'abc',
-      Names: 'nginx',
-      Image: 'nginx:latest',
-      State: 'running',
-      Status: 'Up 1 hour',
-    });
-    mockSshExec.mockResolvedValueOnce({
-      exitCode: 0,
-      stdout: line,
-      stderr: 'foo: command not found',
-    });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result.dockerAvailable).toBe(true);
-    expect(result.containers).toHaveLength(1);
+    const list = await svc.add({ ...NODE_INPUT, user: 'mike', sudoPassword: '110084' });
+    mockSshExec
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' }) // plain `true`
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' }); // sudo probe
+    const r = await svc.testNode(list[0]!.id);
+    expect(r).toMatchObject({ ok: true, sudoOk: true });
+    const [, cmd, , opts] = mockSshExec.mock.calls[1]!;
+    expect(cmd).toContain('sudo -S');
+    expect(cmd).toContain('-k');
+    expect(opts?.input).toBe('110084\n');
   });
 
-  it('reads the engine marker line and reports engine=docker without treating it as a container', async () => {
+  it('testNode() reports sudoOk:false when sudo rejects the password, still ok:true for ssh', async () => {
     const svc = makeService();
-    const list = await svc.add(NODE_INPUT);
-    const line = JSON.stringify({ ID: 'abc', Names: 'nginx', Image: 'nginx:latest', State: 'running', Status: 'Up 1 hour' });
-    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: `__DINO_ENGINE__=docker\n${line}\n`, stderr: '' });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result.engine).toBe('docker');
-    expect(result.permissionDenied).toBe(false);
-    expect(result.containers).toHaveLength(1);
-    expect(noopLogger.warn).not.toHaveBeenCalled();
+    const list = await svc.add({ ...NODE_INPUT, user: 'mike', sudoPassword: 'wrong' });
+    mockSshExec
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: 'sudo: 1 incorrect password attempt' });
+    const r = await svc.testNode(list[0]!.id);
+    expect(r).toMatchObject({ ok: true, sudoOk: false });
   });
 
-  it('reports engine=podman when the podman branch ran', async () => {
-    const svc = makeService();
-    const list = await svc.add(NODE_INPUT);
-    const line = JSON.stringify({ Id: 'cafe', Names: ['gitlab-runner'], Image: 'x', State: 'running', Status: '' });
-    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: `__DINO_ENGINE__=podman\n${line}`, stderr: '' });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result.engine).toBe('podman');
-    expect(result.containers[0]?.name).toBe('gitlab-runner');
-  });
-
-  it('engine is null when no marker line is present (older remote command output)', async () => {
+  it('testNode() without a password does not probe sudo and omits sudoOk', async () => {
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
     mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    const r = await svc.testNode(list[0]!.id);
+    expect(r.ok).toBe(true);
+    expect('sudoOk' in r).toBe(false);
+    expect(mockSshExec).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getContainers — engines, containers, expected node states (AC6)
+// ---------------------------------------------------------------------------
+
+describe('NodesService.getContainers', () => {
+  const wrap = (engine: string, owner: string, c: object) => JSON.stringify({ engine, owner, c });
+  const status = (engine: string, owner: string, rc: number, err = '') => JSON.stringify({ engine, owner, rc, err });
+  const NGINX = { ID: 'abc', Names: 'nginx', Image: 'nginx:latest', State: 'running', Status: 'Up 1 hour' };
+
+  it('no engine at all (exit 127) → dockerAvailable:false, nothing else (AC6)', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 127, stdout: '', stderr: 'bash: docker: command not found' });
     const result = await svc.getContainers(list[0]!.id);
-    expect(result.engine).toBeNull();
-    expect(result.dockerAvailable).toBe(true);
+    expect(result).toEqual({ dockerAvailable: false, sudoFailed: false, engines: [], containers: [] });
   });
 
-  it('engine present but socket permission denied → 200 with permissionDenied:true, not a 500', async () => {
+  it('returns per-engine status + tagged containers (docker + podman + rootless podman of another user)', async () => {
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
     mockSshExec.mockResolvedValueOnce({
-      exitCode: 1,
-      stdout: '__DINO_ENGINE__=docker\n',
-      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+      exitCode: 0,
+      stdout: [
+        wrap('docker', 'root', NGINX), status('docker', 'root', 0),
+        status('podman', 'root', 0),
+        wrap('podman', 'conexd', { Id: 'cafe', Names: ['conex-postgres'], Image: 'x', State: 'running', Status: 'healthy' }),
+        status('podman', 'conexd', 0),
+      ].join('\n'),
+      stderr: '',
     });
     const result = await svc.getContainers(list[0]!.id);
-    expect(result).toEqual({ dockerAvailable: true, engine: 'docker', permissionDenied: true, containers: [] });
+    expect(result.dockerAvailable).toBe(true);
+    expect(result.sudoFailed).toBe(false);
+    expect(result.engines).toHaveLength(3);
+    expect(result.containers.map((c) => [c.name, c.engine, c.owner])).toEqual([
+      ['nginx', 'docker', 'root'],
+      ['conex-postgres', 'podman', 'conexd'],
+    ]);
     expect(noopLogger.warn).not.toHaveBeenCalled();
   });
 
-  it('engine absent → engine null and permissionDenied false', async () => {
+  it('engine present but socket denied → 200 with that engine flagged, no 500 (conex nodes)', async () => {
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
-    mockSshExec.mockResolvedValueOnce({ exitCode: 127, stdout: '', stderr: '' });
-    const result = await svc.getContainers(list[0]!.id);
-    expect(result).toEqual({ dockerAvailable: false, engine: null, permissionDenied: false, containers: [] });
-  });
-
-  it('parses docker ps JSON lines on exit 0', async () => {
-    const svc = makeService();
-    const list = await svc.add(NODE_INPUT);
-    const line = JSON.stringify({
-      ID: 'abc',
-      Names: 'nginx',
-      Image: 'nginx:latest',
-      State: 'running',
-      Status: 'Up 1 hour',
+    mockSshExec.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: status('docker', 'conex', 1, 'permission denied while trying to connect to the Docker daemon socket'),
+      stderr: '',
     });
-    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: line, stderr: '' });
     const result = await svc.getContainers(list[0]!.id);
     expect(result.dockerAvailable).toBe(true);
-    expect(result.containers).toHaveLength(1);
-    expect(result.containers[0]?.state).toBe('running');
+    expect(result.engines).toEqual([{ engine: 'docker', owner: 'conex', ok: false, permissionDenied: true }]);
+    expect(result.containers).toEqual([]);
+  });
+
+  it('runs the script unelevated (bash -c, no stdin) when the node has no sudo password', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    await svc.getContainers(list[0]!.id);
+    const [, cmd, , opts] = mockSshExec.mock.calls[0]!;
+    expect(cmd.startsWith("bash -c '")).toBe(true);
+    expect(cmd.startsWith('sudo')).toBe(false);
+    expect(opts?.input).toBeUndefined();
+  });
+
+  it('elevates with sudo -S and sends the decrypted password on stdin when the node has one', async () => {
+    const svc = makeService();
+    const list = await svc.add({ ...NODE_INPUT, user: 'mike', sudoPassword: '110084' });
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    await svc.getContainers(list[0]!.id);
+    const [, cmd, , opts] = mockSshExec.mock.calls[0]!;
+    expect(cmd.startsWith(`sudo -S -k -p "" bash -c '`)).toBe(true);
+    expect(cmd).not.toContain('110084');
+    expect(opts?.input).toBe('110084\n');
+  });
+
+  it('sudo rejected the password → 200 { sudoFailed: true }, not a 500', async () => {
+    const svc = makeService();
+    const list = await svc.add({ ...NODE_INPUT, user: 'mike', sudoPassword: 'wrong' });
+    mockSshExec.mockResolvedValueOnce({ exitCode: 1, stdout: '', stderr: 'Sorry, try again.\nsudo: 1 incorrect password attempt' });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result).toEqual({ dockerAvailable: true, sudoFailed: true, engines: [], containers: [] });
+  });
+
+  it('other non-zero exit still → NODES_COMMAND_FAILED 500', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 2, stdout: '', stderr: 'bash: syntax error' });
+    await expect(svc.getContainers(list[0]!.id)).rejects.toMatchObject({
+      response: { code: 'NODES_COMMAND_FAILED' },
+    });
   });
 
   it('logs first bad line truncated + one aggregate warn for remaining bad lines (FOLLOWUP-3)', async () => {
+    // (bad lines are anything that is not a wrapped container / status JSON line)
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);
     // 3 bad lines: first is a 500-char garbage string (should be truncated to 200),
