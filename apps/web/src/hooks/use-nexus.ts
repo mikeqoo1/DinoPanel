@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
-  CreateNexusInstance,
+  CreateNexusInstanceInput,
   NexusInstance,
   NexusMetrics,
   NexusRange,
   NexusRepository,
   NexusSeries,
+  UpdateNexusLimits,
 } from '@dinopanel/shared';
 import { api } from '@/lib/api';
 
@@ -27,7 +28,7 @@ export function useNexusInstances() {
 export function useAddNexusInstance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: CreateNexusInstance) =>
+    mutationFn: async (vars: CreateNexusInstanceInput) =>
       (await api.post<NexusInstance[]>('/nexus', vars)).data,
     onSuccess: (data) => qc.setQueryData(nexusKeys.list(), data),
   });
@@ -39,6 +40,18 @@ export function useRemoveNexusInstance() {
     mutationFn: async (id: string) => {
       await api.delete(`/nexus/${id}`);
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: nexusKeys.list() }),
+  });
+}
+
+export function useUpdateNexusLimits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string } & UpdateNexusLimits) =>
+      (await api.patch<NexusInstance>(`/nexus/${vars.id}/limits`, {
+        requestsPerDayLimit: vars.requestsPerDayLimit,
+        componentsLimit: vars.componentsLimit,
+      })).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: nexusKeys.list() }),
   });
 }

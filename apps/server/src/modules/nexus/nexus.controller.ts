@@ -5,18 +5,20 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
-  UsePipes,
 } from '@nestjs/common';
 import {
   createNexusInstanceSchema,
   nexusRangeSchema,
+  updateNexusLimitsSchema,
   type CreateNexusInstance,
   type NexusInstance,
   type NexusMetrics,
   type NexusRepository,
   type NexusSeries,
+  type UpdateNexusLimits,
 } from '@dinopanel/shared';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { NexusService } from './nexus.service';
@@ -31,9 +33,19 @@ export class NexusController {
   }
 
   @Post()
-  @UsePipes(new ZodValidationPipe(createNexusInstanceSchema))
-  add(@Body() body: CreateNexusInstance): Promise<NexusInstance[]> {
+  add(
+    @Body(new ZodValidationPipe(createNexusInstanceSchema)) body: CreateNexusInstance,
+  ): Promise<NexusInstance[]> {
     return this.nexus.add(body);
+  }
+
+  /** Quota limits only — credentials are never edited, remove and re-add for those. */
+  @Patch(':id/limits')
+  updateLimits(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateNexusLimitsSchema)) body: UpdateNexusLimits,
+  ): Promise<NexusInstance> {
+    return this.nexus.updateLimits(id, body);
   }
 
   @Delete(':id')

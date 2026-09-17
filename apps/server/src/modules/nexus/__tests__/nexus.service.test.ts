@@ -50,6 +50,33 @@ function makeService(initialJson?: string) {
 
 const INPUT = { name: 'dev1', url: 'http://192.168.198.121:18081', username: '110084', password: 'Aa123456' };
 
+const USAGE_JSON = JSON.stringify({
+  usage: [
+    {
+      component_total_count: 16458,
+      unique_users_last_30d: 3,
+      requests_per_last_24h: 195563,
+      request_rates: { peak_requests_per_minute_1d: 7440, peak_requests_per_day_30d: 353057 },
+    },
+  ],
+});
+
+/** fetch stub routing by URL path: prometheus vs usage-metrics. */
+function fetchRouter(opts: { prom?: string; usage?: string | number } = {}) {
+  return vi.fn((url: string) => {
+    if (url.includes('/metrics/prometheus')) {
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(opts.prom ?? PROM) });
+    }
+    if (url.includes('/usage-metrics')) {
+      if (typeof opts.usage === 'number') {
+        return Promise.resolve({ ok: false, status: opts.usage, text: () => Promise.resolve('') });
+      }
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(opts.usage ?? USAGE_JSON) });
+    }
+    return Promise.reject(new Error(`unexpected url ${url}`));
+  });
+}
+
 const PROM = `org_eclipse_jetty_ee10_webapp_WebAppContext_requests_count 15802.0
 org_eclipse_jetty_ee10_webapp_WebAppContext_2xx_responses_total 15607.0
 org_eclipse_jetty_ee10_webapp_WebAppContext_3xx_responses_total 187.0
@@ -134,5 +161,66 @@ describe('NexusService scraping', () => {
     expect(db._state.inserted).toHaveLength(1);
     expect(db._state.inserted[0]).toMatchObject({ requests: 15802, resp4xx: 8, bytesDown: 3264059120 });
     expect(typeof db._state.inserted[0]!.byFormat).toBe('string');
+  });
+});
+
+describe('NexusService community usage quota', () => {
+  it('poll() stores the usage figures alongside the counters', async () => {
+    vi.stubGlobal('fetch', fetchRouter());
+    const { svc, db } = makeService();
+    await svc.add(INPUT);
+    await svc.poll();
+    expect(db._state.inserted[0]).toMatchObject({
+      requests: 15802,
+      requests24h: 195563,
+      componentCount: 16458,
+      uniqueUsers30d: 3,
+      peakRequestsPerDay30d: 353057,
+    });
+  });
+
+  it('a usage endpoint the account cannot read leaves usage null but still stores the sample', async () => {
+    vi.stubGlobal('fetch', fetchRouter({ usage: 403 }));
+    const { svc, db } = makeService();
+    await svc.add(INPUT);
+    await svc.poll();
+    expect(db._state.inserted).toHaveLength(1);
+    expect(db._state.inserted[0]).toMatchObject({ requests: 15802, requests24h: null, componentCount: null });
+  });
+
+  it('a malformed usage body is treated as no usage, not a crash', async () => {
+    vi.stubGlobal('fetch', fetchRouter({ usage: 'not json' }));
+    const { svc, db } = makeService();
+    await svc.add(INPUT);
+    await svc.poll();
+    expect(db._state.inserted[0]).toMatchObject({ requests24h: null });
+  });
+
+  it('add() applies the community-edition default limits', async () => {
+    const { svc } = makeService();
+    const list = await svc.add(INPUT);
+    expect(list[0]).toMatchObject({ requestsPerDayLimit: 200_000, componentsLimit: 100_000 });
+  });
+
+  it('add() honours explicit limits', async () => {
+    const { svc } = makeService();
+    const list = await svc.add({ ...INPUT, requestsPerDayLimit: 500_000, componentsLimit: 1 });
+    expect(list[0]).toMatchObject({ requestsPerDayLimit: 500_000, componentsLimit: 1 });
+  });
+
+  it('updateLimits() changes only the limits and keeps the stored password', async () => {
+    const { svc, db } = makeService();
+    const list = await svc.add(INPUT);
+    const after = await svc.updateLimits(list[0]!.id, { requestsPerDayLimit: 150_000, componentsLimit: 90_000 });
+    expect(after).toMatchObject({ requestsPerDayLimit: 150_000, componentsLimit: 90_000, hasPassword: true });
+    expect(db._state.kv).toContain('passwordEnc');
+    expect(db._state.kv).not.toContain('Aa123456');
+  });
+
+  it('updateLimits() on an unknown id is a 404', async () => {
+    const { svc } = makeService();
+    await expect(svc.updateLimits('nope', { requestsPerDayLimit: 1, componentsLimit: 1 })).rejects.toMatchObject({
+      response: { code: 'NEXUS_NOT_FOUND' },
+    });
   });
 });

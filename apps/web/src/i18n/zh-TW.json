@@ -839,6 +839,27 @@
       "total_requests": "累計請求數",
       "total_down": "累計下載量",
       "chart_requests": "請求速率",
+      "usage": {
+            "title": "社群版用量",
+            "over": "已超過上限",
+            "edit_limits": "設定上限",
+            "requests_24h": "24 小時請求數",
+            "components": "元件數",
+            "rolling_hint": "滾動 24 小時視窗，不是午夜歸零，會隨時間自己退。",
+            "unique_users": "30 天不重複使用者",
+            "peak_day": "30 天單日尖峰",
+            "peak_minute": "24 小時單分鐘尖峰",
+            "unavailable": "讀不到用量配額。此帳號可能無權存取 Nexus 的內部用量端點。"
+          },
+          "limits": {
+            "title": "{{name}} 的用量上限",
+            "hint": "Nexus 沒有任何 API 會回傳社群版上限，所以這裡由面板自己保存。預設是 20 萬請求/日、10 萬元件；請以你在 Nexus 的 Usage Center 看到的數字為準。",
+            "requests_label": "每日請求數上限",
+            "components_label": "元件數上限",
+            "save": "儲存"
+          },
+          "chart_quota": "24 小時請求數（配額）",
+          "series_quota": "24 小時請求數",
       "chart_bytes": "傳輸速率",
       "series_requests": "請求/秒",
       "series_errors": "錯誤/秒",

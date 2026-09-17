@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Boxes, Trash2 } from 'lucide-react';
-import type { NexusInstance, NexusPoint, NexusRange } from '@dinopanel/shared';
+import { Boxes, Pencil, Trash2 } from 'lucide-react';
+import { USAGE_WARN_RATIO, type NexusInstance, type NexusPoint, type NexusRange, type NexusUsage } from '@dinopanel/shared';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { extractErrorMessage, getApiErrorCode } from '@/lib/api';
-import { formatBytes, formatRate } from '@/lib/utils';
+import { cn, formatBytes, formatRate } from '@/lib/utils';
 import {
   useNexusInstances,
   useAddNexusInstance,
@@ -26,6 +26,7 @@ import {
   useTestNexusInstance,
   useNexusSeries,
   useNexusRepositories,
+  useUpdateNexusLimits,
 } from '@/hooks/use-nexus';
 
 const RANGES: NexusRange[] = ['1h', '24h', '7d'];
@@ -91,6 +92,144 @@ function TrafficChart({
         ))}
       </AreaChart>
     </ResponsiveContainer>
+  );
+}
+
+// ─── Community-edition usage quota ───────────────────────────────────────────
+
+function ratioTone(ratio: number): { bar: string; text: string } {
+  if (ratio >= 1) return { bar: 'bg-destructive', text: 'text-destructive' };
+  if (ratio >= USAGE_WARN_RATIO) return { bar: 'bg-yellow-500', text: 'text-yellow-700 dark:text-yellow-400' };
+  return { bar: 'bg-emerald-500', text: '' };
+}
+
+function QuotaBar({ label, value, limit, hint }: { label: string; value: number; limit: number; hint?: string }) {
+  const ratio = limit > 0 ? value / limit : 0;
+  const tone = ratioTone(ratio);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={cn('font-mono', tone.text)}>
+          {value.toLocaleString()} / {limit.toLocaleString()} ({(ratio * 100).toFixed(1)}%)
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div className={cn('h-full rounded-full transition-all', tone.bar)} style={{ width: `${Math.min(ratio, 1) * 100}%` }} />
+      </div>
+      {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+function LimitsDialog({
+  instance,
+  open,
+  onClose,
+}: {
+  instance: NexusInstance;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const update = useUpdateNexusLimits();
+  const [requests, setRequests] = useState(String(instance.requestsPerDayLimit));
+  const [components, setComponents] = useState(String(instance.componentsLimit));
+
+  const submit = async () => {
+    try {
+      await update.mutateAsync({
+        id: instance.id,
+        requestsPerDayLimit: parseInt(requests, 10),
+        componentsLimit: parseInt(components, 10),
+      });
+      onClose();
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('nexus.limits.title', { name: instance.name })}</DialogTitle>
+        </DialogHeader>
+        <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+          {t('nexus.limits.hint')}
+        </div>
+        <div className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="limit-requests">{t('nexus.limits.requests_label')}</Label>
+            <Input id="limit-requests" type="number" min={1} value={requests} onChange={(e) => setRequests(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="limit-components">{t('nexus.limits.components_label')}</Label>
+            <Input id="limit-components" type="number" min={1} value={components} onChange={(e) => setComponents(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button
+            disabled={update.isPending || !(parseInt(requests, 10) > 0) || !(parseInt(components, 10) > 0)}
+            onClick={() => void submit()}
+          >
+            {t('nexus.limits.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UsageSection({ instance, usage }: { instance: NexusInstance; usage: NexusUsage | null }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+
+  if (!usage) {
+    return (
+      <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+        {t('nexus.usage.unavailable')}
+      </div>
+    );
+  }
+
+  const over = usage.requests24h >= instance.requestsPerDayLimit;
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          {t('nexus.usage.title')}
+          {over && <Badge variant="destructive">{t('nexus.usage.over')}</Badge>}
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>
+          <Pencil className="h-3 w-3" />
+          {t('nexus.usage.edit_limits')}
+        </Button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <QuotaBar
+          label={t('nexus.usage.requests_24h')}
+          value={usage.requests24h}
+          limit={instance.requestsPerDayLimit}
+          hint={t('nexus.usage.rolling_hint')}
+        />
+        <QuotaBar
+          label={t('nexus.usage.components')}
+          value={usage.componentCount}
+          limit={instance.componentsLimit}
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+        <span>{t('nexus.usage.unique_users')}: <span className="font-mono text-foreground">{usage.uniqueUsers30d}</span></span>
+        <span>{t('nexus.usage.peak_day')}: <span className="font-mono text-foreground">{usage.peakRequestsPerDay30d.toLocaleString()}</span></span>
+        <span>{t('nexus.usage.peak_minute')}: <span className="font-mono text-foreground">{usage.peakRequestsPerMinute1d.toLocaleString()}</span></span>
+      </div>
+
+      <LimitsDialog instance={instance} open={editing} onClose={() => setEditing(false)} />
+    </div>
   );
 }
 
@@ -230,6 +369,8 @@ function InstanceCard({ instance }: { instance: NexusInstance }) {
             </div>
           </div>
 
+          <UsageSection instance={instance} usage={data?.usage ?? null} />
+
           {data && data.points.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
               {t('nexus.waiting_samples')}
@@ -260,6 +401,18 @@ function InstanceCard({ instance }: { instance: NexusInstance }) {
                   ]}
                 />
               </div>
+            </div>
+          )}
+
+          {(data?.points.some((p) => p.requests24h !== null) ?? false) && (
+            <div>
+              <div className="mb-1 text-xs font-medium text-muted-foreground">{t('nexus.chart_quota')}</div>
+              <TrafficChart
+                points={data?.points ?? []}
+                range={range}
+                format={(v) => v.toLocaleString()}
+                series={[{ key: 'requests24h', label: t('nexus.series_quota'), color: 'var(--color-chart-4)' }]}
+              />
             </div>
           )}
 

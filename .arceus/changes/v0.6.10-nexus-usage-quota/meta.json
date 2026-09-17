@@ -1,0 +1,8 @@
+{
+  "id": "v0.6.10-nexus-usage-quota",
+  "title": "Nexus community-edition usage quota — read the counter Sonatype enforces, chart it, configurable limits",
+  "status": "completed",
+  "createdAt": "2026-09-17T08:42:33.766Z",
+  "updatedAt": "2026-09-17T08:42:33.766Z",
+  "previousChange": "v0.6.9-nexus-traffic"
+}

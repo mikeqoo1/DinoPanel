@@ -839,6 +839,27 @@
       "total_requests": "Total requests",
       "total_down": "Total downloaded",
       "chart_requests": "Request rate",
+      "usage": {
+            "title": "Community edition usage",
+            "over": "Over the limit",
+            "edit_limits": "Set limits",
+            "requests_24h": "Requests (24 h)",
+            "components": "Components",
+            "rolling_hint": "A rolling 24-hour window, not a midnight reset — it decays on its own.",
+            "unique_users": "Unique users (30 d)",
+            "peak_day": "Peak per day (30 d)",
+            "peak_minute": "Peak per minute (24 h)",
+            "unavailable": "Usage quota unavailable. This account may not be allowed to read Nexus's internal usage endpoint."
+          },
+          "limits": {
+            "title": "Usage limits for {{name}}",
+            "hint": "Nexus exposes the community-edition limit through no API, so the panel stores it here. Defaults are 200,000 requests/day and 100,000 components; use whatever your Nexus Usage Center shows.",
+            "requests_label": "Requests per day limit",
+            "components_label": "Components limit",
+            "save": "Save"
+          },
+          "chart_quota": "Requests in the last 24 h (quota)",
+          "series_quota": "Requests (24 h)",
       "chart_bytes": "Transfer rate",
       "series_requests": "req/s",
       "series_errors": "errors/s",

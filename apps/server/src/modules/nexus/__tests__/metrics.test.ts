@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange } from '../metrics';
+import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange, parseUsageMetrics } from '../metrics';
 
 const SAMPLE_TEXT = `# HELP jvm_memory_heap_committed Generated from Dropwizard metric
 # TYPE jvm_memory_heap_committed gauge
@@ -125,5 +125,71 @@ describe('toSeries', () => {
   it('ignores a zero-length interval instead of dividing by zero', () => {
     const points = toSeries([s(0, 10, 0), s(0, 20, 0)], 60_000);
     expect(points.every((p) => Number.isFinite(p.requests))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseUsageMetrics — /service/rest/internal/ui/usage-metrics (community quota)
+// ---------------------------------------------------------------------------
+
+const USAGE_BODY = {
+  usage: [
+    {
+      date: '2026-09-17',
+      component_total_count: 16458,
+      unique_users_last_30d: 3,
+      peak_component_total_count_per_day_30d: 16437,
+      requests_per_last_24h: 195563,
+      aggregated_components_count: 16458,
+      request_rates: { peak_requests_per_minute_1d: 7440, peak_requests_per_day_30d: 353057 },
+    },
+  ],
+};
+
+describe('parseUsageMetrics', () => {
+  it('pulls the quota-relevant figures out of the usage array', () => {
+    expect(parseUsageMetrics(USAGE_BODY)).toEqual({
+      requests24h: 195563,
+      componentCount: 16458,
+      uniqueUsers30d: 3,
+      peakRequestsPerDay30d: 353057,
+      peakRequestsPerMinute1d: 7440,
+    });
+  });
+
+  it('returns null for a body without a usage entry', () => {
+    expect(parseUsageMetrics({ usage: [] })).toBeNull();
+    expect(parseUsageMetrics({})).toBeNull();
+    expect(parseUsageMetrics(null)).toBeNull();
+    expect(parseUsageMetrics('nope')).toBeNull();
+  });
+
+  it('missing nested rates read as 0 rather than throwing', () => {
+    const r = parseUsageMetrics({ usage: [{ requests_per_last_24h: 10, component_total_count: 2, unique_users_last_30d: 1 }] });
+    expect(r).toEqual({ requests24h: 10, componentCount: 2, uniqueUsers30d: 1, peakRequestsPerDay30d: 0, peakRequestsPerMinute1d: 0 });
+  });
+});
+
+describe('toSeries — usage gauge', () => {
+  const g = (tsOffsetSec: number, requests24h: number | null) => ({
+    ts: BASE + tsOffsetSec * 1000,
+    requests: tsOffsetSec,
+    resp2xx: 0,
+    resp3xx: 0,
+    resp4xx: 0,
+    resp5xx: 0,
+    bytesDown: 0,
+    bytesUp: 0,
+    requests24h,
+  });
+
+  it('carries the bucket\'s last requests24h gauge onto the point', () => {
+    const points = toSeries([g(0, 100), g(30, 150), g(60, 200)], 60_000);
+    expect(points[0]!.requests24h).toBe(200);
+  });
+
+  it('is null when the instance never reported usage', () => {
+    const points = toSeries([g(0, null), g(60, null)], 60_000);
+    expect(points[0]!.requests24h).toBeNull();
   });
 });

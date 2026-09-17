@@ -342,6 +342,13 @@ export const nexusSamples = sqliteTable(
     bytesUp: integer('bytes_up').notNull(),
     /** JSON: { "<format>": { "down": n, "up": n } } — only formats with traffic. */
     byFormat: text('by_format').notNull(),
+    // Community-edition quota counters (v0.6.10). Nullable: rows written before this
+    // version, and instances whose account cannot read the internal usage endpoint.
+    requests24h: integer('requests_24h'),
+    componentCount: integer('component_count'),
+    uniqueUsers30d: integer('unique_users_30d'),
+    peakRequestsPerDay30d: integer('peak_requests_per_day_30d'),
+    peakRequestsPerMinute1d: integer('peak_requests_per_minute_1d'),
   },
   (t) => ({
     instanceTsIdx: index('nexus_samples_instance_ts_idx').on(t.instanceId, t.ts),

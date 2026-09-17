@@ -14,12 +14,16 @@ import { z } from 'zod';
 import {
   nexusInstanceSchema,
   nexusRepositorySchema,
-  type CreateNexusInstance,
+  CE_COMPONENTS_LIMIT,
+  CE_REQUESTS_PER_DAY_LIMIT,
+  type CreateNexusInstanceInput,
   type NexusInstance,
   type NexusMetrics,
   type NexusRange,
   type NexusRepository,
   type NexusSeries,
+  type NexusUsage,
+  type UpdateNexusLimits,
 } from '@dinopanel/shared';
 import type { AppConfig } from '../../config/configuration';
 import { decryptSecret, deriveSecretsKey, encryptSecret } from '../../common/secrets/secrets';
@@ -29,6 +33,7 @@ import {
   bucketMsForRange,
   extractNexusMetrics,
   parsePrometheusText,
+  parseUsageMetrics,
   toSeries,
   type NexusSample,
 } from './metrics';
@@ -42,6 +47,8 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 const METRICS_PATH = '/service/rest/metrics/prometheus';
 const REPOSITORIES_PATH = '/service/rest/v1/repositories';
+/** Internal UI endpoint behind Nexus's own usage centre — the community quota counter. */
+const USAGE_PATH = '/service/rest/internal/ui/usage-metrics';
 
 /** What actually sits in the KV blob: the public instance + the encrypted password. */
 const storedInstanceSchema = nexusInstanceSchema.omit({ hasPassword: true }).extend({
@@ -120,7 +127,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
     return (await this.readList()).map(toPublic);
   }
 
-  async add(input: CreateNexusInstance): Promise<NexusInstance[]> {
+  async add(input: CreateNexusInstanceInput): Promise<NexusInstance[]> {
     const instances = await this.readList();
     if (instances.some((i) => i.url === input.url)) {
       throw new HttpException(
@@ -132,10 +139,23 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
     instances.push({
       id: randomUUID(),
       ...rest,
+      requestsPerDayLimit: rest.requestsPerDayLimit ?? CE_REQUESTS_PER_DAY_LIMIT,
+      componentsLimit: rest.componentsLimit ?? CE_COMPONENTS_LIMIT,
       passwordEnc: encryptSecret(password, this.secretsKey),
     });
     await this.writeList(instances);
     return instances.map(toPublic);
+  }
+
+  /** Quota limits are panel-side configuration (Nexus exposes no limit anywhere),
+   *  so they are editable without re-entering the credentials. */
+  async updateLimits(id: string, limits: UpdateNexusLimits): Promise<NexusInstance> {
+    const instances = await this.readList();
+    const instance = this.findInstance(instances, id);
+    instance.requestsPerDayLimit = limits.requestsPerDayLimit;
+    instance.componentsLimit = limits.componentsLimit;
+    await this.writeList(instances);
+    return toPublic(instance);
   }
 
   async remove(id: string): Promise<void> {
@@ -224,6 +244,17 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
     return extractNexusMetrics(parsePrometheusText(await this.get(instance, METRICS_PATH, true)));
   }
 
+  /** Community-edition quota counters. Returns null whenever the instance will not
+   *  give them up (no access to the internal endpoint, unreachable, malformed body) —
+   *  never throws, so a usage failure cannot cost us the traffic sample. */
+  private async fetchUsage(instance: StoredInstance): Promise<NexusUsage | null> {
+    try {
+      return parseUsageMetrics(JSON.parse(await this.get(instance, USAGE_PATH, true)));
+    } catch {
+      return null;
+    }
+  }
+
   /** Repository list — anonymous endpoint, so it works even without metrics rights. */
   async getRepositories(id: string): Promise<NexusRepository[]> {
     const instance = this.findInstance(await this.readList(), id);
@@ -264,6 +295,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
         const m = extractNexusMetrics(
           parsePrometheusText(await this.get(instance, METRICS_PATH, true)),
         );
+        const usage = await this.fetchUsage(instance);
         await this.db.insert(nexusSamples).values({
           instanceId: instance.id,
           ts: Date.now(),
@@ -275,6 +307,11 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
           bytesDown: m.bytesDown,
           bytesUp: m.bytesUp,
           byFormat: JSON.stringify(m.byFormat),
+          requests24h: usage?.requests24h ?? null,
+          componentCount: usage?.componentCount ?? null,
+          uniqueUsers30d: usage?.uniqueUsers30d ?? null,
+          peakRequestsPerDay30d: usage?.peakRequestsPerDay30d ?? null,
+          peakRequestsPerMinute1d: usage?.peakRequestsPerMinute1d ?? null,
         });
       } catch (err) {
         const code = err instanceof HttpException ? (err.getResponse() as { code?: string }).code : undefined;
@@ -304,6 +341,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
       resp5xx: r.resp5xx,
       bytesDown: r.bytesDown,
       bytesUp: r.bytesUp,
+      requests24h: r.requests24h,
     }));
     const last = rows[rows.length - 1];
     let latest: NexusMetrics | null = null;
@@ -329,6 +367,16 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
       range,
       points: toSeries(samples, bucketMsForRange(range)),
       latest,
+      usage:
+        last && last.requests24h !== null
+          ? {
+              requests24h: last.requests24h,
+              componentCount: last.componentCount ?? 0,
+              uniqueUsers30d: last.uniqueUsers30d ?? 0,
+              peakRequestsPerDay30d: last.peakRequestsPerDay30d ?? 0,
+              peakRequestsPerMinute1d: last.peakRequestsPerMinute1d ?? 0,
+            }
+          : null,
       latestTs: last ? last.ts : null,
     };
   }

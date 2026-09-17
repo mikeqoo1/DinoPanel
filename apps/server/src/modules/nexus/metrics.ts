@@ -1,4 +1,4 @@
-import type { NexusMetrics, NexusPoint, NexusRange } from '@dinopanel/shared';
+import type { NexusMetrics, NexusPoint, NexusRange, NexusUsage } from '@dinopanel/shared';
 
 // ---------------------------------------------------------------------------
 // Pure functions — Prometheus text → counters → per-second rate series
@@ -57,6 +57,28 @@ export function extractNexusMetrics(m: Map<string, number>): NexusMetrics {
   };
 }
 
+/**
+ * Reads `/service/rest/internal/ui/usage-metrics`, the counter Sonatype's community
+ * edition enforces its quota against (`requests_per_last_24h` is a rolling 24 h window,
+ * not a midnight reset). Returns null for any body that does not carry a usage entry —
+ * an account without access to this internal endpoint is an expected state.
+ */
+export function parseUsageMetrics(body: unknown): NexusUsage | null {
+  if (!body || typeof body !== 'object') return null;
+  const usage = (body as { usage?: unknown }).usage;
+  if (!Array.isArray(usage) || usage.length === 0) return null;
+  const u = usage[0] as Record<string, unknown>;
+  const rates = (u['request_rates'] ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return {
+    requests24h: n(u['requests_per_last_24h']),
+    componentCount: n(u['component_total_count']),
+    uniqueUsers30d: n(u['unique_users_last_30d']),
+    peakRequestsPerDay30d: n(rates['peak_requests_per_day_30d']),
+    peakRequestsPerMinute1d: n(rates['peak_requests_per_minute_1d']),
+  };
+}
+
 /** Bucket width per range, chosen so a chart gets 60–168 points. */
 export function bucketMsForRange(range: NexusRange): number {
   switch (range) {
@@ -71,6 +93,8 @@ export function bucketMsForRange(range: NexusRange): number {
 
 export interface NexusSample extends Omit<NexusMetrics, 'byFormat'> {
   ts: number;
+  /** Gauge (rolling 24 h request count); null when usage could not be read. */
+  requests24h?: number | null;
 }
 
 /**
@@ -103,6 +127,8 @@ export function toSeries(samples: NexusSample[], bucketMs: number): NexusPoint[]
       errors: rate(last.resp4xx + last.resp5xx, first.resp4xx + first.resp5xx),
       bytesDown: rate(last.bytesDown, first.bytesDown),
       bytesUp: rate(last.bytesUp, first.bytesUp),
+      // Gauge, not a rate: carry the bucket's last reported value through.
+      requests24h: last.requests24h ?? null,
     });
   };
 
