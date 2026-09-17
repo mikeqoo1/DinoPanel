@@ -19,6 +19,7 @@
     "system": "System",
     "toolbox": "Toolbox",
     "nodes": "Remote Nodes",
+    "nexus": "Nexus",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -822,6 +823,54 @@
       "countdown": "Hides in {{seconds}}s"
     }
   },
+  "nexus": {
+      "title": "Nexus traffic",
+      "add": "Add instance",
+      "empty": "No Nexus instance yet — use \u201cAdd instance\u201d to start.",
+      "remove_confirm": "Remove \u201c{{name}}\u201d? Its sample history is deleted too. This cannot be undone.",
+      "test": "Test",
+      "test_ok": "Reachable — {{requests}} requests served, {{bytes}} downloaded",
+      "live": "Sampling",
+      "stale": "Samples stale",
+      "no_samples": "No samples yet",
+      "waiting_samples": "Still collecting. The panel samples every 60s and needs two samples before it can draw a rate.",
+      "now_requests": "Requests now",
+      "now_down": "Download now",
+      "total_requests": "Total requests",
+      "total_down": "Total downloaded",
+      "chart_requests": "Request rate",
+      "chart_bytes": "Transfer rate",
+      "series_requests": "req/s",
+      "series_errors": "errors/s",
+      "series_down": "Download",
+      "series_up": "Upload",
+      "by_format": "By format:",
+      "range": { "1h": "1h", "24h": "24h", "7d": "7d" },
+      "repo": {
+        "col_name": "Repository",
+        "col_format": "Format",
+        "col_type": "Type",
+        "col_size": "Size",
+        "offline": "offline"
+      },
+      "dialog": {
+        "title": "Add a Nexus instance",
+        "hint": "The account needs the nexus:metrics:read privilege to read the metrics endpoint (admin works). The password is stored encrypted and never returned by the API.",
+        "name_label": "Name",
+        "url_label": "URL (http://host:port, no path)",
+        "user_label": "Username",
+        "password_label": "Password",
+        "add": "Add",
+        "added": "Instance added"
+      },
+      "error": {
+        "NEXUS_AUTH_FAILED": "Credentials rejected — the account needs nexus:metrics:read",
+        "NEXUS_UNREACHABLE": "Cannot reach Nexus — check the URL and network",
+        "NEXUS_COMMAND_FAILED": "Nexus returned an unexpected response",
+        "NEXUS_PASSWORD_UNREADABLE": "Stored password cannot be decrypted (JWT_SECRET changed?). Remove and re-add.",
+        "NEXUS_DUPLICATE": "An instance with this URL already exists"
+      }
+    },
   "nodes": {
     "title": "Remote Nodes",
     "add": "Add node",

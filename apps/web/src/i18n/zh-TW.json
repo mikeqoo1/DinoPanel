@@ -19,6 +19,7 @@
     "system": "系統",
     "toolbox": "工具箱",
     "nodes": "遠端節點",
+    "nexus": "Nexus",
     "settings": "設定",
     "logout": "登出"
   },
@@ -822,6 +823,54 @@
       "countdown": "{{seconds}} 秒後隱藏"
     }
   },
+  "nexus": {
+      "title": "Nexus 流量",
+      "add": "新增實例",
+      "empty": "尚未新增 Nexus 實例，點「新增實例」開始。",
+      "remove_confirm": "確定移除「{{name}}」？取樣歷史會一併刪除，此操作不可復原。",
+      "test": "測試",
+      "test_ok": "連線正常 — 累計 {{requests}} 次請求、已下載 {{bytes}}",
+      "live": "取樣中",
+      "stale": "取樣落後",
+      "no_samples": "尚未取樣",
+      "waiting_samples": "還在收集資料，面板每 60 秒取樣一次，至少要兩筆才畫得出速率。",
+      "now_requests": "目前請求速率",
+      "now_down": "目前下載速率",
+      "total_requests": "累計請求數",
+      "total_down": "累計下載量",
+      "chart_requests": "請求速率",
+      "chart_bytes": "傳輸速率",
+      "series_requests": "請求/秒",
+      "series_errors": "錯誤/秒",
+      "series_down": "下載",
+      "series_up": "上傳",
+      "by_format": "依格式：",
+      "range": { "1h": "1 小時", "24h": "24 小時", "7d": "7 天" },
+      "repo": {
+        "col_name": "倉庫",
+        "col_format": "格式",
+        "col_type": "類型",
+        "col_size": "容量",
+        "offline": "離線"
+      },
+      "dialog": {
+        "title": "新增 Nexus 實例",
+        "hint": "帳號需要 nexus:metrics:read 權限才讀得到指標端點（admin 即可）。密碼加密儲存，API 不會回傳。",
+        "name_label": "名稱",
+        "url_label": "網址（http://主機:port，不含路徑）",
+        "user_label": "帳號",
+        "password_label": "密碼",
+        "add": "新增",
+        "added": "實例已新增"
+      },
+      "error": {
+        "NEXUS_AUTH_FAILED": "帳密被拒 — 請確認帳號有 nexus:metrics:read 權限",
+        "NEXUS_UNREACHABLE": "連不上 Nexus — 請確認網址與網路",
+        "NEXUS_COMMAND_FAILED": "Nexus 回應異常",
+        "NEXUS_PASSWORD_UNREADABLE": "儲存的密碼無法解密（JWT_SECRET 換過？）請移除後重新新增",
+        "NEXUS_DUPLICATE": "此網址已存在相同實例"
+      }
+    },
   "nodes": {
     "title": "遠端節點",
     "add": "新增節點",

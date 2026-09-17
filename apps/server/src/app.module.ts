@@ -23,6 +23,7 @@ import { DatabasesModule } from './modules/databases/databases.module';
 import { BackupsModule } from './modules/backups/backups.module';
 import { ToolboxModule } from './modules/toolbox/toolbox.module';
 import { NodesModule } from './modules/nodes/nodes.module';
+import { NexusModule } from './modules/nexus/nexus.module';
 import { AuditModule } from './common/audit/audit.module';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
 
@@ -79,6 +80,7 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
     BackupsModule,
     ToolboxModule,
     NodesModule,
+    NexusModule,
     AuditModule,
   ],
   providers: [

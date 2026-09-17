@@ -43,6 +43,13 @@
       "when": 1779690825229,
       "tag": "0005_giant_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789632363437,
+      "tag": "0006_grey_dracula",
+      "breakpoints": true
     }
   ]
 }

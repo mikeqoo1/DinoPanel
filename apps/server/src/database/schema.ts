@@ -320,3 +320,30 @@ export type DbInstance = typeof dbInstances.$inferSelect;
 export type NewDbInstance = typeof dbInstances.$inferInsert;
 export type Backup = typeof backups.$inferSelect;
 export type NewBackup = typeof backups.$inferInsert;
+
+/**
+ * One scrape of a Nexus instance's cumulative counters (v0.6.9). Rates are derived
+ * from consecutive rows at read time; rows older than the retention window are pruned
+ * by the poller. `instanceId` refers to the settings-KV `nexus.list` entry, so there is
+ * no foreign key here — removing an instance deletes its rows explicitly.
+ */
+export const nexusSamples = sqliteTable(
+  'nexus_samples',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    instanceId: text('instance_id').notNull(),
+    ts: integer('ts').notNull(),
+    requests: integer('requests').notNull(),
+    resp2xx: integer('resp_2xx').notNull(),
+    resp3xx: integer('resp_3xx').notNull(),
+    resp4xx: integer('resp_4xx').notNull(),
+    resp5xx: integer('resp_5xx').notNull(),
+    bytesDown: integer('bytes_down').notNull(),
+    bytesUp: integer('bytes_up').notNull(),
+    /** JSON: { "<format>": { "down": n, "up": n } } — only formats with traffic. */
+    byFormat: text('by_format').notNull(),
+  },
+  (t) => ({
+    instanceTsIdx: index('nexus_samples_instance_ts_idx').on(t.instanceId, t.ts),
+  }),
+);
