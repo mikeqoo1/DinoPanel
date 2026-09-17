@@ -95,6 +95,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.6.7 | 引擎標示 — 遠端節點容器卡與本機容器管理頁標示 Docker / Podman（`GET /containers/engine`、遠端 `__DINO_ENGINE__` marker）；引擎有裝但 socket 無權限改為 200 `permissionDenied` 狀態 + 說明卡，不再 500；點選節點後清單自動收合 | ✅ 已 ship |
 | v0.6.8 | 遠端節點 **同時列出 docker 與 podman**，每行標引擎與擁有者；以 root 執行時（原生 root 或選填的節點 **sudo 密碼** — AES-GCM 加密、只經 stdin 送出、API 不回傳）另掃 `/run/user/*` 列出**所有使用者的 rootless Podman 容器**。socket 無權限與 sudo 密碼錯都是 200 狀態並有說明。仍為唯讀（只跑 `ps`） | ✅ 已 ship |
 | v0.6.9 | Nexus Repository 流量監控 — 每 60 秒抓一次實例的 Prometheus 端點、保留 7 天樣本，畫出請求／錯誤／下載／上傳速率（1 小時／24 小時／7 天），另有依格式的位元組統計與倉庫清單。帳密 AES-GCM 加密且不回傳；純唯讀（只有兩個 `GET`）。詳見 [`docs/nexus.md`](./docs/nexus.md) | ✅ 已 ship |
+| v0.6.10 | Nexus 社群版用量配額 — 讀取 Sonatype 實際據以判斷的計數（24 小時請求數、元件數、不重複使用者、尖峰）並與流量樣本一起存，對每台可設定的上限畫進度條（75% 轉黃、100% 轉紅），另有 24 小時請求數走勢圖，看得出被擋的 `docker push` 何時會通。上限由面板保存，因為 Nexus 任何 API 都不提供 | ✅ 已 ship |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
