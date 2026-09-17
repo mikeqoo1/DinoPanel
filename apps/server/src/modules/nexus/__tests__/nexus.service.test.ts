@@ -224,3 +224,43 @@ describe('NexusService community usage quota', () => {
     });
   });
 });
+
+describe('NexusService backward compatibility', () => {
+  /** Exactly what v0.6.9 wrote: no requestsPerDayLimit / componentsLimit. */
+  const PRE_0610_BLOB = JSON.stringify([
+    {
+      id: '67f30e31-434d-4122-b55a-522cc4f5c02b',
+      name: 'ConeX-dev1',
+      url: 'http://192.168.198.121:18081',
+      username: '110084',
+      passwordEnc: 'v1:aaaa:bbbb:cccc',
+    },
+  ]);
+
+  it('loads instances stored before the limits existed, applying the CE defaults', async () => {
+    const { svc } = makeService(PRE_0610_BLOB);
+    const list = await svc.list();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({
+      name: 'ConeX-dev1',
+      hasPassword: true,
+      requestsPerDayLimit: 200_000,
+      componentsLimit: 100_000,
+    });
+  });
+
+  it('can set limits on a pre-0.6.10 instance without losing its password', async () => {
+    const { svc, db } = makeService(PRE_0610_BLOB);
+    const after = await svc.updateLimits('67f30e31-434d-4122-b55a-522cc4f5c02b', {
+      requestsPerDayLimit: 250_000,
+      componentsLimit: 120_000,
+    });
+    expect(after).toMatchObject({ requestsPerDayLimit: 250_000, hasPassword: true });
+    expect(db._state.kv).toContain('v1:aaaa:bbbb:cccc');
+  });
+
+  it('still drops an entry that is genuinely invalid (bad url)', async () => {
+    const { svc } = makeService(JSON.stringify([{ id: 'x', name: 'n', url: 'not a url', username: 'u' }]));
+    expect(await svc.list()).toEqual([]);
+  });
+});

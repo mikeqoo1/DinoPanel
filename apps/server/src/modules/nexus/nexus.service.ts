@@ -50,15 +50,29 @@ const REPOSITORIES_PATH = '/service/rest/v1/repositories';
 /** Internal UI endpoint behind Nexus's own usage centre — the community quota counter. */
 const USAGE_PATH = '/service/rest/internal/ui/usage-metrics';
 
-/** What actually sits in the KV blob: the public instance + the encrypted password. */
-const storedInstanceSchema = nexusInstanceSchema.omit({ hasPassword: true }).extend({
-  passwordEnc: z.string().optional(),
-});
+/**
+ * What actually sits in the KV blob: the public instance + the encrypted password.
+ * The limits are optional here even though they are required on the wire — rows written
+ * before v0.6.10 have neither, and readList() drops whatever fails to parse. Making them
+ * required here would silently hide every pre-existing instance.
+ */
+const storedInstanceSchema = nexusInstanceSchema
+  .omit({ hasPassword: true, requestsPerDayLimit: true, componentsLimit: true })
+  .extend({
+    passwordEnc: z.string().optional(),
+    requestsPerDayLimit: z.number().int().positive().optional(),
+    componentsLimit: z.number().int().positive().optional(),
+  });
 type StoredInstance = z.infer<typeof storedInstanceSchema>;
 
 function toPublic(i: StoredInstance): NexusInstance {
   const { passwordEnc, ...rest } = i;
-  return { ...rest, hasPassword: passwordEnc !== undefined };
+  return {
+    ...rest,
+    requestsPerDayLimit: rest.requestsPerDayLimit ?? CE_REQUESTS_PER_DAY_LIMIT,
+    componentsLimit: rest.componentsLimit ?? CE_COMPONENTS_LIMIT,
+    hasPassword: passwordEnc !== undefined,
+  };
 }
 
 @Injectable()
