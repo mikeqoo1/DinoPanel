@@ -10,4 +10,4 @@
 - [x] T-4 shared nodes.test 補新欄位 + permissionDenied / 未知 engine 兩個 case；docs nodes.md / containers.md。
 - [x] T-5 typecheck / lint / build 綠；test 592（v0.6.6 基線 574）。
 - [x] T-6 本機 E2E `/containers/engine`（podman.sock → podman、docker.sock → docker）。
-- [ ] T-7 release 0.6.7 → 部署 234 → smoke（engine、14 節點、UI 目視）。
+- [x] T-7 release 0.6.7（`e6a9220`）→ 部署 234 → smoke：local engine docker 29.5.3、14 台全 200、conex 六台 `permissionDenied:true`（見 smoke-pass.md）。UI 目視留給使用者。
