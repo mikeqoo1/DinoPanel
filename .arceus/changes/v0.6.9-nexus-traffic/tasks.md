@@ -9,4 +9,4 @@
 - [x] T-3 Web：`use-nexus.ts`、`nexus-page.tsx`（recharts 雙序列圖）、側欄 Boxes 圖示、`/nexus` 路由、i18n 兩語系。
 - [x] T-4 typecheck / lint / build 綠；test 627。
 - [x] T-5 本機 E2E 對真實 dev1/dev2（見 smoke-pass.md），結束後刪除本機測試實例。
-- [ ] T-6 release 0.6.9 → 部署 234 → 在 234 上新增兩台實例 → 隔兩輪確認 series 有點 → UI 目視。
+- [x] T-6 release 0.6.9（`7ef42da`）→ 部署 234（migration 0006 applied）→ 新增 ConeX-dev1/dev2 → 兩台各 2 個速率點、累計 3.60 GB / 23.0 GB、倉庫各 8 筆（見 smoke-pass.md）。UI 目視留給使用者。
