@@ -10,4 +10,4 @@
 - [x] T-4 typecheck / lint / build 綠；test 606。
 - [x] T-5 真機（部署前）：root@234 執行 dist 產生的 wrapped 命令 → dev2 sudo 正確：6 組引擎／使用者、7 容器（含 conexd）；
       密碼錯：exit 1 + `incorrect password attempt`；dev2 無 sudo：docker/mike + podman/mike；235 root：5 組、19 容器（含 conexd）。
-- [ ] T-6 release 0.6.8 → 部署 234 → dev2 移除後帶 sudo 密碼重新註冊 → smoke（每節點 engines／containers、235 與 dev2 出現 podman·conexd）→ UI 目視。
+- [x] T-6 release 0.6.8（`34b5f85`）→ 部署 234 → dev2 帶 sudo 密碼重註冊（`sudoOk:true`）→ smoke 14 台全 200，235 `podman/conexd=1`、dev2 `podman/conexd=1 + podman/infrad=6`（見 smoke-pass.md）。UI 目視留給使用者。

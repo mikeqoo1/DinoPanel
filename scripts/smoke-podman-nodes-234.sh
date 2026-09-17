@@ -33,7 +33,7 @@ curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/nodes" \
         count="$(jq -r '.containers | length' <<<"$json")"
         states="$(jq -r '[.containers[].state] | group_by(.) | map("\(.[0])=\(length)") | join(",")' <<<"$json")"
         # v0.6.8: engines[] (engine/owner/ok/permissionDenied) + sudoFailed; rows carry engine+owner
-        engine="$(jq -r '[.engines[] | select(.ok) | .engine] | unique | join("+") | if . == "" then (if .dockerAvailable then "-" else "none" end) else . end' <<<"$json")"
+        engine="$(jq -r '. as $r | ([$r.engines[] | select(.ok) | .engine] | unique | join("+")) as $e | if $e == "" then (if $r.dockerAvailable then "-" else "none" end) else $e end' <<<"$json")"
         denied="$(jq -r '[.engines[] | select(.permissionDenied) | "\(.engine)/\(.owner) DENIED"] | join(",") | if . == "" then "" else " " + . end' <<<"$json")"
         sudo="$(jq -r 'if .sudoFailed == true then " SUDO_FAILED" else "" end' <<<"$json")"
         owners="$(jq -r '[.containers[] | "\(.engine)/\(.owner)"] | group_by(.) | map("\(.[0])=\(length)") | join(",")' <<<"$json")"
