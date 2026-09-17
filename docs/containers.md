@@ -39,6 +39,14 @@ All endpoints are under `/api` and require a valid JWT (`Authorization: Bearer <
 
 ### Containers
 
+#### `GET /api/containers/engine`
+
+Which Docker-compatible engine is behind the socket (v0.6.7). Probed once via the
+engine's `/version` endpoint (Podman reports a `Podman Engine` component) and cached.
+
+Response: `{ engine: 'docker' | 'podman', version: string }` — shown as a badge next to
+the Containers page title. `503 DOCKER_UNREACHABLE` if the socket is down (not cached).
+
 #### `GET /api/containers`
 
 List all containers (running + stopped).

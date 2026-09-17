@@ -239,6 +239,58 @@ describe('NodesService.getContainers', () => {
     expect(result.containers).toHaveLength(1);
   });
 
+  it('reads the engine marker line and reports engine=docker without treating it as a container', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    const line = JSON.stringify({ ID: 'abc', Names: 'nginx', Image: 'nginx:latest', State: 'running', Status: 'Up 1 hour' });
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: `__DINO_ENGINE__=docker\n${line}\n`, stderr: '' });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result.engine).toBe('docker');
+    expect(result.permissionDenied).toBe(false);
+    expect(result.containers).toHaveLength(1);
+    expect(noopLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('reports engine=podman when the podman branch ran', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    const line = JSON.stringify({ Id: 'cafe', Names: ['gitlab-runner'], Image: 'x', State: 'running', Status: '' });
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: `__DINO_ENGINE__=podman\n${line}`, stderr: '' });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result.engine).toBe('podman');
+    expect(result.containers[0]?.name).toBe('gitlab-runner');
+  });
+
+  it('engine is null when no marker line is present (older remote command output)', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result.engine).toBeNull();
+    expect(result.dockerAvailable).toBe(true);
+  });
+
+  it('engine present but socket permission denied → 200 with permissionDenied:true, not a 500', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({
+      exitCode: 1,
+      stdout: '__DINO_ENGINE__=docker\n',
+      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+    });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result).toEqual({ dockerAvailable: true, engine: 'docker', permissionDenied: true, containers: [] });
+    expect(noopLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it('engine absent → engine null and permissionDenied false', async () => {
+    const svc = makeService();
+    const list = await svc.add(NODE_INPUT);
+    mockSshExec.mockResolvedValueOnce({ exitCode: 127, stdout: '', stderr: '' });
+    const result = await svc.getContainers(list[0]!.id);
+    expect(result).toEqual({ dockerAvailable: false, engine: null, permissionDenied: false, containers: [] });
+  });
+
   it('parses docker ps JSON lines on exit 0', async () => {
     const svc = makeService();
     const list = await svc.add(NODE_INPUT);

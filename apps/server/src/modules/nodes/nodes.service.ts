@@ -8,10 +8,18 @@ import {
   type RemoteContainersResponse,
   type RemoteNode,
   type RemoteNodeMetrics,
+  type ContainerEngine,
 } from '@dinopanel/shared';
 import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { settings } from '../../database/schema';
-import { CONTAINER_PS_CMD, METRICS_CMD, isDockerAbsent, sshExec } from './ssh';
+import {
+  CONTAINER_PS_CMD,
+  ENGINE_MARKER,
+  METRICS_CMD,
+  isDockerAbsent,
+  isEnginePermissionDenied,
+  sshExec,
+} from './ssh';
 import { parseDockerPsJson, parseMetricsOutput } from './remote-parsers';
 
 // ponytail: no Unavailable-driver layer — ssh availability is per-request/per-node,
@@ -149,7 +157,12 @@ export class NodesService {
     const result = await sshExec(node, CONTAINER_PS_CMD, this.logger);
     // Single source of truth for docker-absent — same predicate as sshExec's warn-skip.
     if (isDockerAbsent(result)) {
-      return { dockerAvailable: false, containers: [] };
+      return { dockerAvailable: false, engine: null, permissionDenied: false, containers: [] };
+    }
+    // First line is the engine marker echoed by CONTAINER_PS_CMD; strip it before parsing.
+    const { engine, rest } = splitEngineMarker(result.stdout);
+    if (isEnginePermissionDenied(result)) {
+      return { dockerAvailable: true, engine, permissionDenied: true, containers: [] };
     }
     if (result.exitCode !== 0) {
       this.logger.warn(
@@ -165,7 +178,7 @@ export class NodesService {
     // A hostile node returning megabytes of non-JSON stdout could otherwise trigger
     // tens of thousands of pino serializations per poll + a log flood.
     let badLineCount = 0;
-    const containers = parseDockerPsJson(result.stdout, (line, err) => {
+    const containers = parseDockerPsJson(rest, (line, err) => {
       if (badLineCount === 0) {
         this.logger.warn(
           { line: line.slice(0, 200), err },
@@ -180,6 +193,16 @@ export class NodesService {
         'nodes.docker_ps_parse_error_aggregate',
       );
     }
-    return { dockerAvailable: true, containers };
+    return { dockerAvailable: true, engine, permissionDenied: false, containers };
   }
+}
+
+/** Pull `__DINO_ENGINE__=<engine>` off the first stdout line; null if absent. */
+function splitEngineMarker(stdout: string): { engine: ContainerEngine | null; rest: string } {
+  const nl = stdout.indexOf('\n');
+  const first = nl === -1 ? stdout : stdout.slice(0, nl);
+  if (!first.startsWith(ENGINE_MARKER)) return { engine: null, rest: stdout };
+  const value = first.slice(ENGINE_MARKER.length).trim();
+  const engine = value === 'docker' || value === 'podman' ? value : null;
+  return { engine, rest: nl === -1 ? '' : stdout.slice(nl + 1) };
 }

@@ -84,8 +84,16 @@ export const remoteContainerSchema = z.object({
 });
 export type RemoteContainer = z.infer<typeof remoteContainerSchema>;
 
+export const containerEngineSchema = z.enum(['docker', 'podman']);
+export type ContainerEngine = z.infer<typeof containerEngineSchema>;
+
 export const remoteContainersResponseSchema = z.object({
+  /** An engine binary exists on the node (kept for compat; see `engine`). */
   dockerAvailable: z.boolean(),
+  /** Which engine answered; null when none is installed or the marker was missing. */
+  engine: containerEngineSchema.nullable(),
+  /** Engine exists but the SSH user cannot open its socket (e.g. not in the docker group). */
+  permissionDenied: z.boolean(),
   containers: z.array(remoteContainerSchema),
 });
 export type RemoteContainersResponse = z.infer<typeof remoteContainersResponseSchema>;

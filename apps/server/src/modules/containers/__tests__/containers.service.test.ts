@@ -183,3 +183,49 @@ describe('ContainersService', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// getEngine — which Docker-compatible engine is behind the socket (v0.6.7)
+// ---------------------------------------------------------------------------
+
+describe('ContainersService.getEngine', () => {
+  function makeDockerWithVersion(version: unknown) {
+    return { ...makeDocker(), version: vi.fn().mockResolvedValue(version) };
+  }
+
+  it('reports podman when a version component is named "Podman Engine"', async () => {
+    const docker = makeDockerWithVersion({
+      Version: '6.1.1',
+      Platform: { Name: 'linux/amd64/ubuntu-24.04' },
+      Components: [{ Name: 'Podman Engine', Version: '6.1.1' }, { Name: 'Conmon', Version: '2.1.13' }],
+    });
+    const result = await makeService(docker).getEngine();
+    expect(result).toEqual({ engine: 'podman', version: '6.1.1' });
+  });
+
+  it('reports docker for a stock Docker Engine version payload', async () => {
+    const docker = makeDockerWithVersion({
+      Version: '29.1.3',
+      Platform: { Name: '' },
+      Components: [{ Name: 'Engine', Version: '29.1.3' }, { Name: 'containerd', Version: '1.7' }],
+    });
+    const result = await makeService(docker).getEngine();
+    expect(result).toEqual({ engine: 'docker', version: '29.1.3' });
+  });
+
+  it('caches the answer after the first successful probe', async () => {
+    const docker = makeDockerWithVersion({ Version: '29.1.3', Components: [{ Name: 'Engine' }] });
+    const svc = makeService(docker);
+    await svc.getEngine();
+    await svc.getEngine();
+    expect(docker.version).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps an unreachable socket to DOCKER_UNREACHABLE 503 and does not cache the failure', async () => {
+    const docker = { ...makeDocker(), version: vi.fn().mockRejectedValue(Object.assign(new Error('connect ENOENT'), { code: 'ENOENT' })) };
+    const svc = makeService(docker);
+    await expect(svc.getEngine()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(svc.getEngine()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(docker.version).toHaveBeenCalledTimes(2);
+  });
+});

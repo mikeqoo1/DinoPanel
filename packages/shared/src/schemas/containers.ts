@@ -102,3 +102,13 @@ export const composeValidationSchema = z.object({
   resolvedYaml: z.string().optional(),
 });
 export type ComposeValidation = z.infer<typeof composeValidationSchema>;
+
+// ---------------------------------------------------------------------------
+// Local engine identity (GET /containers/engine)
+// ---------------------------------------------------------------------------
+
+export const localEngineSchema = z.object({
+  engine: z.enum(['docker', 'podman']),
+  version: z.string(),
+});
+export type LocalEngine = z.infer<typeof localEngineSchema>;

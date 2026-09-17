@@ -22,11 +22,16 @@ export interface SshLogger {
 export const METRICS_CMD =
   'export LC_ALL=C; cat /proc/stat; echo __DINO__; cat /proc/loadavg; echo __DINO__; cat /proc/meminfo; echo __DINO__; cat /proc/uptime; echo __DINO__; sleep 1; cat /proc/stat; echo __DINO__; df -PTB1';
 
+/** First stdout line of CONTAINER_PS_CMD: `__DINO_ENGINE__=docker|podman`. */
+export const ENGINE_MARKER = '__DINO_ENGINE__=';
+
 // Docker first, Podman second (Rocky/Alma ship podman by default). Neither → exit 127,
 // which isDockerAbsent() already treats as "no container engine" (200 dockerAvailable:false).
+// The marker line is echoed *before* ps runs so the engine is known even when ps fails
+// (e.g. socket permission denied → isEnginePermissionDenied).
 export const CONTAINER_PS_CMD =
-  "export LC_ALL=C; if command -v docker >/dev/null 2>&1; then docker ps -a --format '{{json .}}'; " +
-  "elif command -v podman >/dev/null 2>&1; then podman ps -a --format '{{json .}}'; else exit 127; fi";
+  `export LC_ALL=C; if command -v docker >/dev/null 2>&1; then echo ${ENGINE_MARKER}docker; docker ps -a --format '{{json .}}'; ` +
+  `elif command -v podman >/dev/null 2>&1; then echo ${ENGINE_MARKER}podman; podman ps -a --format '{{json .}}'; else exit 127; fi`;
 
 // ---------------------------------------------------------------------------
 // buildSshArgs — pure function, exact arg order per spec/T-6
@@ -100,6 +105,22 @@ export function isDockerAbsent(result: CommandResult): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// isEnginePermissionDenied — engine installed, but the SSH user cannot open its socket
+// ---------------------------------------------------------------------------
+
+/** True when `docker ps` / `podman ps` ran but was refused at the socket
+ *  (typically the user is not in the `docker` group). Expected node state, not an
+ *  error: getContainers returns 200 { permissionDenied: true } and sshExec skips
+ *  the warn log, mirroring isDockerAbsent. */
+export function isEnginePermissionDenied(result: CommandResult): boolean {
+  return (
+    result.exitCode !== 0 &&
+    result.exitCode !== 127 &&
+    /permission denied/i.test(result.stderr)
+  );
+}
+
 // Max stderr bytes written to the log per warn call. The monitored node controls
 // this string; unbounded logging is the same OOM vector as unbounded heap growth.
 const STDERR_LOG_CAP = 2048;
@@ -141,7 +162,12 @@ export async function sshExec(
   // Skip warn for docker-absent (isDockerAbsent covers exit 127 and docker-specific
   // not-found) — both are expected node states, not errors. Logging them would
   // produce ~2880+ lines/day/tab on a node without docker.
-  if (result.exitCode !== 0 && !isDockerAbsent(result) && result.stderr) {
+  if (
+    result.exitCode !== 0 &&
+    !isDockerAbsent(result) &&
+    !isEnginePermissionDenied(result) &&
+    result.stderr
+  ) {
     logger.warn(
       { exitCode: result.exitCode, host: node.host, stderr: result.stderr.slice(0, STDERR_LOG_CAP) },
       'nodes.ssh_command_error',

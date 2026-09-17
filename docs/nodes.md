@@ -132,14 +132,22 @@ SSH are fixed read-only constants defined in the server source:
   PATH, else `podman ps -a --format '{{json .}}'`, else `exit 127`. Both engines
   emit the same `Id` / `Names` / `Image` / `State` / `Status` keys, so one parser
   serves both. Podman-only states (`stopping`, `stopped`, …) fall back to `dead`.
+  The command first echoes `__DINO_ENGINE__=docker|podman` on its own line (v0.6.7);
+  the service strips it and returns it as `engine` so the UI can badge the card.
 
 No `start`, `stop`, `restart`, `rm`, `exec`, or `systemctl` command is
 ever issued to a remote node. This is enforced at the source level
 (AC7: `grep -rE '(docker|podman) (start|stop|restart|rm|exec)|systemctl' apps/server/src/modules/nodes/`
 yields zero hits) and by a unit test on `CONTAINER_PS_CMD`.
 
-Neither `docker` nor `podman` being installed on the remote host is an expected
-state, not an error — the panel returns `{ dockerAvailable: false, containers: [] }`
-(the field name is kept for API compatibility; it now means "a container engine
-is available") and the UI renders "Neither Docker nor Podman is installed" rather
-than an error block.
+Two node states are expected, not errors, and come back as `200`:
+
+| State | Response | UI |
+|---|---|---|
+| Neither `docker` nor `podman` installed (`exit 127`) | `{ dockerAvailable: false, engine: null, permissionDenied: false, containers: [] }` | "Neither Docker nor Podman is installed" |
+| Engine installed but the SSH user cannot open its socket (non-zero exit, stderr contains `permission denied`; typically the user is not in the `docker` group) | `{ dockerAvailable: true, engine, permissionDenied: true, containers: [] }` | amber card naming the user and engine (v0.6.7) |
+
+`dockerAvailable` is kept for compatibility and now means "an engine binary exists";
+`engine` says which one. Neither state is logged per poll (both predicates live in
+`ssh.ts` and are shared with `sshExec`'s warn-skip). The panel never changes the remote
+host to fix either — that is an operator decision.

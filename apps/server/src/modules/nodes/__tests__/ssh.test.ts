@@ -4,9 +4,11 @@ import {
   buildSshArgs,
   classifySshFailure,
   isDockerAbsent,
+  isEnginePermissionDenied,
   sshExec,
   METRICS_CMD,
   CONTAINER_PS_CMD,
+  ENGINE_MARKER,
 } from '../ssh';
 import { runCommand, CommandError } from '../../../common/shell/run-command';
 import type * as RunCommandModule from '../../../common/shell/run-command';
@@ -80,6 +82,18 @@ describe('buildSshArgs', () => {
     const podman = CONTAINER_PS_CMD.indexOf("podman ps -a --format '{{json .}}'");
     expect(docker).toBeGreaterThan(-1);
     expect(podman).toBeGreaterThan(docker);
+  });
+
+  it('CONTAINER_PS_CMD announces the engine on its own line before the ps output', () => {
+    expect(ENGINE_MARKER).toBe('__DINO_ENGINE__=');
+    const dockerMark = CONTAINER_PS_CMD.indexOf(`echo ${ENGINE_MARKER}docker;`);
+    const dockerPs = CONTAINER_PS_CMD.indexOf('docker ps -a');
+    const podmanMark = CONTAINER_PS_CMD.indexOf(`echo ${ENGINE_MARKER}podman;`);
+    const podmanPs = CONTAINER_PS_CMD.indexOf('podman ps -a');
+    expect(dockerMark).toBeGreaterThan(-1);
+    expect(dockerMark).toBeLessThan(dockerPs);
+    expect(podmanMark).toBeGreaterThan(-1);
+    expect(podmanMark).toBeLessThan(podmanPs);
   });
 
   it('CONTAINER_PS_CMD exits 127 when neither engine is installed', () => {
@@ -244,6 +258,17 @@ describe('sshExec', () => {
     expect((loggedObj['stderr'] as string).length).toBeLessThanOrEqual(2048);
   });
 
+  it('does not warn for exit 1 + engine socket permission denied (expected node state)', async () => {
+    const logger = { warn: vi.fn() };
+    mockRunCommand.mockResolvedValue({
+      exitCode: 1,
+      stdout: '',
+      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+    });
+    await sshExec(FAKE_NODE, 'cmd', logger);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it('does not warn for exit 1 + docker-specific not-found (isDockerAbsent, FOLLOWUP-2)', async () => {
     mockRunCommand.mockResolvedValue({
       exitCode: 1,
@@ -282,5 +307,37 @@ describe('isDockerAbsent', () => {
 
   it('returns false for non-zero exit + unrelated stderr', () => {
     expect(isDockerAbsent({ exitCode: 1, stdout: '', stderr: '/usr/bin/env: command not found' })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isEnginePermissionDenied — engine installed but the SSH user cannot use its socket
+// ---------------------------------------------------------------------------
+
+describe('isEnginePermissionDenied', () => {
+  it('true for exit 1 + docker daemon socket permission denied', () => {
+    expect(isEnginePermissionDenied({
+      exitCode: 1, stdout: '',
+      stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.51/containers/json?all=1": dial unix /var/run/docker.sock: connect: permission denied',
+    })).toBe(true);
+  });
+
+  it('true for exit 125 + podman-style "permission denied"', () => {
+    expect(isEnginePermissionDenied({
+      exitCode: 125, stdout: '',
+      stderr: 'Error: unable to connect to Podman socket: Get "http://d/v5.0.0/libpod/_ping": dial unix /run/podman/podman.sock: connect: permission denied',
+    })).toBe(true);
+  });
+
+  it('false for exit 0 even if stderr mentions permission denied', () => {
+    expect(isEnginePermissionDenied({ exitCode: 0, stdout: '', stderr: 'permission denied' })).toBe(false);
+  });
+
+  it('false for exit 127 (that is isDockerAbsent territory)', () => {
+    expect(isEnginePermissionDenied({ exitCode: 127, stdout: '', stderr: 'permission denied' })).toBe(false);
+  });
+
+  it('false for non-zero exit with unrelated stderr', () => {
+    expect(isEnginePermissionDenied({ exitCode: 1, stdout: '', stderr: 'Cannot connect to the Docker daemon. Is the docker daemon running?' })).toBe(false);
   });
 });

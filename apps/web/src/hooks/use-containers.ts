@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Container } from '@dinopanel/shared';
+import type { Container, LocalEngine } from '@dinopanel/shared';
 import { api } from '@/lib/api';
 import { createWsClient } from '@/lib/ws';
 
@@ -12,11 +12,22 @@ export const containerKeys = {
   all: ['containers'] as const,
   list: () => [...containerKeys.all, 'list'] as const,
   detail: (id: string) => [...containerKeys.all, 'detail', id] as const,
+  engine: () => [...containerKeys.all, 'engine'] as const,
 };
 
 // ---------------------------------------------------------------------------
 // REST hooks
 // ---------------------------------------------------------------------------
+
+/** useEngine — which engine (Docker / Podman) is behind the local socket. Never changes while the panel runs. */
+export function useEngine() {
+  return useQuery<LocalEngine>({
+    queryKey: containerKeys.engine(),
+    queryFn: async () => (await api.get<LocalEngine>('/containers/engine')).data,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
 
 /**
  * useContainers — list all containers (running + stopped).

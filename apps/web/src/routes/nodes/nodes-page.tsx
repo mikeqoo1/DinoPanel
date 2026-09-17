@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { ServerOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, ServerOff, ShieldAlert } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ import {
   useNodeContainers,
 } from '@/hooks/use-nodes';
 import type { RemoteNode } from '@dinopanel/shared';
+const ENGINE_LABEL: Record<'docker' | 'podman', string> = { docker: 'Docker', podman: 'Podman' };
+
 
 // Map error code → Badge variant
 function errorPillVariant(code: string | null): 'destructive' | 'warning' | 'muted' {
@@ -97,9 +99,9 @@ function MetricsSection({ nodeId }: { nodeId: string }) {
 
 // ─── Containers card ─────────────────────────────────────────────────────────
 
-function ContainersSection({ nodeId }: { nodeId: string }) {
+function ContainersSection({ node }: { node: RemoteNode }) {
   const { t } = useTranslation();
-  const { data, isPending, error } = useNodeContainers(nodeId);
+  const { data, isPending, error } = useNodeContainers(node.id);
 
   if (isPending) return <Skeleton className="h-28 w-full" />;
   if (error) {
@@ -120,9 +122,23 @@ function ContainersSection({ nodeId }: { nodeId: string }) {
     );
   }
 
+  const engineLabel = data.engine ? ENGINE_LABEL[data.engine] : null;
+
+  if (data.permissionDenied) {
+    return (
+      <Card className="flex items-center gap-2 p-4 text-sm text-yellow-700 dark:text-yellow-400">
+        <ShieldAlert className="h-4 w-4 shrink-0" />
+        {t('nodes.containers.permission_denied', { user: node.user, engine: engineLabel ?? 'docker' })}
+      </Card>
+    );
+  }
+
   return (
     <Card className="overflow-x-auto">
-      <div className="p-3 text-sm font-medium">{t('nodes.containers.title')}</div>
+      <div className="flex items-center gap-2 p-3 text-sm font-medium">
+        {t('nodes.containers.title')}
+        {engineLabel && <Badge variant="outline">{engineLabel}</Badge>}
+      </div>
       <table className="w-full text-sm">
         <thead className="bg-muted/40 text-left">
           <tr>
@@ -248,6 +264,8 @@ function AddNodeDialog({ open, onClose }: { open: boolean; onClose: () => void }
 export function NodesPage() {
   const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Picking a node collapses the list so its metrics/containers sit at the top of the page.
+  const [listCollapsed, setListCollapsed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, number | string>>({});
 
@@ -256,7 +274,9 @@ export function NodesPage() {
   const test = useTestNode();
 
   const handleSelect = (node: RemoteNode) => {
-    setSelectedId((prev) => (prev === node.id ? null : node.id));
+    const deselect = selectedId === node.id;
+    setSelectedId(deselect ? null : node.id);
+    setListCollapsed(!deselect);
   };
 
   const handleTest = async (e: React.MouseEvent, id: string) => {
@@ -275,7 +295,10 @@ export function NodesPage() {
     if (!window.confirm(t('nodes.delete_confirm', { name: node.name }))) return;
     try {
       await remove.mutateAsync(node.id);
-      if (selectedId === node.id) setSelectedId(null);
+      if (selectedId === node.id) {
+        setSelectedId(null);
+        setListCollapsed(false);
+      }
     } catch (err) {
       toast.error(extractErrorMessage(err));
     }
@@ -287,7 +310,17 @@ export function NodesPage() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">{t('nodes.title')}</h1>
-        <Button size="sm" onClick={() => setAddOpen(true)}>{t('nodes.add')}</Button>
+        <div className="flex items-center gap-2">
+          {selectedNode && (
+            <Button size="sm" variant="ghost" onClick={() => setListCollapsed((v) => !v)}>
+              {listCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {listCollapsed
+                ? t('nodes.list_show', { count: nodes?.length ?? 0 })
+                : t('nodes.list_hide')}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setAddOpen(true)}>{t('nodes.add')}</Button>
+        </div>
       </div>
 
       {isPending && <Skeleton className="h-32 w-full" />}
@@ -295,7 +328,7 @@ export function NodesPage() {
         <Card className="p-4 text-sm text-destructive">{extractErrorMessage(error)}</Card>
       )}
 
-      {!isPending && !error && (
+      {!isPending && !error && !(listCollapsed && selectedNode) && (
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left">
@@ -364,7 +397,7 @@ export function NodesPage() {
             {selectedNode.name} — {selectedNode.user}@{selectedNode.host}:{selectedNode.port}
           </div>
           <MetricsSection nodeId={selectedNode.id} />
-          <ContainersSection nodeId={selectedNode.id} />
+          <ContainersSection node={selectedNode} />
         </div>
       )}
 

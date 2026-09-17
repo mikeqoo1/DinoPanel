@@ -1,12 +1,34 @@
 import { Inject, Injectable } from '@nestjs/common';
 import Dockerode from 'dockerode';
-import type { Container } from '@dinopanel/shared';
+import type { Container, LocalEngine } from '@dinopanel/shared';
 import { DOCKER } from './docker.token';
 import { mapDockerError } from './docker-error';
 
 @Injectable()
 export class ContainersService {
   constructor(@Inject(DOCKER) private readonly docker: Dockerode) {}
+
+  private engine: LocalEngine | null = null;
+
+  /**
+   * Which Docker-compatible engine is behind the socket. Podman's compat API reports a
+   * version component named "Podman Engine"; stock Docker reports "Engine". Cached after
+   * the first successful probe — the engine does not change while the panel runs.
+   */
+  async getEngine(): Promise<LocalEngine> {
+    if (this.engine) return this.engine;
+    try {
+      const v = (await this.docker.version()) as {
+        Version?: string;
+        Components?: Array<{ Name?: string }>;
+      };
+      const isPodman = (v.Components ?? []).some((c) => /podman/i.test(c.Name ?? ''));
+      this.engine = { engine: isPodman ? 'podman' : 'docker', version: v.Version ?? '' };
+      return this.engine;
+    } catch (err) {
+      mapDockerError(err, 'engine version');
+    }
+  }
 
   async list(filters?: Record<string, string[]>): Promise<Container[]> {
     try {

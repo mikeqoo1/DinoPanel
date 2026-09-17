@@ -26,8 +26,10 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { extractErrorMessage } from '@/lib/api';
-import { useContainers, useContainerAction } from '@/hooks/use-containers';
+import { useContainers, useContainerAction, useEngine } from '@/hooks/use-containers';
 import type { Container, ContainerState } from '@dinopanel/shared';
+const ENGINE_LABEL: Record<'docker' | 'podman', string> = { docker: 'Docker', podman: 'Podman' };
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -224,6 +226,7 @@ export function ContainersPage() {
   const { data, isPending, error, refetch } = useContainers(
     autoRefresh ? AUTO_REFRESH_MS : undefined,
   );
+  const { data: engine } = useEngine();
 
   const handleRowClick = (c: Container) => {
     void navigate(`/containers/${c.id}`);
@@ -233,7 +236,14 @@ export function ContainersPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">{t('containers.title')}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{t('containers.title')}</h1>
+          {engine && (
+            <Badge variant="outline" title={t('containers.engine_title')}>
+              {ENGINE_LABEL[engine.engine]} {engine.version}
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             size="sm"

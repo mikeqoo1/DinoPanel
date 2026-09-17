@@ -1,0 +1,8 @@
+{
+  "id": "v0.6.7-engine-badge-permission",
+  "title": "Engine badge (Docker/Podman) on remote + local containers, socket permission-denied as a 200 state, collapsible node list",
+  "status": "completed",
+  "createdAt": "2026-09-17T00:57:51.063Z",
+  "updatedAt": "2026-09-17T00:57:51.063Z",
+  "previousChange": "v0.6.6-podman-support"
+}

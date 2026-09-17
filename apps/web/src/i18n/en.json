@@ -307,6 +307,7 @@
     "title": "Container management",
     "refresh": "Refresh",
     "auto_refresh": "Auto-refresh",
+    "engine_title": "Container engine behind the panel's socket",
     "empty": "No containers yet — run `docker run` to create one.",
     "col_state": "State",
     "col_name": "Name",
@@ -834,6 +835,8 @@
     "delete": "Remove",
     "delete_confirm": "Remove node \"{{name}}\"? This cannot be undone.",
     "latency": "{{ms}}ms",
+    "list_show": "Show list ({{count}})",
+    "list_hide": "Hide list",
     "metrics": {
       "title": "Node metrics",
       "cpu": "CPU",
@@ -845,6 +848,7 @@
     "containers": {
       "title": "Containers",
       "no_docker": "Neither Docker nor Podman is installed on this node.",
+      "permission_denied": "{{engine}} is installed, but user {{user}} is not allowed to open its socket on this node.",
       "empty": "No containers.",
       "col_name": "Name",
       "col_image": "Image",

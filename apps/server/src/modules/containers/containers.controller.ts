@@ -11,6 +11,12 @@ export class ContainersController {
     return this.containers.list(filters);
   }
 
+  /** Must be declared before `:id` so "engine" is not captured as a container id. */
+  @Get('engine')
+  async engine() {
+    return this.containers.getEngine();
+  }
+
   @Get(':id')
   async inspect(@Param('id') id: string) {
     return this.containers.inspect(id);

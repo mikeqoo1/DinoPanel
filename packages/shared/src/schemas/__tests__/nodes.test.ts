@@ -72,6 +72,8 @@ describe('remoteContainersResponseSchema — happy-path parse', () => {
   it('parses dockerAvailable:true with containers', () => {
     const result = remoteContainersResponseSchema.safeParse({
       dockerAvailable: true,
+      engine: 'docker',
+      permissionDenied: false,
       containers: [
         { id: 'abc123', name: 'nginx', image: 'nginx:latest', state: 'running', status: 'Up 2 hours' },
         { id: 'def456', name: 'db', image: 'postgres:15', state: 'exited', status: 'Exited (0) 1 day ago' },
@@ -80,9 +82,31 @@ describe('remoteContainersResponseSchema — happy-path parse', () => {
     expect(result.success).toBe(true);
   });
 
+  it('parses engine present but permissionDenied:true with empty containers (v0.6.7)', () => {
+    const result = remoteContainersResponseSchema.safeParse({
+      dockerAvailable: true,
+      engine: 'podman',
+      permissionDenied: true,
+      containers: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an unknown engine name', () => {
+    const result = remoteContainersResponseSchema.safeParse({
+      dockerAvailable: true,
+      engine: 'lxc',
+      permissionDenied: false,
+      containers: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('parses dockerAvailable:false with empty containers', () => {
     const result = remoteContainersResponseSchema.safeParse({
       dockerAvailable: false,
+      engine: null,
+      permissionDenied: false,
       containers: [],
     });
     expect(result.success).toBe(true);
@@ -91,6 +115,8 @@ describe('remoteContainersResponseSchema — happy-path parse', () => {
   it('rejects unknown container state', () => {
     const result = remoteContainersResponseSchema.safeParse({
       dockerAvailable: true,
+      engine: 'docker',
+      permissionDenied: false,
       containers: [
         { id: 'x', name: 'x', image: 'x', state: 'unknown_state', status: 'x' },
       ],

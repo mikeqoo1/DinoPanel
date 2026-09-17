@@ -22,6 +22,7 @@ if [[ -z "$TOKEN" ]]; then
 fi
 
 printf '%-24s %-17s %-12s %-6s %-8s %s\n' NAME HOST USER HTTP ENGINE CONTAINERS
+echo "local engine: $(curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/containers/engine" | jq -r '"\(.engine) \(.version)"' 2>/dev/null || echo '(n/a — pre-0.6.7 server?)')" 
 curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/nodes" \
   | jq -r '.[] | [.id, .name, .host, .user] | @tsv' \
   | while IFS=$'\t' read -r id name host user; do
@@ -31,8 +32,10 @@ curl -fsS -H "Authorization: Bearer $TOKEN" "$BASE_URL/api/nodes" \
         avail="$(jq -r '.dockerAvailable' <<<"$json")"
         count="$(jq -r '.containers | length' <<<"$json")"
         states="$(jq -r '[.containers[].state] | group_by(.) | map("\(.[0])=\(length)") | join(",")' <<<"$json")"
-        [[ "$avail" == "true" ]] && engine="yes" || engine="none"
-        printf '%-24s %-17s %-12s %-6s %-8s %s %s\n' "$name" "$host" "$user" "$code" "$engine" "$count" "$states"
+        # v0.6.7: engine name + permissionDenied; pre-0.6.7 servers lack both fields
+        engine="$(jq -r '.engine // (if .dockerAvailable then "yes" else "none" end)' <<<"$json")"
+        denied="$(jq -r 'if .permissionDenied == true then " PERMISSION_DENIED" else "" end' <<<"$json")"
+        printf '%-24s %-17s %-12s %-6s %-8s %s %s%s\n' "$name" "$host" "$user" "$code" "$engine" "$count" "$states" "$denied"
       else
         printf '%-24s %-17s %-12s %-6s %-8s %s\n' "$name" "$host" "$user" "$code" "-" "$(jq -r '.code // .message // empty' <<<"$json" 2>/dev/null | head -1)"
       fi

@@ -307,6 +307,7 @@
     "title": "容器管理",
     "refresh": "重新整理",
     "auto_refresh": "自動重新整理",
+    "engine_title": "面板 socket 背後的容器引擎",
     "empty": "目前沒有容器，先執行 `docker run` 建立一個吧。",
     "col_state": "狀態",
     "col_name": "名稱",
@@ -834,6 +835,8 @@
     "delete": "移除",
     "delete_confirm": "確定移除節點「{{name}}」？此操作不可復原。",
     "latency": "{{ms}}ms",
+    "list_show": "顯示清單（{{count}}）",
+    "list_hide": "隱藏清單",
     "metrics": {
       "title": "節點指標",
       "cpu": "CPU",
@@ -845,6 +848,7 @@
     "containers": {
       "title": "容器",
       "no_docker": "此節點未安裝 Docker 或 Podman。",
+      "permission_denied": "此節點有安裝 {{engine}}，但帳號 {{user}} 無權存取其 socket。",
       "empty": "無容器。",
       "col_name": "名稱",
       "col_image": "映像",
