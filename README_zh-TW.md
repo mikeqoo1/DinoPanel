@@ -92,6 +92,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.6.1 | Supervisor = systemd `.service` 管理（服務分頁：列出/狀態 + start/stop/restart/enable/disable，分級保護清單，停不掉面板自己/sshd/firewalld）+ 磁碟表去噪（`df -T` fstype 過濾，docker overlay/pseudo 預設隱藏 + toggle） | ✅ 已 ship（Rocky 234 smoke S1–S3 + 服務護欄活驗過） |
 | v0.6.2 | 遠端節點唯讀監控 — 透過 agentless SSH 註冊遠端主機，唯讀主機指標（CPU / 記憶體 / 磁碟 / uptime）與 Docker 容器清單/狀態；不對遠端執行寫入操作。詳見 [`docs/nodes.md`](./docs/nodes.md) | ✅ 已 ship |
 | v0.6.6 | Podman 支援 — 遠端節點沒 `docker` 時退到 `podman ps`；本機 containers 模組自動偵測 `/run/podman/podman.sock`（rootful / rootless）與 `podman compose`。API / schema 不變 | ✅ 已 ship（本機 podman 6.1.1 smoke：ps fallback、dockerode API、compose label 探索） |
+| v0.6.7 | 引擎標示 — 遠端節點容器卡與本機容器管理頁標示 Docker / Podman（`GET /containers/engine`、遠端 `__DINO_ENGINE__` marker）；引擎有裝但 socket 無權限改為 200 `permissionDenied` 狀態 + 說明卡，不再 500；點選節點後清單自動收合 | ✅ 已 ship |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
