@@ -10,4 +10,5 @@
 - [x] T-3 Web：`useUpdateNexusLimits`、`QuotaBar`／`UsageSection`／`LimitsDialog`、配額走勢圖、i18n 兩語系。
 - [x] T-4 typecheck / lint / build 綠；test 639。
 - [x] T-5 本機 E2E 對真實 dev2 → **抓到 D6 的 pipe 綁定錯誤**，修成參數層後重驗全過（見 smoke-pass.md）。
-- [ ] T-6 release 0.6.10 → 部署 234 → 確認兩台用量顯示、dev2 應該接近/超過上限 → UI 目視。
+- [x] T-6 release 0.6.10（`b7131b3`）→ 部署 234 → **踩到舊實例被丟棄**，由 v0.6.11（`2ae0a75`）修正 →
+      dev1 8.5%、dev2 97.8%（見 smoke-pass.md）。UI 目視留給使用者。
