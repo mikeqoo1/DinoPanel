@@ -8,4 +8,5 @@
 - [x] T-3 Web：橫幅改由 `throttling` 驅動（範圍無關）、進度條用回報上限、顯示生效與超限日期、
       手動上限退為 fallback；i18n 兩語系；docs 改寫「上限來源」與「橫幅優先序」。
 - [x] T-4 typecheck / lint / build 綠；test 659。
-- [ ] T-5 release 0.6.13 → 部署 234 → 確認 dev2 紅色橫幅 + 上限 100000/40000 + 約 195%；dev1 無橫幅 → UI 目視。
+- [x] T-5 release 0.6.13（`cdc4207`）→ 部署 234 → dev2 `throttling:true`、上限 100000/40000、24h 請求 194,967（195%）、
+      寬限期 2026-09-10 結束；dev1 `throttling:false` 13.5%（見 smoke-pass.md）。UI 目視留給使用者。
