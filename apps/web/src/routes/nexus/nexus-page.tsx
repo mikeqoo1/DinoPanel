@@ -3,7 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Boxes, Lock, Pencil, Trash2 } from 'lucide-react';
-import { USAGE_WARN_RATIO, type NexusEnforcement, type NexusInstance, type NexusPoint, type NexusRange, type NexusUsage } from '@dinopanel/shared';
+import {
+  USAGE_WARN_RATIO,
+  type NexusCommunityState,
+  type NexusEnforcement,
+  type NexusInstance,
+  type NexusPoint,
+  type NexusRange,
+  type NexusUsage,
+} from '@dinopanel/shared';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +40,15 @@ import {
 const RANGES: NexusRange[] = ['1h', '24h', '7d'];
 /** A sample older than this means the poller could not reach the instance. */
 const STALE_MS = 180_000;
+
+/** Nexus reports local-ish ISO strings; show date + minute, or the raw value if unparseable. */
+function dateLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function timeLabel(ts: number, range: NexusRange): string {
   const d = new Date(ts);
@@ -187,8 +204,40 @@ function LimitsDialog({
  * is refusing writes now; a non-zero lifetime total that is flat means it did earlier.
  * Reads are never affected, so the traffic charts can look perfectly healthy meanwhile.
  */
-function EnforcementBanner({ enforcement, range }: { enforcement: NexusEnforcement | null; range: NexusRange }) {
+function EnforcementBanner({
+  enforcement,
+  community,
+  range,
+}: {
+  enforcement: NexusEnforcement | null;
+  community: NexusCommunityState | null;
+  range: NexusRange;
+}) {
   const { t } = useTranslation();
+
+  // Nexus's own verdict wins: it is a state, not an inference from counters, and it does
+  // not depend on whether anyone happened to push inside the selected range.
+  if (community?.throttling) {
+    const since = dateLabel(community.gracePeriodEnds);
+    const lastOver = dateLabel(community.requestLimitLastExceeded ?? community.componentLimitLastExceeded);
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+        <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="space-y-0.5">
+          <div className="text-sm font-medium">{t('nexus.enforcement.active_title')}</div>
+          <div>{t('nexus.enforcement.reported_body')}</div>
+          <div className="opacity-90">
+            {since && t('nexus.enforcement.since', { date: since })}
+            {lastOver && ` · ${t('nexus.enforcement.last_over', { date: lastOver })}`}
+            {enforcement && enforcement.blocked > 0 && ` · ${t('nexus.enforcement.blocked_total', { total: enforcement.blocked })}`}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // Nexus explicitly says it is under its limits — trust it over the counters.
+  if (community && !community.throttling) return null;
+
   if (!enforcement || (enforcement.blocked === 0 && enforcement.graceThrottled === 0)) return null;
 
   const active = enforcement.blockedInRange > 0;
@@ -224,9 +273,22 @@ function EnforcementBanner({ enforcement, range }: { enforcement: NexusEnforceme
   );
 }
 
-function UsageSection({ instance, usage }: { instance: NexusInstance; usage: NexusUsage | null }) {
+function UsageSection({
+  instance,
+  usage,
+  community,
+}: {
+  instance: NexusInstance;
+  usage: NexusUsage | null;
+  community: NexusCommunityState | null;
+}) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
+  // Limits Nexus reports are what it actually enforces; the per-instance numbers are only
+  // a fallback for an instance that does not report them.
+  const reported = community?.requestsPerDayLimit != null && community.componentsLimit != null;
+  const requestsLimit = community?.requestsPerDayLimit ?? instance.requestsPerDayLimit;
+  const componentsLimit = community?.componentsLimit ?? instance.componentsLimit;
 
   if (!usage) {
     return (
@@ -236,7 +298,7 @@ function UsageSection({ instance, usage }: { instance: NexusInstance; usage: Nex
     );
   }
 
-  const over = usage.requests24h >= instance.requestsPerDayLimit;
+  const over = usage.requests24h >= requestsLimit;
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
@@ -244,23 +306,27 @@ function UsageSection({ instance, usage }: { instance: NexusInstance; usage: Nex
           {t('nexus.usage.title')}
           {over && <Badge variant="destructive">{t('nexus.usage.over')}</Badge>}
         </div>
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>
-          <Pencil className="h-3 w-3" />
-          {t('nexus.usage.edit_limits')}
-        </Button>
+        {reported ? (
+          <span className="text-[11px] text-muted-foreground">{t('nexus.usage.limits_from_nexus')}</span>
+        ) : (
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>
+            <Pencil className="h-3 w-3" />
+            {t('nexus.usage.edit_limits')}
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <QuotaBar
           label={t('nexus.usage.requests_24h')}
           value={usage.requests24h}
-          limit={instance.requestsPerDayLimit}
+          limit={requestsLimit}
           hint={t('nexus.usage.rolling_hint')}
         />
         <QuotaBar
           label={t('nexus.usage.components')}
           value={usage.componentCount}
-          limit={instance.componentsLimit}
+          limit={componentsLimit}
         />
       </div>
 
@@ -268,6 +334,9 @@ function UsageSection({ instance, usage }: { instance: NexusInstance; usage: Nex
         <span>{t('nexus.usage.unique_users')}: <span className="font-mono text-foreground">{usage.uniqueUsers30d}</span></span>
         <span>{t('nexus.usage.peak_day')}: <span className="font-mono text-foreground">{usage.peakRequestsPerDay30d.toLocaleString()}</span></span>
         <span>{t('nexus.usage.peak_minute')}: <span className="font-mono text-foreground">{usage.peakRequestsPerMinute1d.toLocaleString()}</span></span>
+        {community?.gracePeriodEnds && (
+          <span>{t('nexus.usage.grace_ends')}: <span className="font-mono text-foreground">{dateLabel(community.gracePeriodEnds)}</span></span>
+        )}
       </div>
 
       <LimitsDialog instance={instance} open={editing} onClose={() => setEditing(false)} />
@@ -392,7 +461,7 @@ function InstanceCard({ instance }: { instance: NexusInstance }) {
         <div className="text-sm text-destructive">{extractErrorMessage(error)}</div>
       ) : (
         <>
-          <EnforcementBanner enforcement={data?.enforcement ?? null} range={range} />
+          <EnforcementBanner enforcement={data?.enforcement ?? null} community={data?.community ?? null} range={range} />
 
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
             <div>
@@ -413,7 +482,7 @@ function InstanceCard({ instance }: { instance: NexusInstance }) {
             </div>
           </div>
 
-          <UsageSection instance={instance} usage={data?.usage ?? null} />
+          <UsageSection instance={instance} usage={data?.usage ?? null} community={data?.community ?? null} />
 
           {data && data.points.length === 0 ? (
             <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">

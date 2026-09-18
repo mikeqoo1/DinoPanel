@@ -22,6 +22,7 @@ import {
   type NexusRange,
   type NexusRepository,
   type NexusSeries,
+  type NexusCommunityState,
   type NexusUsage,
   type UpdateNexusLimits,
 } from '@dinopanel/shared';
@@ -33,6 +34,7 @@ import {
   bucketMsForRange,
   enforcementFromSamples,
   extractNexusMetrics,
+  parseCommunityState,
   parsePrometheusText,
   parseUsageMetrics,
   toSeries,
@@ -50,6 +52,8 @@ const METRICS_PATH = '/service/rest/metrics/prometheus';
 const REPOSITORIES_PATH = '/service/rest/v1/repositories';
 /** Internal UI endpoint behind Nexus's own usage centre — the community quota counter. */
 const USAGE_PATH = '/service/rest/internal/ui/usage-metrics';
+/** The state blob Nexus's own UI runs on — the only source for the enforced limits. */
+const STATE_PATH = '/service/extdirect/poll/rapture_State_get';
 
 /**
  * What actually sits in the KV blob: the public instance + the encrypted password.
@@ -80,6 +84,9 @@ function toPublic(i: StoredInstance): NexusInstance {
 export class NexusService implements OnModuleInit, OnApplicationShutdown {
   private readonly secretsKey: Buffer;
   private timer: NodeJS.Timeout | null = null;
+  /** Per-instance state from the last poll. Not persisted: it is a current-state answer,
+   *  refilled within seconds of boot because onModuleInit polls immediately. */
+  private readonly communityState = new Map<string, NexusCommunityState>();
 
   constructor(
     @Inject(DRIZZLE_DB) private readonly db: Db,
@@ -176,6 +183,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
   async remove(id: string): Promise<void> {
     const instances = await this.readList();
     await this.writeList(instances.filter((i) => i.id !== id));
+    this.communityState.delete(id);
     await this.db.delete(nexusSamples).where(eq(nexusSamples.instanceId, id));
   }
 
@@ -270,6 +278,24 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
     }
   }
 
+  /** Nexus's own limits and throttling verdict from the last poll, or null. */
+  communityStateFor(id: string): NexusCommunityState | null {
+    return this.communityState.get(id) ?? null;
+  }
+
+  /** Never throws: an instance that does not serve the internal state endpoint simply
+   *  has no verdict, and the traffic sample must not be lost over it. */
+  private async refreshCommunityState(instance: StoredInstance): Promise<void> {
+    let state: NexusCommunityState | null = null;
+    try {
+      state = parseCommunityState(JSON.parse(await this.get(instance, STATE_PATH, true)));
+    } catch {
+      state = null;
+    }
+    if (state) this.communityState.set(instance.id, state);
+    else this.communityState.delete(instance.id);
+  }
+
   /** Repository list — anonymous endpoint, so it works even without metrics rights. */
   async getRepositories(id: string): Promise<NexusRepository[]> {
     const instance = this.findInstance(await this.readList(), id);
@@ -311,6 +337,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
           parsePrometheusText(await this.get(instance, METRICS_PATH, true)),
         );
         const usage = await this.fetchUsage(instance);
+        await this.refreshCommunityState(instance);
         await this.db.insert(nexusSamples).values({
           instanceId: instance.id,
           ts: Date.now(),
@@ -402,6 +429,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
             }
           : null,
       enforcement: enforcementFromSamples(samples),
+      community: this.communityStateFor(instance.id),
       latestTs: last ? last.ts : null,
     };
   }

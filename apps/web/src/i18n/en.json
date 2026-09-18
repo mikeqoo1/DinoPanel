@@ -840,6 +840,10 @@
       "total_down": "Total downloaded",
       "chart_requests": "Request rate",
       "enforcement": {
+        "reported_body": "Nexus reports its own status as over limits, so new components are refused: image pushes and package publishes get 403 PAYMENT REQUIRED while reads keep working. Resolve it from the Nexus Usage Center.",
+        "since": "Enforced since {{date}}",
+        "last_over": "Last over the limit {{date}}",
+        "blocked_total": "{{total}} writes blocked in total",
             "active_title": "Nexus is refusing writes",
             "active_body": "{{inRange}} writes blocked in the last {{range}} ({{total}} lifetime). Past its community-edition limit Nexus refuses new components, so image pushes and package publishes get 403 PAYMENT REQUIRED; reads are unaffected. Resolve it from the Nexus Usage Center.",
             "past_title": "Nexus has refused writes before",
@@ -848,6 +852,8 @@
             "grace_body": "{{count}} writes were slowed but not yet refused. Once the grace period ends new components are rejected outright."
           },
       "usage": {
+        "limits_from_nexus": "Limits reported by Nexus",
+        "grace_ends": "Grace period ends",
             "title": "Community edition usage",
             "over": "Over the limit",
             "edit_limits": "Set limits",

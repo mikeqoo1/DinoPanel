@@ -61,8 +61,20 @@ const USAGE_JSON = JSON.stringify({
   ],
 });
 
-/** fetch stub routing by URL path: prometheus vs usage-metrics. */
-function fetchRouter(opts: { prom?: string; usage?: string | number } = {}) {
+const STATE_JSON = JSON.stringify({
+  data: {
+    success: true,
+    data: {
+      'nexus.community.usageLimits': { value: { 'Total Components': 40000, 'Max Requests per 24 Hours': 100000 } },
+      'nexus.community.throttlingStatus': { value: 'Over limits' },
+      'nexus.community.gracePeriodEnds': { value: '2026-09-10T07:01:00.037' },
+      status: { value: { edition: 'COMMUNITY' } },
+    },
+  },
+});
+
+/** fetch stub routing by URL path: prometheus vs usage-metrics vs the UI state blob. */
+function fetchRouter(opts: { prom?: string; usage?: string | number; state?: string | number } = {}) {
   return vi.fn((url: string) => {
     if (url.includes('/metrics/prometheus')) {
       return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(opts.prom ?? PROM) });
@@ -72,6 +84,12 @@ function fetchRouter(opts: { prom?: string; usage?: string | number } = {}) {
         return Promise.resolve({ ok: false, status: opts.usage, text: () => Promise.resolve('') });
       }
       return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(opts.usage ?? USAGE_JSON) });
+    }
+    if (url.includes('rapture_State_get')) {
+      if (typeof opts.state === 'number') {
+        return Promise.resolve({ ok: false, status: opts.state, text: () => Promise.resolve('') });
+      }
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(opts.state ?? STATE_JSON) });
     }
     return Promise.reject(new Error(`unexpected url ${url}`));
   });
@@ -279,5 +297,38 @@ describe('NexusService write enforcement', () => {
       throttledRequests: 0,
       graceThrottledRequests: 0,
     });
+  });
+});
+
+describe('NexusService community state', () => {
+  it('poll() caches the state so getSeries can report the enforced limits and verdict', async () => {
+    vi.stubGlobal('fetch', fetchRouter());
+    const { svc } = makeService();
+    const list = await svc.add(INPUT);
+    await svc.poll();
+    expect(svc.communityStateFor(list[0]!.id)).toMatchObject({
+      requestsPerDayLimit: 100000,
+      componentsLimit: 40000,
+      throttling: true,
+      edition: 'COMMUNITY',
+    });
+  });
+
+  it('an instance that does not serve the state endpoint reports null, and polling still works', async () => {
+    vi.stubGlobal('fetch', fetchRouter({ state: 404 }));
+    const { svc, db } = makeService();
+    const list = await svc.add(INPUT);
+    await svc.poll();
+    expect(svc.communityStateFor(list[0]!.id)).toBeNull();
+    expect(db._state.inserted).toHaveLength(1);
+  });
+
+  it('removing an instance drops its cached state', async () => {
+    vi.stubGlobal('fetch', fetchRouter());
+    const { svc } = makeService();
+    const list = await svc.add(INPUT);
+    await svc.poll();
+    await svc.remove(list[0]!.id);
+    expect(svc.communityStateFor(list[0]!.id)).toBeNull();
   });
 });

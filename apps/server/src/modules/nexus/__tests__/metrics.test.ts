@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange, parseUsageMetrics, enforcementFromSamples } from '../metrics';
+import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange, parseUsageMetrics, enforcementFromSamples, parseCommunityState } from '../metrics';
 
 const SAMPLE_TEXT = `# HELP jvm_memory_heap_committed Generated from Dropwizard metric
 # TYPE jvm_memory_heap_committed gauge
@@ -253,5 +253,76 @@ describe('enforcementFromSamples', () => {
 
   it('works from a single sample', () => {
     expect(enforcementFromSamples([e(0, 7)])).toEqual({ blocked: 7, throttled: 0, graceThrottled: 0, blockedInRange: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseCommunityState — Nexus's own answer: the real limits and whether it is throttling
+// ---------------------------------------------------------------------------
+
+/** Shape of /service/extdirect/poll/rapture_State_get, trimmed to what we read. */
+const STATE_BODY = {
+  data: {
+    success: true,
+    data: {
+      'nexus.community.usageLimits': {
+        hash: 'x',
+        value: { 'Total Components': 40000, 'Max Requests per 24 Hours': 100000 },
+      },
+      'nexus.community.throttlingStatus': { hash: 'x', value: 'Over limits' },
+      'nexus.community.gracePeriodEnds': { hash: 'x', value: '2026-09-10T07:01:00.037' },
+      'nexus.community.requestPer24HoursLimitDateLastExceeded': { hash: 'x', value: '2026-09-18T03:01:00.046Z' },
+      'nexus.community.componentCountLimitDateLastExceeded': { hash: 'x', value: '' },
+      status: { hash: 'x', value: { edition: 'COMMUNITY', version: '3.96.0-09' } },
+    },
+  },
+  name: 'rapture_State_get',
+  type: 'event',
+};
+
+describe('parseCommunityState', () => {
+  it('reads the real limits, the throttling status and the dates', () => {
+    expect(parseCommunityState(STATE_BODY)).toEqual({
+      edition: 'COMMUNITY',
+      requestsPerDayLimit: 100000,
+      componentsLimit: 40000,
+      throttling: true,
+      throttlingStatus: 'Over limits',
+      gracePeriodEnds: '2026-09-10T07:01:00.037',
+      requestLimitLastExceeded: '2026-09-18T03:01:00.046Z',
+      componentLimitLastExceeded: null,
+    });
+  });
+
+  it('an instance under its limits is not throttling', () => {
+    const body = structuredClone(STATE_BODY);
+    body.data.data['nexus.community.throttlingStatus'].value = 'Under limits';
+    const r = parseCommunityState(body);
+    expect(r?.throttling).toBe(false);
+    expect(r?.throttlingStatus).toBe('Under limits');
+  });
+
+  it('treats any status that is not "under limits" as throttling', () => {
+    const body = structuredClone(STATE_BODY);
+    body.data.data['nexus.community.throttlingStatus'].value = 'Something new from a future version';
+    expect(parseCommunityState(body)?.throttling).toBe(true);
+  });
+
+  it('returns null when the payload is not the state envelope', () => {
+    expect(parseCommunityState(null)).toBeNull();
+    expect(parseCommunityState({})).toBeNull();
+    expect(parseCommunityState({ data: { data: {} } })).toBeNull();
+    expect(parseCommunityState('nope')).toBeNull();
+  });
+
+  it('tolerates missing limits (a Pro instance has no community limits)', () => {
+    const body = structuredClone(STATE_BODY);
+    delete (body.data.data as Record<string, unknown>)['nexus.community.usageLimits'];
+    const r = parseCommunityState(body);
+    expect(r).toMatchObject({ requestsPerDayLimit: null, componentsLimit: null, throttling: true });
+  });
+
+  it('reads empty date strings as null', () => {
+    expect(parseCommunityState(STATE_BODY)?.componentLimitLastExceeded).toBeNull();
   });
 });

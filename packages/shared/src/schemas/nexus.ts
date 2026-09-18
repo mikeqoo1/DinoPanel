@@ -107,6 +107,25 @@ export const nexusEnforcementSchema = z.object({
 });
 export type NexusEnforcement = z.infer<typeof nexusEnforcementSchema>;
 
+/**
+ * Nexus's own verdict, read from its internal UI state endpoint. This is authoritative:
+ * the limits are whatever that instance enforces, and `throttling` is Nexus telling us it
+ * is refusing new components — no inference from counters or percentages required.
+ */
+export const nexusCommunityStateSchema = z.object({
+  edition: z.string().nullable(),
+  /** Enforced limits as reported; null on an edition that has none. */
+  requestsPerDayLimit: z.number().nullable(),
+  componentsLimit: z.number().nullable(),
+  throttling: z.boolean(),
+  throttlingStatus: z.string().nullable(),
+  /** After this instant the limits are enforced rather than merely warned about. */
+  gracePeriodEnds: z.string().nullable(),
+  requestLimitLastExceeded: z.string().nullable(),
+  componentLimitLastExceeded: z.string().nullable(),
+});
+export type NexusCommunityState = z.infer<typeof nexusCommunityStateSchema>;
+
 export const nexusSeriesSchema = z.object({
   range: nexusRangeSchema,
   points: z.array(nexusPointSchema),
@@ -116,6 +135,8 @@ export const nexusSeriesSchema = z.object({
   usage: nexusUsageSchema.nullable(),
   /** Write-enforcement state; null when no sample in range carried the counters. */
   enforcement: nexusEnforcementSchema.nullable(),
+  /** Nexus's own limits and throttling verdict; null when the instance does not report them. */
+  community: nexusCommunityStateSchema.nullable(),
   /** When the latest sample was taken. */
   latestTs: z.number().nullable(),
 });

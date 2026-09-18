@@ -1,0 +1,8 @@
+{
+  "id": "v0.6.13-nexus-community-state",
+  "title": "Read Nexus's own limits and throttling verdict instead of guessing — the panel was showing 97% for an instance at 195%",
+  "status": "completed",
+  "createdAt": "2026-09-18T03:39:52.186Z",
+  "updatedAt": "2026-09-18T03:39:52.186Z",
+  "previousChange": "v0.6.12-nexus-write-enforcement"
+}

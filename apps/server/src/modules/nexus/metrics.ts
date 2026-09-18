@@ -1,4 +1,11 @@
-import type { NexusEnforcement, NexusMetrics, NexusPoint, NexusRange, NexusUsage } from '@dinopanel/shared';
+import type {
+  NexusCommunityState,
+  NexusEnforcement,
+  NexusMetrics,
+  NexusPoint,
+  NexusRange,
+  NexusUsage,
+} from '@dinopanel/shared';
 
 // ---------------------------------------------------------------------------
 // Pure functions — Prometheus text → counters → per-second rate series
@@ -81,6 +88,58 @@ export function parseUsageMetrics(body: unknown): NexusUsage | null {
     uniqueUsers30d: n(u['unique_users_last_30d']),
     peakRequestsPerDay30d: n(rates['peak_requests_per_day_30d']),
     peakRequestsPerMinute1d: n(rates['peak_requests_per_minute_1d']),
+  };
+}
+
+const STATE_KEYS = {
+  limits: 'nexus.community.usageLimits',
+  throttling: 'nexus.community.throttlingStatus',
+  graceEnds: 'nexus.community.gracePeriodEnds',
+  requestExceeded: 'nexus.community.requestPer24HoursLimitDateLastExceeded',
+  componentExceeded: 'nexus.community.componentCountLimitDateLastExceeded',
+  status: 'status',
+} as const;
+
+/**
+ * Reads `/service/extdirect/poll/rapture_State_get`, the state blob Nexus's own UI runs on.
+ * It is the only place that reports the enforced limits and whether the instance is
+ * currently refusing writes — neither is available from any documented REST endpoint, and
+ * guessing them produced wrong percentages (an instance shown at 97%% was really at 195%%).
+ *
+ * Every field is optional: this is an internal endpoint and other editions report less.
+ * Returns null unless the envelope is recognisable.
+ */
+export function parseCommunityState(body: unknown): NexusCommunityState | null {
+  if (!body || typeof body !== 'object') return null;
+  const state = (body as { data?: { data?: unknown } }).data?.data;
+  if (!state || typeof state !== 'object') return null;
+  const entries = state as Record<string, unknown>;
+  // Each entry is { hash, value }; tolerate a bare value too.
+  const valueOf = (key: string): unknown => {
+    const entry = entries[key];
+    if (entry && typeof entry === 'object' && 'value' in entry) return (entry as { value: unknown }).value;
+    return entry;
+  };
+  const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+  const throttlingStatus = str(valueOf(STATE_KEYS.throttling));
+  const limits = (valueOf(STATE_KEYS.limits) ?? {}) as Record<string, unknown>;
+  const status = (valueOf(STATE_KEYS.status) ?? {}) as Record<string, unknown>;
+  if (throttlingStatus === null && Object.keys(limits).length === 0 && status['edition'] === undefined) {
+    return null;
+  }
+  return {
+    edition: str(status['edition']),
+    requestsPerDayLimit: num(limits['Max Requests per 24 Hours']),
+    componentsLimit: num(limits['Total Components']),
+    // Anything that is not an explicit "under limits" is treated as throttling, so a
+    // future status string errs toward warning rather than silence.
+    throttling: throttlingStatus !== null && throttlingStatus.toLowerCase() !== 'under limits',
+    throttlingStatus,
+    gracePeriodEnds: str(valueOf(STATE_KEYS.graceEnds)),
+    requestLimitLastExceeded: str(valueOf(STATE_KEYS.requestExceeded)),
+    componentLimitLastExceeded: str(valueOf(STATE_KEYS.componentExceeded)),
   };
 }
 

@@ -57,14 +57,25 @@ client. The panel reads the counter Nexus judges you by from
 | `request_rates.peak_requests_per_day_30d` | Peak per day (30 d) |
 | `request_rates.peak_requests_per_minute_1d` | Peak per minute (24 h) |
 
-**The limits themselves are not exposed by any Nexus API.** `usage-metrics`,
-`status-check`, `monthly-metrics`, `system/license` and the UI bundle were all checked —
-the bundle carries only `SOFT_THRESHOLD` / `HARD_THRESHOLD` strings and a 75 % warning
-ratio, no numbers. So the panel stores the limit as per-instance configuration:
-`PATCH /nexus/:id/limits`, or the **Set limits** button on the card. Defaults are the
-documented CE figures (200,000 requests/day, 100,000 components); use whatever your Nexus
-Usage Center shows. The bar turns amber at 75 % (matching Nexus's own ratio) and red at
-100 %.
+**Where the limits come from.** No documented REST endpoint reports them — `usage-metrics`,
+`status-check`, `monthly-metrics` and `system/license` were all checked. They *are* in the
+state blob Nexus's own UI runs on, `GET /service/extdirect/poll/rapture_State_get`, which
+the panel reads on every poll:
+
+| State key | Used for |
+|---|---|
+| `nexus.community.usageLimits` | the enforced limits, e.g. `{"Total Components": 40000, "Max Requests per 24 Hours": 100000}` |
+| `nexus.community.throttlingStatus` | `"Over limits"` / `"Under limits"` — whether writes are refused *now* |
+| `nexus.community.gracePeriodEnds` | when warnings turned into enforcement |
+| `nexus.community.requestPer24HoursLimitDateLastExceeded` | last time the request limit was exceeded |
+| `nexus.community.componentCountLimitDateLastExceeded` | same for components |
+| `status.edition` | `COMMUNITY` / `PRO` |
+
+Reported limits win over the per-instance configuration, which stays only as a fallback for
+an instance that does not serve this internal endpoint (the **Set limits** button appears
+only in that case). Getting this wrong is not cosmetic: the panel once defaulted to 200,000
+requests/day and showed an instance at **97 %** that was really at **195 %** of its real
+100,000 limit. The bar turns amber at 75 % (matching Nexus's own ratio) and red at 100 %.
 
 ### Write enforcement
 
@@ -88,8 +99,15 @@ the same Prometheus scrape:
 | `nexus_analytics_grace_throttled_requests` | writes slowed while still inside the grace period |
 | `nexus_analytics_throttled_requests` | writes slowed for other reasons |
 
-`GET /nexus/:id/series` returns them as `enforcement: { blocked, throttled, graceThrottled,
-blockedInRange }`, and the card shows a banner:
+`GET /nexus/:id/series` returns `community` (the state above) and `enforcement:
+{ blocked, throttled, graceThrottled, blockedInRange }`. The banner prefers Nexus's own
+verdict, because that is a state rather than an inference and does not depend on whether
+anyone happened to push during the window you are looking at:
+
+- `community.throttling` true → **red**, naming the enforcement date and the last time the
+  limit was exceeded;
+- `community.throttling` false → no banner, whatever the counters say;
+- no `community` (older Nexus, or the endpoint refused) → fall back to the counters:
 
 - **red, "refusing writes"** — `blockedInRange > 0`, i.e. the counter grew inside the
   selected range, so pushes are failing now;

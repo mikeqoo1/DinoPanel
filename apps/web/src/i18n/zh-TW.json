@@ -840,6 +840,10 @@
       "total_down": "累計下載量",
       "chart_requests": "請求速率",
       "enforcement": {
+        "reported_body": "Nexus 自己回報目前狀態為「超過上限」，新元件無法加入：推 image 或發布套件會拿到 403 PAYMENT REQUIRED，讀取不受影響。處理方式在 Nexus 的 Usage Center。",
+        "since": "限制自 {{date}} 起生效",
+        "last_over": "最近一次超限 {{date}}",
+        "blocked_total": "累計擋下 {{total}} 次寫入",
             "active_title": "Nexus 正在拒絕寫入",
             "active_body": "最近{{range}}內有 {{inRange}} 次寫入被擋（累計 {{total}} 次）。社群版用量超過上限後會禁止新增元件，推 image 或發布套件都會拿到 403 PAYMENT REQUIRED；讀取不受影響。處理方式在 Nexus 的 Usage Center。",
             "past_title": "Nexus 曾經拒絕寫入",
@@ -848,6 +852,8 @@
             "grace_body": "已有 {{count}} 次寫入被降速但尚未擋掉。寬限期結束後就會直接拒絕新元件。"
           },
       "usage": {
+        "limits_from_nexus": "上限由 Nexus 回報",
+        "grace_ends": "寬限期結束",
             "title": "社群版用量",
             "over": "已超過上限",
             "edit_limits": "設定上限",
