@@ -98,6 +98,7 @@ DinoPanel 是自架的單機 Linux 主機控制台，透過簡潔的網頁介面
 | v0.6.10 | Nexus 社群版用量配額 — 讀取 Sonatype 實際據以判斷的計數（24 小時請求數、元件數、不重複使用者、尖峰）並與流量樣本一起存，對每台可設定的上限畫進度條（75% 轉黃、100% 轉紅），另有 24 小時請求數走勢圖，看得出被擋的 `docker push` 何時會通。上限由面板保存，因為 Nexus 任何 API 都不提供 | ✅ 已 ship |
 | v0.6.11 | 修正 — v0.6.10 在 Nexus 實例 schema 加了兩個必填的上限欄位，而 KV 儲存 schema 由它衍生，導致更早註冊的實例全部驗證失敗、從面板上消失（資料未遺失）。儲存層的上限改為選填，讀取時套用社群版預設 | ✅ 已 ship |
 | v0.6.12 | Nexus 寫入封鎖橫幅 — 用量進度條可能顯示 90% 但推送照樣失敗，因為 Sonatype 是超量後給寬限期、之後持續執行限制，不是看此刻數字。卡片改為讀取 Nexus 自己的 blocked / grace-throttled 計數器，直接說明現在或過去是否拒絕寫入 | ✅ 已 ship |
+| v0.6.13 | Nexus 的上限與節流判定改為向實例本身取得（UI state blob 的 `nexus.community.*`），不再用猜的預設值 — 先前把實際為真正上限 195% 的實例顯示成 97%。寫入被拒橫幅改看 Nexus 自己的狀態，不再取決於所選圖表範圍內有沒有人推送 | ✅ 已 ship |
 | v0.7.0 | 帳號安全 — TOTP MFA + recovery codes、登入 session 管理、IP 白名單、SSH 設定管理（sshd port / root 登入 / 金鑰）。導入 `SecretsService`（順便加密 v0.4 明文 DB 密碼）。Passkey / WebAuthn 視 TLS 部署而定 | 規劃中 |
 | v0.8.0 | 告警與通知 — 監控閾值（CPU / RAM / 磁碟）、通知管道（Email / Webhook）、告警記錄（複用既有 scheduler） | 規劃中 |
 | v0.9.0 | 遠端備份 + 面板快照 — S3 / MinIO 相容備份目標、面板整體快照 backup / restore（設定 + DB + 站台 conf） | 規劃中 |
