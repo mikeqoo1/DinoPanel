@@ -9,4 +9,5 @@
       修正：schema 宣告順序（`nexusEnforcementSchema` 必須在 `nexusSeriesSchema` 之前）。
 - [x] T-3 Web：`EnforcementBanner`（紅／黃／寬限三態）置於卡片最上方；i18n 兩語系。docs 新增「Write enforcement」節。
 - [x] T-4 typecheck / lint / build 綠；test 650。
-- [ ] T-5 release 0.6.12 → 部署 234 → 確認 dev2 出現橫幅、dev1 沒有 → UI 目視。
+- [x] T-5 release 0.6.12（`ba4303b`）→ 部署 234（migration 0008）→ dev1 無橫幅、dev2 `blocked:7`；
+      再觸發一次被擋寫入後轉為 `blocked:8, blockedInRange:1`，紅色路徑活驗通過（見 smoke-pass.md）。UI 目視留給使用者。
