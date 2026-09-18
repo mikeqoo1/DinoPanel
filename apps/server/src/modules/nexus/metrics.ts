@@ -1,4 +1,4 @@
-import type { NexusMetrics, NexusPoint, NexusRange, NexusUsage } from '@dinopanel/shared';
+import type { NexusEnforcement, NexusMetrics, NexusPoint, NexusRange, NexusUsage } from '@dinopanel/shared';
 
 // ---------------------------------------------------------------------------
 // Pure functions — Prometheus text → counters → per-second rate series
@@ -46,6 +46,11 @@ export function extractNexusMetrics(m: Map<string, number>): NexusMetrics {
     bytesUp += f.up;
   }
   return {
+    // Community-edition write enforcement. blocked = refused outright;
+    // grace_throttled = slowed while still inside the grace period.
+    blockedRequests: n('nexus_analytics_blocked_requests_count'),
+    throttledRequests: n('nexus_analytics_throttled_requests'),
+    graceThrottledRequests: n('nexus_analytics_grace_throttled_requests'),
     requests: n(`${JETTY}requests_count`),
     resp2xx: n(`${JETTY}2xx_responses_total`),
     resp3xx: n(`${JETTY}3xx_responses_total`),
@@ -91,10 +96,33 @@ export function bucketMsForRange(range: NexusRange): number {
   }
 }
 
-export interface NexusSample extends Omit<NexusMetrics, 'byFormat'> {
+export interface NexusSample
+  extends Omit<NexusMetrics, 'byFormat' | 'blockedRequests' | 'throttledRequests' | 'graceThrottledRequests'> {
   ts: number;
   /** Gauge (rolling 24 h request count); null when usage could not be read. */
   requests24h?: number | null;
+  // Null on rows written before v0.6.12 and on a Nexus that does not emit them.
+  blockedRequests?: number | null;
+  throttledRequests?: number | null;
+  graceThrottledRequests?: number | null;
+}
+
+/**
+ * Summarises write enforcement over the queried samples. Returns null when no sample
+ * carries the counters at all. `blockedInRange` is clamped at 0 so a restart reads as
+ * "no blocking observed" rather than a negative number.
+ */
+export function enforcementFromSamples(samples: NexusSample[]): NexusEnforcement | null {
+  const withCounters = samples.filter((s) => s.blockedRequests !== null && s.blockedRequests !== undefined);
+  const last = withCounters[withCounters.length - 1];
+  if (!last) return null;
+  const first = withCounters[0]!;
+  return {
+    blocked: last.blockedRequests ?? 0,
+    throttled: last.throttledRequests ?? 0,
+    graceThrottled: last.graceThrottledRequests ?? 0,
+    blockedInRange: Math.max(0, (last.blockedRequests ?? 0) - (first.blockedRequests ?? 0)),
+  };
 }
 
 /**

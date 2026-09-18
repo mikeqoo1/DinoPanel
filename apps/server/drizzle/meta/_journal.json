@@ -57,6 +57,13 @@
       "when": 1789634096577,
       "tag": "0007_silent_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789694771696,
+      "tag": "0008_glossy_the_spike",
+      "breakpoints": true
     }
   ]
 }

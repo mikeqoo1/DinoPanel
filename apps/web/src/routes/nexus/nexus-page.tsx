@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Boxes, Pencil, Trash2 } from 'lucide-react';
-import { USAGE_WARN_RATIO, type NexusInstance, type NexusPoint, type NexusRange, type NexusUsage } from '@dinopanel/shared';
+import { Boxes, Lock, Pencil, Trash2 } from 'lucide-react';
+import { USAGE_WARN_RATIO, type NexusEnforcement, type NexusInstance, type NexusPoint, type NexusRange, type NexusUsage } from '@dinopanel/shared';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -182,6 +182,48 @@ function LimitsDialog({
   );
 }
 
+/**
+ * Nexus's own answer to "will a push succeed right now". `blockedInRange` rising means it
+ * is refusing writes now; a non-zero lifetime total that is flat means it did earlier.
+ * Reads are never affected, so the traffic charts can look perfectly healthy meanwhile.
+ */
+function EnforcementBanner({ enforcement, range }: { enforcement: NexusEnforcement | null; range: NexusRange }) {
+  const { t } = useTranslation();
+  if (!enforcement || (enforcement.blocked === 0 && enforcement.graceThrottled === 0)) return null;
+
+  const active = enforcement.blockedInRange > 0;
+  const grace = enforcement.blocked === 0 && enforcement.graceThrottled > 0;
+  const tone = active
+    ? 'border-destructive/50 bg-destructive/10 text-destructive'
+    : 'border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400';
+
+  return (
+    <div className={cn('flex items-start gap-2 rounded-md border p-3 text-xs', tone)}>
+      <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+      <div className="space-y-0.5">
+        <div className="text-sm font-medium">
+          {grace
+            ? t('nexus.enforcement.grace_title')
+            : active
+              ? t('nexus.enforcement.active_title')
+              : t('nexus.enforcement.past_title')}
+        </div>
+        <div>
+          {grace
+            ? t('nexus.enforcement.grace_body', { count: enforcement.graceThrottled })
+            : active
+              ? t('nexus.enforcement.active_body', {
+                  inRange: enforcement.blockedInRange,
+                  range: t(`nexus.range.${range}`),
+                  total: enforcement.blocked,
+                })
+              : t('nexus.enforcement.past_body', { total: enforcement.blocked })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UsageSection({ instance, usage }: { instance: NexusInstance; usage: NexusUsage | null }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
@@ -350,6 +392,8 @@ function InstanceCard({ instance }: { instance: NexusInstance }) {
         <div className="text-sm text-destructive">{extractErrorMessage(error)}</div>
       ) : (
         <>
+          <EnforcementBanner enforcement={data?.enforcement ?? null} range={range} />
+
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
             <div>
               <div className="text-xs text-muted-foreground">{t('nexus.now_requests')}</div>

@@ -83,6 +83,9 @@ org_eclipse_jetty_ee10_webapp_WebAppContext_3xx_responses_total 187.0
 org_eclipse_jetty_ee10_webapp_WebAppContext_4xx_responses_total 8.0
 org_eclipse_jetty_ee10_webapp_WebAppContext_5xx_responses_total 0.0
 bytes_downloaded_by_format_npm 3.26405912E9
+nexus_analytics_blocked_requests_count 7.0
+nexus_analytics_throttled_requests 0.0
+nexus_analytics_grace_throttled_requests 0.0
 `;
 
 beforeEach(() => vi.clearAllMocks());
@@ -262,5 +265,19 @@ describe('NexusService backward compatibility', () => {
   it('still drops an entry that is genuinely invalid (bad url)', async () => {
     const { svc } = makeService(JSON.stringify([{ id: 'x', name: 'n', url: 'not a url', username: 'u' }]));
     expect(await svc.list()).toEqual([]);
+  });
+});
+
+describe('NexusService write enforcement', () => {
+  it('poll() stores the enforcement counters with the sample', async () => {
+    vi.stubGlobal('fetch', fetchRouter());
+    const { svc, db } = makeService();
+    await svc.add(INPUT);
+    await svc.poll();
+    expect(db._state.inserted[0]).toMatchObject({
+      blockedRequests: 7,
+      throttledRequests: 0,
+      graceThrottledRequests: 0,
+    });
   });
 });

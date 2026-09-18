@@ -55,6 +55,11 @@ export const nexusMetricsSchema = z.object({
   bytesDown: z.number(),
   bytesUp: z.number(),
   byFormat: z.record(z.string(), z.object({ down: z.number(), up: z.number() })),
+  /** Writes Nexus refused outright (community edition past its grace period). */
+  blockedRequests: z.number(),
+  throttledRequests: z.number(),
+  /** Writes slowed while still inside the grace period — tells grace apart from enforcement. */
+  graceThrottledRequests: z.number(),
 });
 export type NexusMetrics = z.infer<typeof nexusMetricsSchema>;
 
@@ -89,6 +94,19 @@ export type NexusPoint = z.infer<typeof nexusPointSchema>;
 export const nexusRangeSchema = z.enum(['1h', '24h', '7d']);
 export type NexusRange = z.infer<typeof nexusRangeSchema>;
 
+/**
+ * Whether Nexus is refusing writes. `blocked` is the instance's lifetime counter;
+ * `blockedInRange` is how much it grew inside the queried window, which is what tells
+ * "it is rejecting pushes right now" from "it rejected some last week".
+ */
+export const nexusEnforcementSchema = z.object({
+  blocked: z.number(),
+  throttled: z.number(),
+  graceThrottled: z.number(),
+  blockedInRange: z.number(),
+});
+export type NexusEnforcement = z.infer<typeof nexusEnforcementSchema>;
+
 export const nexusSeriesSchema = z.object({
   range: nexusRangeSchema,
   points: z.array(nexusPointSchema),
@@ -96,6 +114,8 @@ export const nexusSeriesSchema = z.object({
   latest: nexusMetricsSchema.nullable(),
   /** Latest community-edition quota figures; null when the account cannot read them. */
   usage: nexusUsageSchema.nullable(),
+  /** Write-enforcement state; null when no sample in range carried the counters. */
+  enforcement: nexusEnforcementSchema.nullable(),
   /** When the latest sample was taken. */
   latestTs: z.number().nullable(),
 });

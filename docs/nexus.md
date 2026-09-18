@@ -66,6 +66,41 @@ documented CE figures (200,000 requests/day, 100,000 components); use whatever y
 Usage Center shows. The bar turns amber at 75 % (matching Nexus's own ratio) and red at
 100 %.
 
+### Write enforcement
+
+Being under the limit *right now* does not mean writes are allowed. Sonatype's own UI
+describes the policy: exceed the limit, get a grace period with a countdown, and after it
+ends *"usage limits came into effect on <date> … new components can no longer be added"*.
+Reads keep working throughout, so the traffic charts can look perfectly healthy while
+every `docker push` fails with:
+
+```
+403 PAYMENT REQUIRED: At current usage levels, Sonatype Nexus Repository Community
+Edition requires a paid license to publish or cache new components.
+```
+
+The panel therefore also reads the counters Nexus keeps about its own enforcement, from
+the same Prometheus scrape:
+
+| Metric | Meaning |
+|---|---|
+| `nexus_analytics_blocked_requests_count` | writes refused outright |
+| `nexus_analytics_grace_throttled_requests` | writes slowed while still inside the grace period |
+| `nexus_analytics_throttled_requests` | writes slowed for other reasons |
+
+`GET /nexus/:id/series` returns them as `enforcement: { blocked, throttled, graceThrottled,
+blockedInRange }`, and the card shows a banner:
+
+- **red, "refusing writes"** — `blockedInRange > 0`, i.e. the counter grew inside the
+  selected range, so pushes are failing now;
+- **amber, "has refused writes before"** — lifetime total is non-zero but flat in range.
+  A restriction can still be in force; it only means nobody tried to push in that window;
+- **amber, "grace period"** — only the grace counter has moved.
+
+Observed on a real instance: `blocked_requests_count = 7`, `grace_throttled_requests = 0`
+(grace already over), `GET /v2/` and `tags/list` returning 200 while
+`POST /v2/<repo>/blobs/uploads/` returned 403.
+
 Two things worth knowing about the counter:
 
 - `requests_per_last_24h` is a **rolling 24-hour window**, not a midnight reset, so it
@@ -135,3 +170,8 @@ someone actually pulls an artifact.
 not a panel error. The 24-hour counter is rolling, so it drops on its own; watch the quota
 chart to see when it passes back under. Confirm the real limit in Nexus's Usage Center and
 correct it with **Set limits** if the panel's default does not match.
+
+**The quota bar is back under 100 % but pushes still fail** — expected. Enforcement does
+not lift the moment usage drops; see *Write enforcement* above. Trust the red banner over
+the bars: it reflects Nexus actually rejecting writes. The way out is the **How to Restore
+Usage** button in Nexus's own Usage Center.

@@ -349,6 +349,10 @@ export const nexusSamples = sqliteTable(
     uniqueUsers30d: integer('unique_users_30d'),
     peakRequestsPerDay30d: integer('peak_requests_per_day_30d'),
     peakRequestsPerMinute1d: integer('peak_requests_per_minute_1d'),
+    // Community-edition write enforcement (v0.6.12). Nullable for the same reasons.
+    blockedRequests: integer('blocked_requests'),
+    throttledRequests: integer('throttled_requests'),
+    graceThrottledRequests: integer('grace_throttled_requests'),
   },
   (t) => ({
     instanceTsIdx: index('nexus_samples_instance_ts_idx').on(t.instanceId, t.ts),

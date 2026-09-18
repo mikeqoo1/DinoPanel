@@ -839,6 +839,14 @@
       "total_requests": "累計請求數",
       "total_down": "累計下載量",
       "chart_requests": "請求速率",
+      "enforcement": {
+            "active_title": "Nexus 正在拒絕寫入",
+            "active_body": "最近{{range}}內有 {{inRange}} 次寫入被擋（累計 {{total}} 次）。社群版用量超過上限後會禁止新增元件，推 image 或發布套件都會拿到 403 PAYMENT REQUIRED；讀取不受影響。處理方式在 Nexus 的 Usage Center。",
+            "past_title": "Nexus 曾經拒絕寫入",
+            "past_body": "這台累計擋過 {{total}} 次寫入，但所選時間範圍內沒有新增。若 CI 仍失敗，代表限制還在生效，只是這段期間沒人嘗試推送。",
+            "grace_title": "Nexus 處於寬限期",
+            "grace_body": "已有 {{count}} 次寫入被降速但尚未擋掉。寬限期結束後就會直接拒絕新元件。"
+          },
       "usage": {
             "title": "社群版用量",
             "over": "已超過上限",

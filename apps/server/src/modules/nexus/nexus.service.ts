@@ -31,6 +31,7 @@ import { DRIZZLE_DB, type Db } from '../../database/db.module';
 import { nexusSamples, settings } from '../../database/schema';
 import {
   bucketMsForRange,
+  enforcementFromSamples,
   extractNexusMetrics,
   parsePrometheusText,
   parseUsageMetrics,
@@ -326,6 +327,9 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
           uniqueUsers30d: usage?.uniqueUsers30d ?? null,
           peakRequestsPerDay30d: usage?.peakRequestsPerDay30d ?? null,
           peakRequestsPerMinute1d: usage?.peakRequestsPerMinute1d ?? null,
+          blockedRequests: m.blockedRequests,
+          throttledRequests: m.throttledRequests,
+          graceThrottledRequests: m.graceThrottledRequests,
         });
       } catch (err) {
         const code = err instanceof HttpException ? (err.getResponse() as { code?: string }).code : undefined;
@@ -356,6 +360,9 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
       bytesDown: r.bytesDown,
       bytesUp: r.bytesUp,
       requests24h: r.requests24h,
+      blockedRequests: r.blockedRequests,
+      throttledRequests: r.throttledRequests,
+      graceThrottledRequests: r.graceThrottledRequests,
     }));
     const last = rows[rows.length - 1];
     let latest: NexusMetrics | null = null;
@@ -367,6 +374,9 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
         this.logger.warn({ instance: instance.id }, 'nexus.by_format_parse_error');
       }
       latest = {
+        blockedRequests: last.blockedRequests ?? 0,
+        throttledRequests: last.throttledRequests ?? 0,
+        graceThrottledRequests: last.graceThrottledRequests ?? 0,
         requests: last.requests,
         resp2xx: last.resp2xx,
         resp3xx: last.resp3xx,
@@ -391,6 +401,7 @@ export class NexusService implements OnModuleInit, OnApplicationShutdown {
               peakRequestsPerMinute1d: last.peakRequestsPerMinute1d ?? 0,
             }
           : null,
+      enforcement: enforcementFromSamples(samples),
       latestTs: last ? last.ts : null,
     };
   }

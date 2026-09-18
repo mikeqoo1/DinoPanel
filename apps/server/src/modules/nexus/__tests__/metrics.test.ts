@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange, parseUsageMetrics } from '../metrics';
+import { parsePrometheusText, extractNexusMetrics, toSeries, bucketMsForRange, parseUsageMetrics, enforcementFromSamples } from '../metrics';
 
 const SAMPLE_TEXT = `# HELP jvm_memory_heap_committed Generated from Dropwizard metric
 # TYPE jvm_memory_heap_committed gauge
@@ -15,6 +15,9 @@ bytes_downloaded_by_format_npm 3.26405912E9
 bytes_downloaded_by_format_maven2 1024.0
 bytes_downloaded_by_format_docker 0.0
 bytes_uploaded_by_format_npm 512.0
+nexus_analytics_blocked_requests_count 7.0
+nexus_analytics_throttled_requests 0.0
+nexus_analytics_grace_throttled_requests 0.0
 broken_line_without_value
 some_metric NaN
 `;
@@ -59,9 +62,16 @@ describe('extractNexusMetrics', () => {
     });
   });
 
+  it('picks up the write-enforcement counters', () => {
+    const r = extractNexusMetrics(parsePrometheusText(SAMPLE_TEXT));
+    expect(r.blockedRequests).toBe(7);
+    expect(r.throttledRequests).toBe(0);
+    expect(r.graceThrottledRequests).toBe(0);
+  });
+
   it('missing counters read as 0 rather than throwing', () => {
     const r = extractNexusMetrics(new Map());
-    expect(r).toMatchObject({ requests: 0, resp5xx: 0, bytesDown: 0, bytesUp: 0, byFormat: {} });
+    expect(r).toMatchObject({ requests: 0, resp5xx: 0, bytesDown: 0, bytesUp: 0, byFormat: {}, blockedRequests: 0 });
   });
 });
 
@@ -191,5 +201,57 @@ describe('toSeries — usage gauge', () => {
   it('is null when the instance never reported usage', () => {
     const points = toSeries([g(0, null), g(60, null)], 60_000);
     expect(points[0]!.requests24h).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enforcementFromSamples — is Nexus refusing writes, and did it just now?
+// ---------------------------------------------------------------------------
+
+describe('enforcementFromSamples', () => {
+  const e = (tsOffsetSec: number, blocked: number | null, grace = 0) => ({
+    ts: BASE + tsOffsetSec * 1000,
+    requests: 0,
+    resp2xx: 0,
+    resp3xx: 0,
+    resp4xx: 0,
+    resp5xx: 0,
+    bytesDown: 0,
+    bytesUp: 0,
+    blockedRequests: blocked,
+    graceThrottledRequests: grace,
+    throttledRequests: 0,
+  });
+
+  it('reports the latest totals and how much blocking happened inside the window', () => {
+    expect(enforcementFromSamples([e(0, 4), e(60, 7)])).toEqual({
+      blocked: 7,
+      throttled: 0,
+      graceThrottled: 0,
+      blockedInRange: 3,
+    });
+  });
+
+  it('a counter that never moved reports blockedInRange 0 but keeps the total', () => {
+    expect(enforcementFromSamples([e(0, 7), e(60, 7)])?.blockedInRange).toBe(0);
+    expect(enforcementFromSamples([e(0, 7), e(60, 7)])?.blocked).toBe(7);
+  });
+
+  it('a restart (counter went backwards) reports the new total, never a negative delta', () => {
+    const r = enforcementFromSamples([e(0, 7), e(60, 2)]);
+    expect(r).toMatchObject({ blocked: 2, blockedInRange: 0 });
+  });
+
+  it('carries the grace counter through, which distinguishes grace from hard enforcement', () => {
+    expect(enforcementFromSamples([e(0, 0, 5), e(60, 0, 9)])?.graceThrottled).toBe(9);
+  });
+
+  it('is null when no sample carries the counters (pre-0.6.12 rows or an older Nexus)', () => {
+    expect(enforcementFromSamples([e(0, null), e(60, null)])).toBeNull();
+    expect(enforcementFromSamples([])).toBeNull();
+  });
+
+  it('works from a single sample', () => {
+    expect(enforcementFromSamples([e(0, 7)])).toEqual({ blocked: 7, throttled: 0, graceThrottled: 0, blockedInRange: 0 });
   });
 });
